@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* PreDent Canada Design System */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 84% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.75rem;
+
+    /* Custom PreDent Colors */
+    --dental-blue: #2563EB;
+    --dental-blue-dark: #1D4ED8;
+    --success-green: #10B981;
+    --warm-orange: #F59E0B;
+    --alert-red: #EF4444;
+    --bg-white: #FFFFFF;
+    --bg-alt: #F8FAFC;
+    --surface: #F1F5F9;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-tertiary: #94A3B8;
+    --border-color: #E2E8F0;
+
+    /* PAT Category Colors */
+    --keyhole-teal: #14B8A6;
+    --tfe-indigo: #6366F1;
+    --angle-amber: #F59E0B;
+    --hole-punch-rose: #F43F5E;
+    --cube-emerald: #10B981;
+    --pattern-violet: #8B5CF6;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .section-container {
+    @apply w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16;
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  .gradient-blue {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  }
+  .gradient-hero {
+    background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #2563EB 100%);
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, #2563EB, #10B981);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out forwards;
+  }
+  .animate-counter {
+    animation: counter 0.5s ease-out forwards;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes counter {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}
