@@ -1,12 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* PreDent Canada Design System */
+    /* PreDent Canada Design System - Light */
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -29,26 +27,65 @@
     --radius: 0.75rem;
 
     /* Custom PreDent Colors */
-    --dental-blue: #2563EB;
-    --dental-blue-dark: #1D4ED8;
-    --success-green: #10B981;
-    --warm-orange: #F59E0B;
-    --alert-red: #EF4444;
-    --bg-white: #FFFFFF;
-    --bg-alt: #F8FAFC;
-    --surface: #F1F5F9;
-    --text-primary: #0F172A;
+    --dental-blue: #2563eb;
+    --dental-blue-dark: #1d4ed8;
+    --success-green: #10b981;
+    --warm-orange: #f59e0b;
+    --alert-red: #ef4444;
+    --bg-white: #ffffff;
+    --bg-alt: #f8fafc;
+    --surface: #f1f5f9;
+    --text-primary: #0f172a;
     --text-secondary: #475569;
-    --text-tertiary: #94A3B8;
-    --border-color: #E2E8F0;
+    --text-tertiary: #64748b;
+    --border-color: #e2e8f0;
+    --page-bg: #f8fafc;
+    --page-surface: #ffffff;
+    --page-muted: #f1f5f9;
+    --shadow-color: #000000;
 
     /* PAT Category Colors */
-    --keyhole-teal: #14B8A6;
-    --tfe-indigo: #6366F1;
-    --angle-amber: #F59E0B;
-    --hole-punch-rose: #F43F5E;
-    --cube-emerald: #10B981;
-    --pattern-violet: #8B5CF6;
+    --keyhole-teal: #14b8a6;
+    --tfe-indigo: #6366f1;
+    --angle-amber: #f59e0b;
+    --hole-punch-rose: #f43f5e;
+    --cube-emerald: #10b981;
+    --pattern-violet: #8b5cf6;
+  }
+
+  .dark {
+    /* PreDent Canada Design System - Dark */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
+    --popover: 217 33% 17%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 84% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 33% 22%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 25%;
+    --input: 217 33% 25%;
+    --ring: 217 91% 60%;
+
+    --bg-white: #0f172a;
+    --bg-alt: #0f172a;
+    --surface: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+    --border-color: #334155;
+    --page-bg: #0f172a;
+    --page-surface: #1e293b;
+    --page-muted: #334155;
+    --shadow-color: #000000;
   }
 }
 
@@ -56,15 +93,28 @@
   * {
     @apply border-border;
   }
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-[var(--ring)];
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', system-ui, sans-serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Inter", system-ui, sans-serif;
   }
-  code, pre {
-    font-family: 'JetBrains Mono', monospace;
+  code,
+  pre {
+    font-family: "JetBrains Mono", monospace;
   }
 }
 
@@ -76,13 +126,13 @@
     @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
   }
   .gradient-blue {
-    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   }
   .gradient-hero {
-    background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #2563EB 100%);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #2563eb 100%);
   }
   .text-gradient {
-    background: linear-gradient(135deg, #2563EB, #10B981);
+    background: linear-gradient(135deg, #2563eb, #10b981);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -102,18 +152,34 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes counter {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Smooth scrolling */
@@ -121,17 +187,29 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
+/* Theme-aware scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #F1F5F9;
+  background: var(--page-muted);
 }
 ::-webkit-scrollbar-thumb {
-  background: #94A3B8;
+  background: var(--text-tertiary);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748B;
+  background: var(--text-secondary);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

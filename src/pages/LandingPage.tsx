@@ -1,19 +1,39 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, useInView } from 'framer-motion';
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, useInView } from "framer-motion";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import {
-  BookOpen, Users, BarChart3, Brain,
-  Target, School, Check, X, Star, Sparkles,
-  Shield
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+  BookOpen,
+  Users,
+  BarChart3,
+  Brain,
+  Target,
+  School,
+  Check,
+  X,
+  Sparkles,
+  Shield,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 /* ─── Animation Wrapper ─── */
-function FadeIn({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+function FadeIn({
+  children,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+}) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const isInView = useInView(ref, { once: true, margin: "-50px" });
   return (
     <motion.div
       ref={ref}
@@ -27,7 +47,15 @@ function FadeIn({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
 }
 
 /* ─── Animated Counter ─── */
-function AnimatedCounter({ end, suffix = '', duration = 2000 }: { end: number; suffix?: string; duration?: number }) {
+function AnimatedCounter({
+  end,
+  suffix = "",
+  duration = 2000,
+}: {
+  end: number;
+  suffix?: string;
+  duration?: number;
+}) {
   const [count, setCount] = useState(0);
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true });
@@ -48,31 +76,44 @@ function AnimatedCounter({ end, suffix = '', duration = 2000 }: { end: number; s
     return () => clearInterval(timer);
   }, [isInView, end, duration]);
 
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
+  return (
+    <span ref={ref}>
+      {count.toLocaleString()}
+      {suffix}
+    </span>
+  );
 }
 
 /* ─── Hero Section ─── */
+const particles = Array.from({ length: 8 }, () => ({
+  left: Math.random() * 100,
+  top: Math.random() * 100,
+  duration: 3 + Math.random() * 2,
+  delay: Math.random() * 2,
+}));
+
 function HeroSection() {
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden gradient-hero">
+    <section className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-[var(--page-bg)] to-[var(--page-surface)]">
       {/* Floating particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
+        {particles.map((p, i) => (
           <motion.div
             key={i}
-            className="absolute w-1 h-1 bg-white/20 rounded-full"
+            className="absolute w-1 h-1 bg-[var(--text-primary)]/10 rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${p.left}%`,
+              top: `${p.top}%`,
             }}
-            animate={{
+            whileInView={{
               y: [0, -30, 0],
               opacity: [0.2, 0.6, 0.2],
             }}
+            viewport={{ once: false, amount: 0 }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: p.duration,
               repeat: Infinity,
-              delay: Math.random() * 2,
+              delay: p.delay,
             }}
           />
         ))}
@@ -85,31 +126,32 @@ function HeroSection() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white/80 text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--page-muted)] border border-[var(--border-color)] text-[var(--text-secondary)] text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4 text-[#F59E0B]" />
-              #1 Platform for Canadian Dental School Admissions
+              DAT Prep & School Research for Canadian Pre-Dental Students
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6">
-              The Operating System for{' '}
-              <span className="text-gradient bg-gradient-to-r from-[#60A5FA] to-[#34D399] bg-clip-text text-transparent">
-                Canadian Pre-Dental Students
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[var(--text-primary)] leading-[1.1] mb-6">
+              Canadian DAT Prep Built for{" "}
+              <span className="text-gradient bg-gradient-to-r from-[#2563EB] to-[#10B981] bg-clip-text text-transparent">
+                Dental School Admission
               </span>
             </h1>
-            <p className="text-lg text-white/70 max-w-lg mb-8 leading-relaxed">
-              Everything you need to conquer the DAT, master the PAT, and get accepted into Canadian dental school — all in one platform built for your success.
+            <p className="text-lg text-[var(--text-secondary)] max-w-lg mb-8 leading-relaxed">
+              Practice the Canadian DAT, train your PAT skills, and track every
+              application deadline — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button
                 size="lg"
                 className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-8 h-12 text-base"
-                onClick={() => alert('Authentication coming in Step 5!')}
+                asChild
               >
-                Get Started Free
+                <Link to="/login">Get Started Free</Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white/30 text-white hover:bg-white/10 font-semibold px-8 h-12 text-base"
+                className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--page-muted)] font-semibold px-8 h-12 text-base"
                 asChild
               >
                 <Link to="/schools">Explore Schools</Link>
@@ -117,17 +159,28 @@ function HeroSection() {
             </div>
             <div className="flex items-center gap-6 mt-8">
               <div className="flex -space-x-3">
-                {['/testimonial-1.jpg', '/testimonial-2.jpg', '/testimonial-3.jpg'].map((src, i) => (
-                  <img key={i} src={src} alt="" className="w-10 h-10 rounded-full border-2 border-[#0F172A] object-cover" />
+                {[
+                  "/testimonial-1.jpg",
+                  "/testimonial-2.jpg",
+                  "/testimonial-3.jpg",
+                ].map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    width="40"
+                    height="40"
+                    className="w-10 h-10 rounded-full border-2 border-[var(--page-bg)] object-cover"
+                  />
                 ))}
               </div>
               <div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} className="w-4 h-4 fill-[#F59E0B] text-[#F59E0B]" />
-                  ))}
+                <div className="flex items-center gap-1 text-[#F59E0B]">
+                  ★★★★★
                 </div>
-                <p className="text-xs text-white/60 mt-1">Trusted by 2,000+ pre-dental students</p>
+                <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                  Built exclusively for Canadian dental school admissions
+                </p>
               </div>
             </div>
           </motion.div>
@@ -142,26 +195,37 @@ function HeroSection() {
               <img
                 src="/hero-illustration.jpg"
                 alt="PreDent Canada Platform"
-                className="rounded-2xl shadow-2xl border border-white/10"
+                width="720"
+                height="416"
+                loading="lazy"
+                className="rounded-2xl shadow-2xl border border-[var(--border-color)]"
               />
               {/* Floating stat cards */}
               <motion.div
-                className="absolute -bottom-4 -left-4 bg-white rounded-xl shadow-lg p-3 border border-[#E2E8F0]"
-                animate={{ y: [0, -8, 0] }}
+                className="absolute -bottom-4 -left-4 bg-[var(--page-surface)] rounded-xl shadow-lg p-3 border border-[var(--border-color)]"
+                whileInView={{ y: [0, -8, 0] }}
+                viewport={{ once: false, amount: 0 }}
                 transition={{ duration: 3, repeat: Infinity }}
               >
-                <p className="text-xs text-[#475569]">Predicted PAT Score</p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Predicted PAT Score
+                </p>
                 <p className="text-2xl font-bold text-[#2563EB]">22</p>
               </motion.div>
               <motion.div
-                className="absolute -top-4 -right-4 bg-white rounded-xl shadow-lg p-3 border border-[#E2E8F0]"
-                animate={{ y: [0, 8, 0] }}
+                className="absolute -top-4 -right-4 bg-[var(--page-surface)] rounded-xl shadow-lg p-3 border border-[var(--border-color)]"
+                whileInView={{ y: [0, 8, 0] }}
+                viewport={{ once: false, amount: 0 }}
                 transition={{ duration: 2.5, repeat: Infinity }}
               >
-                <p className="text-xs text-[#475569]">Study Streak</p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Study Streak
+                </p>
                 <div className="flex items-center gap-1">
                   <p className="text-2xl font-bold text-[#10B981]">12</p>
-                  <span className="text-sm">days</span>
+                  <span className="text-sm text-[var(--text-primary)]">
+                    days
+                  </span>
                 </div>
               </motion.div>
             </div>
@@ -171,8 +235,15 @@ function HeroSection() {
 
       {/* Wave divider */}
       <div className="absolute bottom-0 left-0 right-0">
-        <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 80V40C240 80 480 0 720 0C960 0 1200 80 1440 40V80H0Z" fill="white" />
+        <svg
+          viewBox="0 0 1440 80"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M0 80V40C240 80 480 0 720 0C960 0 1200 80 1440 40V80H0Z"
+            fill="var(--page-surface)"
+          />
         </svg>
       </div>
     </section>
@@ -183,58 +254,69 @@ function HeroSection() {
 const pillars = [
   {
     icon: Brain,
-    title: 'PAT Academy',
-    description: '300+ practice questions across all 6 PAT categories with 3D models, generators, and AI-powered explanations.',
-    color: '#2563EB',
-    bgColor: '#EFF6FF',
+    title: "PAT Academy",
+    description:
+      "360+ practice questions across all 6 PAT categories with interactive generators and tiered explanations.",
+    color: "#2563EB",
+    bgColor: "rgba(37, 99, 235, 0.1)",
   },
   {
     icon: BookOpen,
-    title: 'DAT Academy',
-    description: 'Complete Biology, Chemistry, and Reading Comprehension modules with flashcards, videos, and practice tests.',
-    color: '#10B981',
-    bgColor: '#ECFDF5',
+    title: "DAT Academy",
+    description:
+      "Biology, Chemistry, and Reading Comprehension modules with flashcards and practice questions.",
+    color: "#10B981",
+    bgColor: "rgba(16, 185, 129, 0.1)",
   },
   {
     icon: School,
-    title: 'School Hub',
-    description: 'Detailed profiles for all 10 Canadian dental schools with admission stats, requirements, and 5-year trends.',
-    color: '#6366F1',
-    bgColor: '#EEF2FF',
+    title: "School Hub",
+    description:
+      "Detailed profiles for all 10 Canadian dental schools with admission stats, requirements, and 5-year trends.",
+    color: "#6366F1",
+    bgColor: "rgba(99, 102, 241, 0.1)",
   },
   {
     icon: Target,
-    title: 'Application Planner',
-    description: 'Kanban task manager, document vault, deadline alerts, and calendar to keep your application on track.',
-    color: '#F59E0B',
-    bgColor: '#FFFBEB',
+    title: "Application Planner",
+    description:
+      "Kanban task manager with deadline alerts, calendar view, and scheduling suggestions to keep your application on track.",
+    color: "#F59E0B",
+    bgColor: "rgba(245, 158, 11, 0.1)",
   },
   {
     icon: Users,
-    title: 'Community Intelligence',
-    description: 'Aggregated stats from Reddit, interview experiences, DAT breakdowns, and acceptance posts from real students.',
-    color: '#14B8A6',
-    bgColor: '#F0FDFA',
+    title: "Student Community",
+    description:
+      "Admission results, interview experiences, DAT breakdowns, and discussion posts from real students.",
+    color: "#14B8A6",
+    bgColor: "rgba(20, 184, 166, 0.1)",
   },
   {
     icon: BarChart3,
-    title: 'Analytics',
-    description: 'Predict your PAT score, track your progress, identify weaknesses, and get personalized study recommendations.',
-    color: '#8B5CF6',
-    bgColor: '#F5F3FF',
+    title: "Analytics",
+    description:
+      "Predict your PAT score, track your progress, and see exactly which categories need more practice.",
+    color: "#8B5CF6",
+    bgColor: "rgba(139, 92, 246, 0.1)",
   },
 ];
 
 function ValuePropSection() {
   return (
-    <section className="py-20 lg:py-28 bg-white">
+    <section className="py-20 lg:py-28 bg-[var(--page-surface)]">
       <div className="section-container max-w-7xl mx-auto">
         <FadeIn>
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">Why PreDent Canada</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">Everything You Need, One Platform</h2>
-            <p className="text-[#475569] max-w-2xl mx-auto">
-              Stop jumping between 10 different resources. We built the platform we wished we had when applying to dental school.
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              Why PreDent Canada
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Everything You Need, One Platform
+            </h2>
+            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto">
+              Stop jumping between 10 different resources. We built the platform
+              we wished we had when applying to dental school.
             </p>
           </div>
         </FadeIn>
@@ -242,16 +324,84 @@ function ValuePropSection() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {pillars.map((pillar, i) => (
             <FadeIn key={pillar.title} delay={i * 0.1}>
-              <Card className="group card-hover border-[#E2E8F0] cursor-pointer h-full">
+              <Card className="group card-hover border-[var(--border-color)] cursor-pointer h-full bg-[var(--page-surface)]">
                 <CardContent className="p-6">
                   <div
                     className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"
                     style={{ backgroundColor: pillar.bgColor }}
                   >
-                    <pillar.icon className="w-6 h-6" style={{ color: pillar.color }} />
+                    <pillar.icon
+                      className="w-6 h-6"
+                      style={{ color: pillar.color }}
+                    />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#0F172A] mb-2">{pillar.title}</h3>
-                  <p className="text-sm text-[#475569] leading-relaxed">{pillar.description}</p>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+                    {pillar.title}
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                    {pillar.description}
+                  </p>
+                </CardContent>
+              </Card>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── How It Works Section ─── */
+const howItWorksSteps = [
+  {
+    step: "01",
+    title: "Create your free account",
+    description:
+      "Sign in with Google and set up your profile in under a minute.",
+  },
+  {
+    step: "02",
+    title: "Practice with real questions",
+    description:
+      "Train with 360+ PAT questions, interactive generators, and DAT Biology, Chemistry, and Reading practice.",
+  },
+  {
+    step: "03",
+    title: "Track and apply smarter",
+    description:
+      "Monitor your progress, research every Canadian dental school, and manage application deadlines in one place.",
+  },
+];
+
+function HowItWorksSection() {
+  return (
+    <section className="py-20 lg:py-28 bg-[var(--page-bg)]">
+      <div className="section-container max-w-7xl mx-auto">
+        <FadeIn>
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              How It Works
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Start Preparing in Three Steps
+            </h2>
+          </div>
+        </FadeIn>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {howItWorksSteps.map((item, i) => (
+            <FadeIn key={item.title} delay={i * 0.1}>
+              <Card className="h-full bg-[var(--page-surface)] border-[var(--border-color)]">
+                <CardContent className="p-6">
+                  <p className="text-3xl font-extrabold text-[#2563EB]/20 mb-4">
+                    {item.step}
+                  </p>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                    {item.description}
+                  </p>
                 </CardContent>
               </Card>
             </FadeIn>
@@ -264,16 +414,46 @@ function ValuePropSection() {
 
 /* ─── Social Proof / Stats Section ─── */
 const stats = [
-  { value: 900, suffix: '+', label: 'Applications per UofT seat', sub: 'Competition is fierce. Prepare smarter.' },
-  { value: 10, suffix: '', label: 'Canadian Dental Schools', sub: 'Comprehensive profiles and data for all.' },
-  { value: 5000, suffix: '+', label: 'PAT Questions Available', sub: 'Including unlimited AI-generated variations.' },
-  { value: 96, suffix: '%', label: 'User Satisfaction', sub: 'Students love our platform.' },
+  {
+    value: 900,
+    suffix: "+",
+    label: "Applications per UofT seat",
+    sub: "Competition is fierce. Prepare smarter.",
+  },
+  {
+    value: 10,
+    suffix: "",
+    label: "Canadian Dental Schools",
+    sub: "Comprehensive profiles and data for all.",
+  },
+  {
+    value: 360,
+    suffix: "+",
+    label: "PAT Practice Questions",
+    sub: "Curated across all 6 PAT categories.",
+  },
+  {
+    value: 6,
+    suffix: "",
+    label: "PAT Categories",
+    sub: "Keyholes, TFE, Angle Ranking, Hole Punching, Cube Counting, Pattern Folding.",
+  },
 ];
 
 function StatsSection() {
   return (
-    <section className="py-20 lg:py-28 bg-[#F8FAFC]">
+    <section className="py-20 lg:py-28 bg-[var(--page-bg)]">
       <div className="section-container max-w-7xl mx-auto">
+        <FadeIn>
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              By the Numbers
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)]">
+              The Canadian Dental School Landscape
+            </h2>
+          </div>
+        </FadeIn>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {stats.map((stat, i) => (
             <FadeIn key={stat.label} delay={i * 0.1}>
@@ -281,8 +461,12 @@ function StatsSection() {
                 <p className="text-4xl lg:text-5xl font-extrabold text-[#2563EB] mb-2">
                   <AnimatedCounter end={stat.value} suffix={stat.suffix} />
                 </p>
-                <p className="text-sm font-semibold text-[#0F172A] mb-1">{stat.label}</p>
-                <p className="text-xs text-[#475569]">{stat.sub}</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">
+                  {stat.label}
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  {stat.sub}
+                </p>
               </div>
             </FadeIn>
           ))}
@@ -292,86 +476,290 @@ function StatsSection() {
   );
 }
 
+/* ─── Sample Question Section ─── */
+function SampleQuestionSection() {
+  return (
+    <section className="py-20 lg:py-28 bg-[var(--page-surface)]">
+      <div className="section-container max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <FadeIn>
+            <div>
+              <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+                Try It Free
+              </p>
+              <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+                See What PAT Practice Looks Like
+              </h2>
+              <p className="text-[var(--text-secondary)] mb-6 leading-relaxed">
+                Every Premium plan includes unlimited access to questions like
+                this one. Free users can try the Angle Ranking generator and
+                browse the full school database.
+              </p>
+              <Button
+                size="lg"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-8 h-12 text-base"
+                asChild
+              >
+                <Link to="/pat-academy/practice">Try a Free PAT Question</Link>
+              </Button>
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.2}>
+            <Card className="bg-[var(--page-bg)] border-[var(--border-color)]">
+              <CardContent className="p-6">
+                <p className="text-xs font-semibold text-[#2563EB] uppercase tracking-wider mb-4">
+                  Angle Ranking — Sample
+                </p>
+                <p className="text-sm text-[var(--text-secondary)] mb-6">
+                  Rank the four angles below from smallest to largest.
+                </p>
+                <div className="flex justify-around items-center mb-6">
+                  {["A", "B", "C", "D"].map(label => (
+                    <div key={label} className="text-center">
+                      <div className="w-16 h-16 mx-auto mb-2 rounded-lg bg-[var(--page-muted)] flex items-center justify-center">
+                        <span className="text-2xl font-bold text-[var(--text-primary)]">
+                          ∠
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-[var(--text-secondary)]">
+                        {label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {["A", "B", "C", "D"].map(label => (
+                    <button
+                      key={label}
+                      className="py-2 rounded-lg border border-[var(--border-color)] text-sm font-medium text-[var(--text-secondary)] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
+                      disabled
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--text-tertiary)] mt-4 text-center">
+                  Sign up free to answer questions and track your progress.
+                </p>
+              </CardContent>
+            </Card>
+          </FadeIn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Competitive Comparison Section ─── */
 const comparisonFeatures = [
-  { name: 'Canadian DAT Focus', predent: true, crusher: true, bootcamp: false },
-  { name: 'School Database', predent: true, crusher: false, bootcamp: false },
-  { name: 'Admissions Tools', predent: true, crusher: false, bootcamp: false },
-  { name: 'Interview Preparation', predent: true, crusher: false, bootcamp: false },
-  { name: 'Application Tracking', predent: true, crusher: false, bootcamp: false },
-  { name: 'AI-Powered Features', predent: true, crusher: false, bootcamp: false },
-  { name: 'PAT Generators (All 6)', predent: true, crusher: true, bootcamp: false },
-  { name: '3D PAT Models', predent: true, crusher: true, bootcamp: true },
-  { name: 'Community Intelligence', predent: true, crusher: false, bootcamp: false },
-  { name: 'Progress Analytics', predent: true, crusher: false, bootcamp: true },
-  { name: 'Free Tier Available', predent: true, crusher: false, bootcamp: false },
-  { name: 'Price (Starting)', predent: '$0', crusher: '$499', bootcamp: '$519' },
+  { name: "Canadian DAT Focus", predent: true, crusher: true, bootcamp: false },
+  { name: "School Database", predent: true, crusher: false, bootcamp: false },
+  { name: "Admissions Tools", predent: true, crusher: false, bootcamp: false },
+  {
+    name: "Interview Preparation",
+    predent: true,
+    crusher: false,
+    bootcamp: false,
+  },
+  {
+    name: "Application Tracking",
+    predent: true,
+    crusher: false,
+    bootcamp: false,
+  },
+  {
+    name: "AI-Powered Features",
+    predent: true,
+    crusher: false,
+    bootcamp: false,
+  },
+  {
+    name: "PAT Generators (All 6)",
+    predent: true,
+    crusher: true,
+    bootcamp: false,
+  },
+  {
+    name: "Interactive PAT Diagrams",
+    predent: true,
+    crusher: true,
+    bootcamp: true,
+  },
+  {
+    name: "Student Community",
+    predent: true,
+    crusher: false,
+    bootcamp: false,
+  },
+  { name: "Progress Analytics", predent: true, crusher: false, bootcamp: true },
+  {
+    name: "Free Tier Available",
+    predent: true,
+    crusher: false,
+    bootcamp: false,
+  },
+  {
+    name: "Price (Starting)",
+    predent: "$0",
+    crusher: "$499",
+    bootcamp: "$519",
+  },
 ];
 
 function ComparisonSection() {
   return (
-    <section className="py-20 lg:py-28 bg-white">
-      <div className="section-container max-w-5xl mx-auto">
+    <section className="py-20 lg:py-28 bg-[var(--page-surface)]">
+      <div className="section-container max-w-7xl mx-auto">
         <FadeIn>
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">Competitive Comparison</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">Why Students Choose PreDent Canada</h2>
-            <p className="text-[#475569] max-w-2xl mx-auto">
-              The only platform built exclusively for Canadian dental school admissions.
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              Competitive Comparison
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Why Students Choose PreDent Canada
+            </h2>
+            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto">
+              The only platform built exclusively for Canadian dental school
+              admissions.
             </p>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.2}>
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {comparisonFeatures.map((feature, i) => (
+              <div
+                key={i}
+                className="bg-[var(--page-bg)] rounded-lg border border-[var(--border-color)] p-4"
+              >
+                <p className="text-sm font-semibold text-[var(--text-primary)] mb-3">
+                  {feature.name}
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-[#2563EB]">
+                      PreDent Canada
+                    </span>
+                    {typeof feature.predent === "boolean" ? (
+                      feature.predent ? (
+                        <Check className="w-4 h-4 text-[#10B981]" />
+                      ) : (
+                        <X className="w-4 h-4 text-[#EF4444]" />
+                      )
+                    ) : (
+                      <span className="text-xs font-bold text-[#10B981]">
+                        {feature.predent}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      DATCrusher
+                    </span>
+                    {typeof feature.crusher === "boolean" ? (
+                      feature.crusher ? (
+                        <Check className="w-4 h-4 text-[#10B981]" />
+                      ) : (
+                        <X className="w-4 h-4 text-[var(--text-tertiary)]" />
+                      )
+                    ) : (
+                      <span className="text-xs text-[var(--text-secondary)]">
+                        {feature.crusher}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      DAT Bootcamp
+                    </span>
+                    {typeof feature.bootcamp === "boolean" ? (
+                      feature.bootcamp ? (
+                        <Check className="w-4 h-4 text-[#10B981]" />
+                      ) : (
+                        <X className="w-4 h-4 text-[var(--text-tertiary)]" />
+                      )
+                    ) : (
+                      <span className="text-xs text-[var(--text-secondary)]">
+                        {feature.bootcamp}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b-2 border-[#E2E8F0]">
-                  <th className="text-left py-4 px-4 text-sm font-semibold text-[#0F172A]">Feature</th>
+                <tr className="border-b-2 border-[var(--border-color)]">
+                  <th className="text-left py-4 px-4 text-sm font-semibold text-[var(--text-primary)]">
+                    Feature
+                  </th>
                   <th className="text-center py-4 px-4">
                     <div className="flex flex-col items-center">
-                      <span className="text-sm font-bold text-[#2563EB]">PreDent Canada</span>
+                      <span className="text-sm font-bold text-[#2563EB]">
+                        PreDent Canada
+                      </span>
                     </div>
                   </th>
-                  <th className="text-center py-4 px-4 text-sm font-semibold text-[#475569]">DATCrusher</th>
-                  <th className="text-center py-4 px-4 text-sm font-semibold text-[#475569]">DAT Bootcamp</th>
+                  <th className="text-center py-4 px-4 text-sm font-semibold text-[var(--text-secondary)]">
+                    DATCrusher
+                  </th>
+                  <th className="text-center py-4 px-4 text-sm font-semibold text-[var(--text-secondary)]">
+                    DAT Bootcamp
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {comparisonFeatures.map((feature, i) => (
-                  <tr key={i} className="border-b border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors">
-                    <td className="py-3.5 px-4 text-sm text-[#0F172A]">{feature.name}</td>
+                  <tr
+                    key={i}
+                    className="border-b border-[var(--border-color)] hover:bg-[var(--page-bg)] transition-colors"
+                  >
+                    <td className="py-3.5 px-4 text-sm text-[var(--text-primary)]">
+                      {feature.name}
+                    </td>
                     <td className="text-center py-3.5 px-4">
-                      {typeof feature.predent === 'boolean' ? (
+                      {typeof feature.predent === "boolean" ? (
                         feature.predent ? (
                           <Check className="w-5 h-5 text-[#10B981] mx-auto" />
                         ) : (
                           <X className="w-5 h-5 text-[#EF4444] mx-auto" />
                         )
                       ) : (
-                        <span className="text-sm font-bold text-[#10B981]">{feature.predent}</span>
+                        <span className="text-sm font-bold text-[#10B981]">
+                          {feature.predent}
+                        </span>
                       )}
                     </td>
                     <td className="text-center py-3.5 px-4">
-                      {typeof feature.crusher === 'boolean' ? (
+                      {typeof feature.crusher === "boolean" ? (
                         feature.crusher ? (
                           <Check className="w-5 h-5 text-[#10B981] mx-auto" />
                         ) : (
-                          <X className="w-5 h-5 text-[#CBD5E1] mx-auto" />
+                          <X className="w-5 h-5 text-[var(--text-tertiary)] mx-auto" />
                         )
                       ) : (
-                        <span className="text-sm text-[#475569]">{feature.crusher}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">
+                          {feature.crusher}
+                        </span>
                       )}
                     </td>
                     <td className="text-center py-3.5 px-4">
-                      {typeof feature.bootcamp === 'boolean' ? (
+                      {typeof feature.bootcamp === "boolean" ? (
                         feature.bootcamp ? (
                           <Check className="w-5 h-5 text-[#10B981] mx-auto" />
                         ) : (
-                          <X className="w-5 h-5 text-[#CBD5E1] mx-auto" />
+                          <X className="w-5 h-5 text-[var(--text-tertiary)] mx-auto" />
                         )
                       ) : (
-                        <span className="text-sm text-[#475569]">{feature.bootcamp}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">
+                          {feature.bootcamp}
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -386,63 +774,68 @@ function ComparisonSection() {
 }
 
 /* ─── Testimonials Section ─── */
-const testimonials = [
+const communityHighlights = [
   {
-    name: 'Priya Sharma',
-    program: 'UofT Dentistry DDS 2026',
-    image: '/testimonial-1.jpg',
-    quote: 'PreDent Canada was a game-changer for my PAT preparation. The generators gave me unlimited practice, and the 3D models helped me visualize cube counting like never before. Scored a 24 on PAT!',
-    score: 'PAT: 24 | AA: 23',
+    title: "Share Admission Results",
+    description:
+      "Post your acceptance, interview invite, waitlist, or rejection with your GPA and DAT scores to help fellow applicants.",
+    stat: "Community-driven",
   },
   {
-    name: 'Jason Kim',
-    program: 'UBC DMD 2025',
-    image: '/testimonial-2.jpg',
-    quote: 'The school comparison tool saved me hours of research. Being able to see all admission requirements side-by-side helped me focus my efforts on schools where I was most competitive.',
-    score: 'PAT: 22 | AA: 24',
+    title: "School-Specific Questions",
+    description:
+      "Ask questions about any Canadian dental school and get answers from students who applied there.",
+    stat: "10 schools covered",
   },
   {
-    name: 'Emily Watson',
-    program: 'Western Schulich DDS 2026',
-    image: '/testimonial-3.jpg',
-    quote: 'I used the application planner to track every deadline and document. The task manager kept me organized through the most stressful application season of my life. Highly recommend!',
-    score: 'PAT: 21 | AA: 22',
+    title: "Study Together",
+    description:
+      "Discuss DAT prep strategies, interview experiences, and application timelines with other pre-dental students across Canada.",
+    stat: "Active community",
   },
 ];
 
 function TestimonialsSection() {
   return (
-    <section className="py-20 lg:py-28 bg-[#F8FAFC]">
+    <section className="py-20 lg:py-28 bg-[var(--page-bg)]">
       <div className="section-container max-w-7xl mx-auto">
         <FadeIn>
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">Success Stories</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">Students Who Made It</h2>
-            <p className="text-[#475569] max-w-2xl mx-auto">
-              Join thousands of pre-dental students who achieved their dream of getting into Canadian dental school.
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              Community
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Join the Pre-Dental Community
+            </h2>
+            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto">
+              Connect with other Canadian pre-dental students, share your
+              journey, and learn from those who have been through the process.
             </p>
           </div>
         </FadeIn>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
-            <FadeIn key={t.name} delay={i * 0.15}>
-              <Card className="card-hover border-[#E2E8F0] h-full">
+          {communityHighlights.map((item, i) => (
+            <FadeIn key={item.title} delay={i * 0.15}>
+              <Card className="card-hover border-[var(--border-color)] h-full bg-[var(--page-surface)]">
                 <CardContent className="p-6 flex flex-col h-full">
-                  <div className="flex items-center gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className="w-4 h-4 fill-[#F59E0B] text-[#F59E0B]" />
-                    ))}
-                  </div>
-                  <p className="text-sm text-[#475569] leading-relaxed mb-6 flex-1">&ldquo;{t.quote}&rdquo;</p>
-                  <div className="flex items-center gap-3 pt-4 border-t border-[#E2E8F0]">
-                    <img src={t.image} alt={t.name} className="w-12 h-12 rounded-full object-cover" />
-                    <div>
-                      <p className="text-sm font-semibold text-[#0F172A]">{t.name}</p>
-                      <p className="text-xs text-[#475569]">{t.program}</p>
-                      <p className="text-xs font-medium text-[#10B981]">{t.score}</p>
-                    </div>
-                  </div>
+                  <Badge className="w-fit mb-4 bg-[#2563EB]/10 text-[#2563EB] border-0">
+                    {item.stat}
+                  </Badge>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed flex-1">
+                    {item.description}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 border-[var(--border-color)]"
+                    asChild
+                  >
+                    <Link to="/community">Explore Community</Link>
+                  </Button>
                 </CardContent>
               </Card>
             </FadeIn>
@@ -456,65 +849,59 @@ function TestimonialsSection() {
 /* ─── Pricing Section ─── */
 const pricingTiers = [
   {
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    description: 'Perfect for exploring and getting started.',
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    description: "Perfect for exploring and getting started.",
     features: [
-      'Full school database access',
-      'Basic GPA calculator',
-      '500 PAT practice questions',
-      '10 keyhole generators/day',
-      'Limited 3D models',
-      '1 free mock exam',
-      'Basic error analysis',
-      'Application tracker (3 schools)',
-      'Read-only community content',
+      "Full school database access",
+      "Basic GPA calculator",
+      "PAT practice questions",
+      "Angle ranking generator",
+      "Application tracker (3 schools)",
+      "Read-only community content",
     ],
-    cta: 'Start Free',
-    ctaStyle: 'outline' as const,
+    cta: "Start Free",
+    ctaStyle: "outline" as const,
     popular: false,
+    href: "/login",
   },
   {
-    name: 'Premium',
-    price: '$29',
-    period: '/month',
-    description: 'Everything you need for serious DAT prep.',
+    name: "Premium",
+    price: "$29",
+    period: "/month",
+    description: "Everything you need for serious DAT prep.",
     features: [
-      'Unlimited PAT question bank',
-      'All 6 PAT generators (unlimited)',
-      'Full 3D model access',
-      'Unlimited mock exams',
-      'Advanced AI error analysis',
-      'Personalized study schedule',
-      'Unlimited application tracker',
-      'Full interview question bank',
-      'Multi-school competitiveness calc',
-      'AI tutor (basic)',
-      'Progress analytics',
-      'Anki export',
-      'Priority email support',
+      "Unlimited PAT question bank",
+      "All 6 PAT generators (unlimited)",
+      "Interactive PAT diagrams",
+      "DAT Biology, Chemistry & Reading practice",
+      "Study schedule generator",
+      "Unlimited application tracker",
+      "Full interview question bank",
+      "Multi-school competitiveness calculator",
+      "Progress analytics",
+      "Priority email support",
     ],
-    cta: 'Get Premium',
-    ctaStyle: 'filled' as const,
+    cta: "Get Premium",
+    ctaStyle: "filled" as const,
     popular: true,
+    href: "/pricing",
   },
   {
-    name: 'Premium Plus',
-    price: '$149',
-    period: 'one-time',
-    description: 'Lifetime access + personal coaching.',
+    name: "Premium Plus",
+    price: "$149",
+    period: "one-time",
+    description: "Lifetime access + personal coaching.",
     features: [
-      'Everything in Premium',
-      '1 personal statement review',
-      '1-on-1 admissions consultation',
-      'Advanced AI tutor',
-      'Application document review',
-      'Lifetime access (no recurring)',
+      "Everything in Premium",
+      "Lifetime access (no recurring)",
+      "Early access to new features",
     ],
-    cta: 'Get Premium Plus',
-    ctaStyle: 'outline' as const,
+    cta: "Get Premium Plus",
+    ctaStyle: "outline" as const,
     popular: false,
+    href: "/pricing",
   },
 ];
 
@@ -522,30 +909,37 @@ function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(false);
 
   return (
-    <section className="py-20 lg:py-28 bg-white">
+    <section className="py-20 lg:py-28 bg-[var(--page-surface)]">
       <div className="section-container max-w-7xl mx-auto">
         <FadeIn>
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">Pricing</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">Invest in Your Dental Future</h2>
-            <p className="text-[#475569] max-w-2xl mx-auto mb-8">
-              Start free, upgrade when you are ready. No hidden fees, cancel anytime.
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              Pricing
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              DAT Prep Plans: Free, Premium & Premium Plus
+            </h2>
+            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto mb-8">
+              Start free. Upgrade to unlock unlimited PAT generators, DAT
+              practice, and the school competitiveness calculator.
             </p>
 
             {/* Toggle */}
-            <div className="inline-flex items-center gap-3 p-1 rounded-lg bg-[#F1F5F9]">
+            <div className="inline-flex items-center gap-3 p-1 rounded-lg bg-[var(--page-muted)]">
               <button
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${!isAnnual ? 'bg-white text-[#0F172A] shadow-sm' : 'text-[#475569]'}`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] ${!isAnnual ? "bg-[var(--page-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)]"}`}
                 onClick={() => setIsAnnual(false)}
               >
                 Monthly
               </button>
               <button
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${isAnnual ? 'bg-white text-[#0F172A] shadow-sm' : 'text-[#475569]'}`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] ${isAnnual ? "bg-[var(--page-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)]"}`}
                 onClick={() => setIsAnnual(true)}
               >
                 Annual
-                <span className="px-1.5 py-0.5 rounded bg-[#10B981] text-white text-[10px] font-bold">SAVE 28%</span>
+                <span className="px-1.5 py-0.5 rounded bg-[#10B981] text-white text-[10px] font-bold">
+                  SAVE 28%
+                </span>
               </button>
             </div>
           </div>
@@ -557,9 +951,9 @@ function PricingSection() {
               <Card
                 className={`relative h-full ${
                   tier.popular
-                    ? 'border-2 border-[#2563EB] shadow-lg shadow-[#2563EB]/10'
-                    : 'border-[#E2E8F0]'
-                }`}
+                    ? "border-2 border-[#2563EB] shadow-lg shadow-[#2563EB]/10"
+                    : "border-[var(--border-color)]"
+                } bg-[var(--page-surface)]`}
               >
                 {tier.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#2563EB] text-white text-xs font-bold rounded-full">
@@ -568,23 +962,33 @@ function PricingSection() {
                 )}
                 <CardContent className="p-6 lg:p-8 flex flex-col h-full">
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-[#0F172A] mb-1">{tier.name}</h3>
-                    <p className="text-xs text-[#475569] mb-4">{tier.description}</p>
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">
+                      {tier.name}
+                    </h3>
+                    <p className="text-xs text-[var(--text-secondary)] mb-4">
+                      {tier.description}
+                    </p>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-extrabold text-[#0F172A]">
-                        {tier.name === 'Premium' && isAnnual ? '$249' : tier.price}
+                      <span className="text-4xl font-extrabold text-[var(--text-primary)]">
+                        {tier.name === "Premium" && isAnnual
+                          ? "$249"
+                          : tier.price}
                       </span>
-                      <span className="text-sm text-[#475569]">
-                        {tier.name === 'Premium' && isAnnual ? '/year' : tier.period}
+                      <span className="text-sm text-[var(--text-secondary)]">
+                        {tier.name === "Premium" && isAnnual
+                          ? "/year"
+                          : tier.period}
                       </span>
                     </div>
                   </div>
 
                   <ul className="space-y-3 mb-8 flex-1">
-                    {tier.features.map((feature) => (
+                    {tier.features.map(feature => (
                       <li key={feature} className="flex items-start gap-2.5">
                         <Check className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" />
-                        <span className="text-sm text-[#475569]">{feature}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">
+                          {feature}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -592,13 +996,13 @@ function PricingSection() {
                   <Button
                     className={`w-full h-11 font-semibold ${
                       tier.popular
-                        ? 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white'
-                        : 'border-[#E2E8F0] text-[#0F172A] hover:bg-[#F8FAFC]'
+                        ? "bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+                        : "border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--page-bg)]"
                     }`}
-                    variant={tier.popular ? 'default' : 'outline'}
-                    onClick={() => alert('Payment integration coming in Step 6!')}
+                    variant={tier.popular ? "default" : "outline"}
+                    asChild
                   >
-                    {tier.cta}
+                    <Link to={tier.href}>{tier.cta}</Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -608,11 +1012,19 @@ function PricingSection() {
 
         {/* Guarantee badge */}
         <FadeIn delay={0.4}>
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 p-4 rounded-xl bg-[var(--page-bg)] border border-[var(--border-color)]">
             <Shield className="w-8 h-8 text-[#10B981]" />
             <div className="text-center sm:text-left">
-              <p className="text-sm font-semibold text-[#0F172A]">Higher Score Guarantee</p>
-              <p className="text-xs text-[#475569]">If your official DAT score doesn&apos;t improve after completing our program, we&apos;ll refund your Premium subscription in full.</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                Higher Score Guarantee
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Score higher on the DAT or get your money back. See{" "}
+                <Link to="/legal/guarantee" className="underline hover:text-[#2563EB]">
+                  guarantee terms
+                </Link>{" "}
+                for details.
+              </p>
             </div>
           </div>
         </FadeIn>
@@ -624,46 +1036,59 @@ function PricingSection() {
 /* ─── FAQ Section ─── */
 const faqs = [
   {
-    question: 'Is PreDent Canada only for Canadian dental schools?',
-    answer: 'Yes, PreDent Canada is specifically designed for the Canadian Dental Aptitude Test (DAT) and Canadian dental school admissions. Our content, school database, and tools are tailored to the unique requirements of Canadian schools like UofT, UBC, McGill, and others.',
+    question: "Is PreDent Canada only for Canadian dental schools?",
+    answer:
+      "Yes, PreDent Canada is specifically designed for the Canadian Dental Aptitude Test (DAT) and Canadian dental school admissions. Our content, school database, and tools are tailored to the unique requirements of Canadian schools like UofT, UBC, McGill, and others.",
   },
   {
-    question: 'How is the Canadian DAT different from the American DAT?',
-    answer: 'The Canadian DAT does NOT include Organic Chemistry or Quantitative Reasoning. It focuses on Biology (40 questions), Chemistry (30 questions), PAT (90 questions), and Reading Comprehension (50 questions). Our platform is built specifically for this format.',
+    question: "How is the Canadian DAT different from the American DAT?",
+    answer:
+      "The Canadian DAT does NOT include Organic Chemistry or Quantitative Reasoning. It focuses on Biology (40 questions), Chemistry (30 questions), PAT (90 questions), and Reading Comprehension (50 questions). Our platform is built specifically for this format.",
   },
   {
-    question: 'Can I really use the platform for free?',
-    answer: 'Absolutely! Our Free tier gives you access to the full school database, 500 PAT practice questions, basic GPA calculator, 10 keyhole generators per day, and 1 mock exam. Upgrade to Premium when you are ready for unlimited access.',
+    question: "Can I really use the platform for free?",
+    answer:
+      "Absolutely! Our Free tier gives you access to the full school database, PAT practice questions, the angle ranking generator, the basic GPA calculator, and read-only community content. Upgrade to Premium when you are ready for unlimited access.",
   },
   {
-    question: 'How do the PAT generators work?',
-    answer: 'Our procedural generation algorithms create unique, valid PAT questions on-demand. Each generated question is verified to have exactly one correct answer. Premium members get unlimited access to all 6 category generators.',
+    question: "How do the PAT generators work?",
+    answer:
+      "Our procedural generators create interactive PAT practice questions on-demand. Each generated question is verified to have exactly one correct answer. Premium members get unlimited access to all 6 category generators.",
   },
   {
-    question: 'What is the Higher Score Guarantee?',
-    answer: 'If you complete our Premium program and your official DAT score does not improve compared to your first mock exam baseline, we will refund your Premium subscription in full. No questions asked.',
+    question: "What is the Higher Score Guarantee?",
+    answer:
+      "If your official DAT score does not improve after using our Premium program, you may be eligible for a full refund. See our guarantee terms for complete conditions.",
   },
 ];
 
 function FAQSection() {
   return (
-    <section className="py-20 lg:py-28 bg-[#F8FAFC]">
-      <div className="section-container max-w-3xl mx-auto">
+    <section className="py-20 lg:py-28 bg-[var(--page-bg)]">
+      <div className="section-container max-w-7xl mx-auto">
         <FadeIn>
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">FAQ</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">Frequently Asked Questions</h2>
+            <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-wider mb-2">
+              FAQ
+            </p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Frequently Asked Questions
+            </h2>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.2}>
           <Accordion type="single" collapsible className="space-y-3">
             {faqs.map((faq, i) => (
-              <AccordionItem key={i} value={`faq-${i}`} className="bg-white rounded-lg border border-[#E2E8F0] px-6">
-                <AccordionTrigger className="text-left text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] py-4">
+              <AccordionItem
+                key={i}
+                value={`faq-${i}`}
+                className="bg-[var(--page-surface)] rounded-lg border border-[var(--border-color)] px-6"
+              >
+                <AccordionTrigger className="text-left text-sm font-semibold text-[var(--text-primary)] hover:text-[#2563EB] py-4">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-sm text-[#475569] leading-relaxed pb-4">
+                <AccordionContent className="text-sm text-[var(--text-secondary)] leading-relaxed pb-4">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>
@@ -678,27 +1103,28 @@ function FAQSection() {
 /* ─── CTA Section ─── */
 function CTASection() {
   return (
-    <section className="py-20 lg:py-28 gradient-blue">
-      <div className="section-container max-w-4xl mx-auto text-center">
+    <section className="py-20 lg:py-28 bg-gradient-to-br from-[var(--page-surface)] to-[var(--page-muted)] border-t border-[var(--border-color)]">
+      <div className="section-container max-w-7xl mx-auto text-center">
         <FadeIn>
-          <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
+          <h2 className="text-4xl lg:text-5xl font-extrabold text-[var(--text-primary)] mb-4">
             Ready to Start Your Dental School Journey?
           </h2>
-          <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
-            Join 2,000+ pre-dental students using PreDent Canada to prepare smarter, track their progress, and get accepted into dental school.
+          <p className="text-lg text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto">
+            Join pre-dental students using PreDent Canada to prepare
+            smarter, track their progress, and get accepted into dental school.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              className="bg-white text-[#2563EB] hover:bg-white/90 font-semibold px-8 h-12 text-base"
-              onClick={() => alert('Authentication coming in Step 5!')}
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-8 h-12 text-base"
+              asChild
             >
-              Create Free Account
+              <Link to="/login">Create Free Account</Link>
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="border-white/30 text-white hover:bg-white/10 font-semibold px-8 h-12 text-base"
+              className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--page-bg)] font-semibold px-8 h-12 text-base"
               asChild
             >
               <Link to="/schools">Explore Schools</Link>
@@ -712,16 +1138,42 @@ function CTASection() {
 
 /* ─── Main Landing Page ─── */
 export default function LandingPage() {
+  usePageTitle("Canadian DAT Prep & Dental School Admissions");
   return (
-    <main>
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--page-surface)] focus:border focus:border-[var(--border-color)] focus:rounded-lg focus:text-sm focus:font-semibold"
+      >
+        Skip to main content
+      </a>
+      <main id="main-content">
       <HeroSection />
       <ValuePropSection />
+      <HowItWorksSection />
       <StatsSection />
+      <SampleQuestionSection />
       <ComparisonSection />
+      <FadeIn>
+        <section className="py-12 bg-[var(--page-surface)]">
+          <div className="section-container max-w-7xl mx-auto text-center">
+            <p className="text-[var(--text-secondary)] mb-4">
+              Start practicing for the Canadian DAT today
+            </p>
+            <Button
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-8 h-11"
+              asChild
+            >
+              <Link to="/login">Start Free Today</Link>
+            </Button>
+          </div>
+        </section>
+      </FadeIn>
       <TestimonialsSection />
       <PricingSection />
       <FAQSection />
       <CTASection />
-    </main>
+      </main>
+    </>
   );
 }

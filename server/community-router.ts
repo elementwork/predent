@@ -1,0 +1,697 @@
+import { z } from "zod";
+import { eq, desc, count, sql, and, ne, isNull } from "drizzle-orm";
+import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware";
+import { getDb } from "./queries/connection";
+import {
+  communityPosts,
+  communityComments,
+  communityReports,
+  users,
+} from "@db/schema";
+import { TRPCError } from "@trpc/server";
+import { createNotification } from "./lib/email";
+
+const postTypeSchema = z.enum(["result", "question", "discussion"]);
+const resultSchema = z.enum([
+  "Accepted",
+  "Interview Invite",
+  "Waitlisted",
+  "Rejected",
+]);
+
+const reportReasonSchema = z.enum([
+  "spam",
+  "harassment",
+  "inappropriate",
+  "other",
+]);
+
+export const communityRouter = createRouter({
+  listPosts: publicQuery
+    .input(
+      z.object({
+        type: postTypeSchema.optional(),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [
+        isNull(communityPosts.deletedAt),
+        isNull(communityPosts.hiddenAt),
+      ];
+      if (input.type) conditions.push(eq(communityPosts.type, input.type));
+
+      const rows = await db
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          type: communityPosts.type,
+          title: communityPosts.title,
+          content: communityPosts.content,
+          school: communityPosts.school,
+          program: communityPosts.program,
+          result: communityPosts.result,
+          gpa: communityPosts.gpa,
+          datAa: communityPosts.datAa,
+          datPat: communityPosts.datPat,
+          province: communityPosts.province,
+          likes: communityPosts.likes,
+          createdAt: communityPosts.createdAt,
+          authorName: users.name,
+          authorAvatar: users.avatar,
+        })
+        .from(communityPosts)
+        .leftJoin(users, eq(communityPosts.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(communityPosts.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return rows;
+    }),
+
+  listAllPosts: authedQuery
+    .input(
+      z.object({
+        type: postTypeSchema.optional(),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [
+        isNull(communityPosts.deletedAt),
+        isNull(communityPosts.hiddenAt),
+      ];
+      if (input.type) conditions.push(eq(communityPosts.type, input.type));
+
+      const rows = await db
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          type: communityPosts.type,
+          title: communityPosts.title,
+          content: communityPosts.content,
+          school: communityPosts.school,
+          program: communityPosts.program,
+          result: communityPosts.result,
+          gpa: communityPosts.gpa,
+          datAa: communityPosts.datAa,
+          datPat: communityPosts.datPat,
+          province: communityPosts.province,
+          likes: communityPosts.likes,
+          createdAt: communityPosts.createdAt,
+          authorName: users.name,
+          authorAvatar: users.avatar,
+        })
+        .from(communityPosts)
+        .leftJoin(users, eq(communityPosts.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(communityPosts.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return rows;
+    }),
+
+  getPostCount: publicQuery
+    .input(z.object({ type: postTypeSchema.optional() }).default({}))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [
+        isNull(communityPosts.deletedAt),
+        isNull(communityPosts.hiddenAt),
+      ];
+      if (input.type) conditions.push(eq(communityPosts.type, input.type));
+
+      const [row] = await db
+        .select({ total: count() })
+        .from(communityPosts)
+        .where(and(...conditions));
+      return row?.total ?? 0;
+    }),
+
+  getPost: authedQuery
+    .input(z.object({ postId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [post] = await db
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          type: communityPosts.type,
+          title: communityPosts.title,
+          content: communityPosts.content,
+          school: communityPosts.school,
+          program: communityPosts.program,
+          result: communityPosts.result,
+          gpa: communityPosts.gpa,
+          datAa: communityPosts.datAa,
+          datPat: communityPosts.datPat,
+          province: communityPosts.province,
+          likes: communityPosts.likes,
+          deletedAt: communityPosts.deletedAt,
+          hiddenAt: communityPosts.hiddenAt,
+          createdAt: communityPosts.createdAt,
+          updatedAt: communityPosts.updatedAt,
+          authorName: users.name,
+          authorAvatar: users.avatar,
+        })
+        .from(communityPosts)
+        .leftJoin(users, eq(communityPosts.userId, users.id))
+        .where(eq(communityPosts.id, input.postId))
+        .limit(1);
+
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [{ total: commentCount }] = await db
+        .select({ total: count() })
+        .from(communityComments)
+        .where(eq(communityComments.postId, input.postId));
+
+      const comments = await db
+        .select({
+          id: communityComments.id,
+          postId: communityComments.postId,
+          userId: communityComments.userId,
+          content: communityComments.content,
+          createdAt: communityComments.createdAt,
+          authorName: users.name,
+          authorAvatar: users.avatar,
+        })
+        .from(communityComments)
+        .leftJoin(users, eq(communityComments.userId, users.id))
+        .where(eq(communityComments.postId, input.postId))
+        .orderBy(desc(communityComments.createdAt));
+
+      const [existingReport] = await db
+        .select({ id: communityReports.id })
+        .from(communityReports)
+        .where(
+          and(
+            eq(communityReports.postId, input.postId),
+            eq(communityReports.reporterId, user.id)
+          )
+        )
+        .limit(1);
+
+      return {
+        ...post,
+        commentCount,
+        comments,
+        hasReported: !!existingReport,
+      };
+    }),
+
+  createPost: authedQuery
+    .input(
+      z.object({
+        type: postTypeSchema,
+        title: z.string().min(1).max(200),
+        content: z.string().min(1).max(2000),
+        school: z.string().max(100).optional(),
+        program: z.string().max(20).optional(),
+        result: resultSchema.optional(),
+        gpa: z.string().max(20).optional(),
+        datAa: z.string().max(10).optional(),
+        datPat: z.string().max(10).optional(),
+        province: z.enum(["IP", "OOP"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const [post] = await db
+        .insert(communityPosts)
+        .values({
+          userId: user.id,
+          ...input,
+        })
+        .returning();
+
+      // Notify users who posted about the same school (for questions)
+      if (input.type === "question" && input.school) {
+        const relatedPosters = await db
+          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .from(communityPosts)
+          .innerJoin(users, eq(communityPosts.userId, users.id))
+          .where(
+            and(
+              eq(communityPosts.school, input.school),
+              ne(communityPosts.userId, user.id)
+            )
+          )
+          .groupBy(users.id)
+          .limit(20);
+
+        for (const poster of relatedPosters) {
+          if (!poster.emailCommunity) continue;
+          await createNotification({
+            userId: poster.id,
+            type: "community",
+            title: `New question about ${input.school}`,
+            message: `${user.name || "Someone"} asked: "${input.title}"`,
+            link: `/community`,
+            sendEmail: true,
+            email: poster.email ?? undefined,
+          }).catch(err => {
+            console.error("[community] Failed to send post notification:", err);
+          });
+        }
+      }
+
+      return post;
+    }),
+
+  editPost: authedQuery
+    .input(
+      z.object({
+        postId: z.number(),
+        title: z.string().min(1).max(200).optional(),
+        content: z.string().min(1).max(2000).optional(),
+        school: z.string().max(100).optional(),
+        program: z.string().max(20).optional(),
+        result: resultSchema.optional(),
+        gpa: z.string().max(20).optional(),
+        datAa: z.string().max(10).optional(),
+        datPat: z.string().max(10).optional(),
+        province: z.enum(["IP", "OOP"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [post] = await db
+        .select({ id: communityPosts.id, userId: communityPosts.userId })
+        .from(communityPosts)
+        .where(eq(communityPosts.id, input.postId))
+        .limit(1);
+
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+      if (post.userId !== user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { postId, ...updates } = input;
+      const [updated] = await db
+        .update(communityPosts)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(communityPosts.id, postId))
+        .returning();
+
+      return updated;
+    }),
+
+  deletePost: authedQuery
+    .input(z.object({ postId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [post] = await db
+        .select({ id: communityPosts.id, userId: communityPosts.userId })
+        .from(communityPosts)
+        .where(eq(communityPosts.id, input.postId))
+        .limit(1);
+
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+      if (post.userId !== user.id && user.role !== "admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db
+        .update(communityPosts)
+        .set({ deletedAt: new Date() })
+        .where(eq(communityPosts.id, input.postId));
+
+      return { success: true };
+    }),
+
+  createComment: authedQuery
+    .input(
+      z.object({
+        postId: z.number(),
+        content: z.string().min(1).max(1000),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [post] = await db
+        .select({ id: communityPosts.id, userId: communityPosts.userId, title: communityPosts.title })
+        .from(communityPosts)
+        .where(eq(communityPosts.id, input.postId))
+        .limit(1);
+
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [comment] = await db
+        .insert(communityComments)
+        .values({
+          postId: input.postId,
+          userId: user.id,
+          content: input.content,
+        })
+        .returning();
+
+      if (post.userId !== user.id) {
+        const [author] = await db
+          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .from(users)
+          .where(eq(users.id, post.userId))
+          .limit(1);
+
+        if (author && author.emailCommunity) {
+          await createNotification({
+            userId: author.id,
+            type: "community",
+            title: "New comment on your post",
+            message: `${user.name || "Someone"} commented on "${post.title}"`,
+            link: `/community`,
+            sendEmail: true,
+            email: author.email ?? undefined,
+          }).catch(err => {
+            console.error("[community] Failed to send comment notification:", err);
+          });
+        }
+      }
+
+      return comment;
+    }),
+
+  deleteComment: authedQuery
+    .input(z.object({ commentId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [comment] = await db
+        .select({ id: communityComments.id, userId: communityComments.userId })
+        .from(communityComments)
+        .where(eq(communityComments.id, input.commentId))
+        .limit(1);
+
+      if (!comment) throw new TRPCError({ code: "NOT_FOUND" });
+      if (comment.userId !== user.id && user.role !== "admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db
+        .delete(communityComments)
+        .where(eq(communityComments.id, input.commentId));
+
+      return { success: true };
+    }),
+
+  reportPost: authedQuery
+    .input(
+      z.object({
+        postId: z.number(),
+        reason: reportReasonSchema,
+        description: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [existing] = await db
+        .select()
+        .from(communityReports)
+        .where(
+          and(
+            eq(communityReports.postId, input.postId),
+            eq(communityReports.reporterId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (existing) return existing;
+
+      const [report] = await db
+        .insert(communityReports)
+        .values({
+          postId: input.postId,
+          reporterId: user.id,
+          reason: input.reason,
+          description: input.description,
+        })
+        .returning();
+
+      return report;
+    }),
+
+  reportComment: authedQuery
+    .input(
+      z.object({
+        commentId: z.number(),
+        reason: reportReasonSchema,
+        description: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [existing] = await db
+        .select()
+        .from(communityReports)
+        .where(
+          and(
+            eq(communityReports.commentId, input.commentId),
+            eq(communityReports.reporterId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (existing) return existing;
+
+      const [report] = await db
+        .insert(communityReports)
+        .values({
+          commentId: input.commentId,
+          reporterId: user.id,
+          reason: input.reason,
+          description: input.description,
+        })
+        .returning();
+
+      return report;
+    }),
+
+  listMyPosts: authedQuery
+    .input(
+      z.object({
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const rows = await db
+        .select({
+          id: communityPosts.id,
+          type: communityPosts.type,
+          title: communityPosts.title,
+          content: communityPosts.content,
+          school: communityPosts.school,
+          program: communityPosts.program,
+          result: communityPosts.result,
+          gpa: communityPosts.gpa,
+          datAa: communityPosts.datAa,
+          datPat: communityPosts.datPat,
+          province: communityPosts.province,
+          likes: communityPosts.likes,
+          deletedAt: communityPosts.deletedAt,
+          hiddenAt: communityPosts.hiddenAt,
+          createdAt: communityPosts.createdAt,
+          updatedAt: communityPosts.updatedAt,
+        })
+        .from(communityPosts)
+        .where(eq(communityPosts.userId, user.id))
+        .orderBy(desc(communityPosts.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return rows;
+    }),
+
+  likePost: authedQuery
+    .input(z.object({ postId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const [post] = await db
+        .select({ id: communityPosts.id, userId: communityPosts.userId, title: communityPosts.title })
+        .from(communityPosts)
+        .where(eq(communityPosts.id, input.postId))
+        .limit(1);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Atomic increment — no race condition
+      await db
+        .update(communityPosts)
+        .set({ likes: sql`${communityPosts.likes} + 1` })
+        .where(eq(communityPosts.id, input.postId));
+
+      // Notify post author (if liker is not the author)
+      if (post.userId !== user.id) {
+        const [author] = await db
+          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .from(users)
+          .where(eq(users.id, post.userId))
+          .limit(1);
+
+        if (author && author.emailCommunity) {
+          await createNotification({
+            userId: author.id,
+            type: "community",
+            title: "Someone liked your post",
+            message: `${user.name || "Someone"} liked "${post.title}"`,
+            link: `/community`,
+            sendEmail: true,
+            email: author.email ?? undefined,
+          }).catch(err => {
+            console.error("[community] Failed to send like notification:", err);
+          });
+        }
+      }
+
+      return { success: true };
+    }),
+
+  // ─── Admin procedures ───
+
+  listReports: adminQuery
+    .input(
+      z.object({
+        status: z
+          .enum(["pending", "reviewed", "dismissed", "actioned"])
+          .optional(),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [];
+      if (input.status)
+        conditions.push(eq(communityReports.status, input.status));
+
+      const rows = await db
+        .select({
+          id: communityReports.id,
+          postId: communityReports.postId,
+          commentId: communityReports.commentId,
+          reporterId: communityReports.reporterId,
+          reason: communityReports.reason,
+          description: communityReports.description,
+          status: communityReports.status,
+          reviewedBy: communityReports.reviewedBy,
+          createdAt: communityReports.createdAt,
+          reviewedAt: communityReports.reviewedAt,
+          reporterName: users.name,
+          reporterEmail: users.email,
+          postTitle: communityPosts.title,
+          postContent: communityPosts.content,
+          commentContent: communityComments.content,
+        })
+        .from(communityReports)
+        .leftJoin(users, eq(communityReports.reporterId, users.id))
+        .leftJoin(
+          communityPosts,
+          eq(communityReports.postId, communityPosts.id)
+        )
+        .leftJoin(
+          communityComments,
+          eq(communityReports.commentId, communityComments.id)
+        )
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(communityReports.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return rows;
+    }),
+
+  reviewReport: adminQuery
+    .input(
+      z.object({
+        reportId: z.number(),
+        status: z.enum(["reviewed", "dismissed", "actioned"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const user = ctx.user!;
+
+      const [report] = await db
+        .select()
+        .from(communityReports)
+        .where(eq(communityReports.id, input.reportId))
+        .limit(1);
+
+      if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await db
+        .update(communityReports)
+        .set({
+          status: input.status,
+          reviewedBy: user.id,
+          reviewedAt: new Date(),
+        })
+        .where(eq(communityReports.id, input.reportId));
+
+      if (input.status === "actioned") {
+        if (report.postId) {
+          await db
+            .update(communityPosts)
+            .set({ hiddenAt: new Date() })
+            .where(eq(communityPosts.id, report.postId));
+        }
+        if (report.commentId) {
+          await db
+            .delete(communityComments)
+            .where(eq(communityComments.id, report.commentId));
+        }
+      }
+
+      return { success: true };
+    }),
+
+  adminHidePost: adminQuery
+    .input(z.object({ postId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+
+      await db
+        .update(communityPosts)
+        .set({ hiddenAt: new Date() })
+        .where(eq(communityPosts.id, input.postId));
+
+      return { success: true };
+    }),
+
+  adminRestorePost: adminQuery
+    .input(z.object({ postId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+
+      await db
+        .update(communityPosts)
+        .set({ deletedAt: null, hiddenAt: null })
+        .where(eq(communityPosts.id, input.postId));
+
+      return { success: true };
+    }),
+});

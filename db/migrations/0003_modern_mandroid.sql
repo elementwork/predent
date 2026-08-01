@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "pat_questions_generated" integer DEFAULT 0 NOT NULL;
