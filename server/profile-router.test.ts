@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { profileRouter } from "./profile-router";
+import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext, seedProfile } from "./test-helpers";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   profileRouter.createCaller(mockContext(user));
 
-describe("profileRouter.get", () => {
+describe.skipIf(!hasDb)("profileRouter.get", () => {
   it("returns null when profile does not exist", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -30,7 +31,7 @@ describe("profileRouter.get", () => {
   });
 });
 
-describe("profileRouter.upsert", () => {
+describe.skipIf(!hasDb)("profileRouter.upsert", () => {
   it("creates a new profile", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);

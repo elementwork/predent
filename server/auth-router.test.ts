@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { authRouter } from "./auth-router";
+import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext } from "./test-helpers";
 import { Session } from "@contracts/constants";
 
@@ -9,7 +10,7 @@ function buildCaller(user?: Awaited<ReturnType<typeof createTestUser>>) {
   return { caller, resHeaders: ctx.resHeaders };
 }
 
-describe("authRouter.me", () => {
+describe.skipIf(!hasDb)("authRouter.me", () => {
   it("returns the authenticated user", async () => {
     const user = await createTestUser();
     const { caller } = buildCaller(user);
@@ -27,7 +28,7 @@ describe("authRouter.me", () => {
   });
 });
 
-describe("authRouter.logout", () => {
+describe.skipIf(!hasDb)("authRouter.logout", () => {
   it("sets an expired session cookie", async () => {
     const user = await createTestUser();
     const { caller, resHeaders } = buildCaller(user);

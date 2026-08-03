@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import app from "./app";
+import { hasDb } from "./test-db-flag";
 
-describe("GET /api/cron/notify", () => {
+describe.skipIf(!hasDb)("GET /api/cron/notify", () => {
   it("returns 500 when CRON_SECRET is not configured", async () => {
     const original = process.env.CRON_SECRET;
     delete process.env.CRON_SECRET;

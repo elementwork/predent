@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { interviewRouter } from "./interview-router";
 import { getDb } from "./queries/connection";
 import { interviewQuestions } from "@db/schema";
+import { hasDb } from "./test-db-flag";
 
 const seedQuestions = [
   {
@@ -50,7 +51,7 @@ const createCaller = () =>
     resHeaders: new Headers(),
   });
 
-describe("interviewRouter.getQuestions", () => {
+describe.skipIf(!hasDb)("interviewRouter.getQuestions", () => {
   it("returns MMI questions when format is MMI", async () => {
     const caller = createCaller();
     const questions = await caller.getQuestions({ format: "MMI" });
@@ -88,7 +89,7 @@ describe("interviewRouter.getQuestions", () => {
   });
 });
 
-describe("interviewRouter.getCategories", () => {
+describe.skipIf(!hasDb)("interviewRouter.getCategories", () => {
   it("returns categories for MMI", async () => {
     const caller = createCaller();
     const categories = await caller.getCategories({ format: "MMI" });
@@ -106,7 +107,7 @@ describe("interviewRouter.getCategories", () => {
   });
 });
 
-describe("interviewRouter.getRandomSet", () => {
+describe.skipIf(!hasDb)("interviewRouter.getRandomSet", () => {
   it("returns the requested number of MMI questions", async () => {
     const caller = createCaller();
     const set = await caller.getRandomSet({ format: "MMI", count: 2 });

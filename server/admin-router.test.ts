@@ -9,11 +9,12 @@ import {
 import { getDb } from "./queries/connection";
 import { patQuestions, datQuestions, adminActions } from "@db/schema";
 import { and, eq } from "drizzle-orm";
+import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   adminRouter.createCaller(mockContext(user));
 
-describe("adminRouter.stats", () => {
+describe.skipIf(!hasDb)("adminRouter.stats", () => {
   it("returns stats for admin", async () => {
     const admin = await createTestUser({ role: "admin" });
     const caller = createCaller(admin);
@@ -38,7 +39,7 @@ describe("adminRouter.stats", () => {
   });
 });
 
-describe("adminRouter.listUsers", () => {
+describe.skipIf(!hasDb)("adminRouter.listUsers", () => {
   it("lists users with pagination", async () => {
     const admin = await createTestUser({ role: "admin" });
     await createTestUser();
@@ -51,7 +52,7 @@ describe("adminRouter.listUsers", () => {
   });
 });
 
-describe("adminRouter.updateUserRole", () => {
+describe.skipIf(!hasDb)("adminRouter.updateUserRole", () => {
   it("promotes a user to admin", async () => {
     const admin = await createTestUser({ role: "admin" });
     const user = await createTestUser({ role: "user" });
@@ -66,7 +67,7 @@ describe("adminRouter.updateUserRole", () => {
   });
 });
 
-describe("adminRouter.listQuestions", () => {
+describe.skipIf(!hasDb)("adminRouter.listQuestions", () => {
   it("lists PAT questions", async () => {
     const admin = await createTestUser({ role: "admin" });
     await seedPatQuestion();
@@ -90,7 +91,7 @@ describe("adminRouter.listQuestions", () => {
   });
 });
 
-describe("adminRouter.deleteQuestion", () => {
+describe.skipIf(!hasDb)("adminRouter.deleteQuestion", () => {
   it("soft-deletes a PAT question and logs the action", async () => {
     const admin = await createTestUser({ role: "admin" });
     const question = await seedPatQuestion();
@@ -141,7 +142,7 @@ describe("adminRouter.deleteQuestion", () => {
   });
 });
 
-describe("adminRouter.updateUserRole", () => {
+describe.skipIf(!hasDb)("adminRouter.updateUserRole", () => {
   it("prevents changing own role", async () => {
     const admin = await createTestUser({ role: "admin" });
     const caller = createCaller(admin);

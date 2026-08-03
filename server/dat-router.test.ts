@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { datRouter } from "./dat-router";
+import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext, seedDatQuestion } from "./test-helpers";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   datRouter.createCaller(mockContext(user));
 
-describe("datRouter.listQuestions", () => {
+describe.skipIf(!hasDb)("datRouter.listQuestions", () => {
   it("returns questions for a subject", async () => {
     const user = await createTestUser();
     await seedDatQuestion({ subject: "biology" });
@@ -45,7 +46,7 @@ describe("datRouter.listQuestions", () => {
   });
 });
 
-describe("datRouter.recordAttempt", () => {
+describe.skipIf(!hasDb)("datRouter.recordAttempt", () => {
   it("records a correct attempt", async () => {
     const user = await createTestUser();
     const question = await seedDatQuestion();
@@ -95,7 +96,7 @@ describe("datRouter.recordAttempt", () => {
   });
 });
 
-describe("datRouter.stats", () => {
+describe.skipIf(!hasDb)("datRouter.stats", () => {
   it("returns zero stats when no attempts", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);

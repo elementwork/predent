@@ -4,11 +4,12 @@ import { createTestUser, mockContext, seedTask } from "./test-helpers";
 import { getDb } from "./queries/connection";
 import { tasks } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   taskRouter.createCaller(mockContext(user));
 
-describe("taskRouter.list", () => {
+describe.skipIf(!hasDb)("taskRouter.list", () => {
   it("returns only the current user's tasks", async () => {
     const user = await createTestUser();
     const other = await createTestUser();
@@ -28,7 +29,7 @@ describe("taskRouter.list", () => {
   });
 });
 
-describe("taskRouter.create", () => {
+describe.skipIf(!hasDb)("taskRouter.create", () => {
   it("creates a task for the authenticated user", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -48,7 +49,7 @@ describe("taskRouter.create", () => {
   });
 });
 
-describe("taskRouter.update", () => {
+describe.skipIf(!hasDb)("taskRouter.update", () => {
   it("updates the user's task", async () => {
     const user = await createTestUser();
     const task = await seedTask(user.id, { title: "Old" });
@@ -74,7 +75,7 @@ describe("taskRouter.update", () => {
   });
 });
 
-describe("taskRouter.delete", () => {
+describe.skipIf(!hasDb)("taskRouter.delete", () => {
   it("deletes the user's task", async () => {
     const user = await createTestUser();
     const task = await seedTask(user.id);
@@ -87,7 +88,7 @@ describe("taskRouter.delete", () => {
   });
 });
 
-describe("taskRouter.listFiltered", () => {
+describe.skipIf(!hasDb)("taskRouter.listFiltered", () => {
   it("filters by status", async () => {
     const user = await createTestUser();
     await seedTask(user.id, { title: "Open", status: "not_started" });
@@ -139,7 +140,7 @@ describe("taskRouter.listFiltered", () => {
   });
 });
 
-describe("taskRouter.update", () => {
+describe.skipIf(!hasDb)("taskRouter.update", () => {
   it("sets completedAt when status changes to complete", async () => {
     const user = await createTestUser();
     const task = await seedTask(user.id, { status: "not_started" });
@@ -171,7 +172,7 @@ describe("taskRouter.update", () => {
   });
 });
 
-describe("taskRouter.reschedule", () => {
+describe.skipIf(!hasDb)("taskRouter.reschedule", () => {
   it("saves previous dueDate into rescheduledFrom", async () => {
     const user = await createTestUser();
     const dueDate = new Date("2025-01-15T00:00:00Z");
@@ -207,7 +208,7 @@ describe("taskRouter.reschedule", () => {
   });
 });
 
-describe("taskRouter.bulkUpdateStatus", () => {
+describe.skipIf(!hasDb)("taskRouter.bulkUpdateStatus", () => {
   it("updates multiple tasks to complete and sets completedAt", async () => {
     const user = await createTestUser();
     const t1 = await seedTask(user.id, { status: "not_started" });
@@ -259,7 +260,7 @@ describe("taskRouter.bulkUpdateStatus", () => {
   });
 });
 
-describe("taskRouter.getSchedulingSuggestions", () => {
+describe.skipIf(!hasDb)("taskRouter.getSchedulingSuggestions", () => {
   it("returns empty schedule when no incomplete tasks exist", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -341,7 +342,7 @@ describe("taskRouter.getSchedulingSuggestions", () => {
   });
 });
 
-describe("taskRouter.dashboardStats", () => {
+describe.skipIf(!hasDb)("taskRouter.dashboardStats", () => {
   it("returns task and PAT attempt counts", async () => {
     const user = await createTestUser();
     await seedTask(user.id);

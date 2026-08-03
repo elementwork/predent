@@ -4,11 +4,12 @@ import { createTestUser, mockContext, seedCommunityPost } from "./test-helpers";
 import { getDb } from "./queries/connection";
 import { communityPosts, communityComments } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   communityRouter.createCaller(mockContext(user));
 
-describe("communityRouter.listPosts", () => {
+describe.skipIf(!hasDb)("communityRouter.listPosts", () => {
   it("returns posts", async () => {
     const user = await createTestUser();
     await seedCommunityPost(user.id);
@@ -31,7 +32,7 @@ describe("communityRouter.listPosts", () => {
   });
 });
 
-describe("communityRouter.getPostCount", () => {
+describe.skipIf(!hasDb)("communityRouter.getPostCount", () => {
   it("returns total count", async () => {
     const user = await createTestUser();
     await seedCommunityPost(user.id);
@@ -54,7 +55,7 @@ describe("communityRouter.getPostCount", () => {
   });
 });
 
-describe("communityRouter.createPost", () => {
+describe.skipIf(!hasDb)("communityRouter.createPost", () => {
   it("creates a post for authenticated user", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -77,7 +78,7 @@ describe("communityRouter.createPost", () => {
   });
 });
 
-describe("communityRouter.likePost", () => {
+describe.skipIf(!hasDb)("communityRouter.likePost", () => {
   it("increments likes", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id, { likes: 5 });
@@ -104,7 +105,7 @@ describe("communityRouter.likePost", () => {
   });
 });
 
-describe("communityRouter.editPost", () => {
+describe.skipIf(!hasDb)("communityRouter.editPost", () => {
   it("allows owner to edit their post", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id, { title: "Original" });
@@ -130,7 +131,7 @@ describe("communityRouter.editPost", () => {
   });
 });
 
-describe("communityRouter.deletePost", () => {
+describe.skipIf(!hasDb)("communityRouter.deletePost", () => {
   it("allows owner to delete their post", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id);
@@ -158,7 +159,7 @@ describe("communityRouter.deletePost", () => {
   });
 });
 
-describe("communityRouter.createComment", () => {
+describe.skipIf(!hasDb)("communityRouter.createComment", () => {
   it("creates a comment on a post", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id);
@@ -182,7 +183,7 @@ describe("communityRouter.createComment", () => {
   });
 });
 
-describe("communityRouter.deleteComment", () => {
+describe.skipIf(!hasDb)("communityRouter.deleteComment", () => {
   it("allows owner to delete their comment", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id);
@@ -219,7 +220,7 @@ describe("communityRouter.deleteComment", () => {
   });
 });
 
-describe("communityRouter.reportPost", () => {
+describe.skipIf(!hasDb)("communityRouter.reportPost", () => {
   it("creates a report for a post", async () => {
     const reporter = await createTestUser();
     const author = await createTestUser();

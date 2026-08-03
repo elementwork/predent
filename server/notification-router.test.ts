@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { notificationRouter } from "./notification-router";
+import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext, seedNotification } from "./test-helpers";
 import { getDb } from "./queries/connection";
 import { notifications } from "@db/schema";
@@ -8,7 +9,7 @@ import { eq } from "drizzle-orm";
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   notificationRouter.createCaller(mockContext(user));
 
-describe("notificationRouter.list", () => {
+describe.skipIf(!hasDb)("notificationRouter.list", () => {
   it("returns user's notifications", async () => {
     const user = await createTestUser();
     await seedNotification(user.id);
@@ -36,7 +37,7 @@ describe("notificationRouter.list", () => {
   });
 });
 
-describe("notificationRouter.unreadCount", () => {
+describe.skipIf(!hasDb)("notificationRouter.unreadCount", () => {
   it("returns the unread count", async () => {
     const user = await createTestUser();
     await seedNotification(user.id, { read: false });
@@ -48,7 +49,7 @@ describe("notificationRouter.unreadCount", () => {
   });
 });
 
-describe("notificationRouter.markRead", () => {
+describe.skipIf(!hasDb)("notificationRouter.markRead", () => {
   it("marks a notification as read", async () => {
     const user = await createTestUser();
     const notification = await seedNotification(user.id, { read: false });
@@ -66,7 +67,7 @@ describe("notificationRouter.markRead", () => {
   });
 });
 
-describe("notificationRouter.markAllRead", () => {
+describe.skipIf(!hasDb)("notificationRouter.markAllRead", () => {
   it("marks all notifications as read", async () => {
     const user = await createTestUser();
     await seedNotification(user.id, { read: false });
@@ -80,7 +81,7 @@ describe("notificationRouter.markAllRead", () => {
   });
 });
 
-describe("notificationRouter.getPreferences", () => {
+describe.skipIf(!hasDb)("notificationRouter.getPreferences", () => {
   it("returns default preferences when none set", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -93,7 +94,7 @@ describe("notificationRouter.getPreferences", () => {
   });
 });
 
-describe("notificationRouter.updatePreferences", () => {
+describe.skipIf(!hasDb)("notificationRouter.updatePreferences", () => {
   it("updates email preferences", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);

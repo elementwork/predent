@@ -5,6 +5,7 @@ import { patAttempts, patQuestions, users, type User } from "@db/schema";
 import { createTestUser, mockContext, seedPatQuestion } from "./test-helpers";
 import { eq } from "drizzle-orm";
 import { getCorrectAnswer } from "./lib/pat-generation";
+import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Partial<User>) =>
   patRouter.createCaller(mockContext(user as User | undefined));
@@ -35,10 +36,10 @@ const seedQuestion = async (
   });
 };
 
-describe("patRouter.getQuestionCount", () => {
+describe.skipIf(!hasDb)("patRouter.getQuestionCount", () => {
   beforeAll(async () => {
-    await db.delete(patAttempts);
-    await db.delete(patQuestions);
+    await db!.delete(patAttempts);
+    await db!.delete(patQuestions);
     await seedQuestion({ category: "keyholes" });
     await seedQuestion({ category: "keyholes" });
     await seedQuestion({ category: "tfe" });
@@ -60,7 +61,7 @@ describe("patRouter.getQuestionCount", () => {
   });
 });
 
-describe("patRouter.getPredictedScore", () => {
+describe.skipIf(!hasDb)("patRouter.getPredictedScore", () => {
   it("returns null score when no attempts exist", async () => {
     const caller = createCaller({ id: 9999, role: "user" });
     const result = await caller.getPredictedScore();
@@ -70,7 +71,7 @@ describe("patRouter.getPredictedScore", () => {
   });
 });
 
-describe("patRouter.getAnalytics", () => {
+describe.skipIf(!hasDb)("patRouter.getAnalytics", () => {
   it("returns empty analytics when no attempts exist", async () => {
     const caller = createCaller({ id: 9999, role: "user" });
     const analytics = await caller.getAnalytics();
@@ -105,7 +106,7 @@ describe("patRouter.getAnalytics", () => {
   });
 });
 
-describe("patRouter.getQuestions", () => {
+describe.skipIf(!hasDb)("patRouter.getQuestions", () => {
   it("returns questions for authenticated user", async () => {
     await seedQuestion({ category: "keyholes" });
     const user = await createTestUser();
@@ -124,7 +125,7 @@ describe("patRouter.getQuestions", () => {
   });
 });
 
-describe("patRouter.recordAttempt", () => {
+describe.skipIf(!hasDb)("patRouter.recordAttempt", () => {
   it("records an attempt", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -142,7 +143,7 @@ describe("patRouter.recordAttempt", () => {
   });
 });
 
-describe("patRouter.getStats", () => {
+describe.skipIf(!hasDb)("patRouter.getStats", () => {
   it("returns stats after attempts", async () => {
     const user = await createTestUser();
     const db = getDb();
@@ -219,7 +220,7 @@ describe("patRouter.getStats", () => {
   });
 });
 
-describe("patRouter.getQuestions", () => {
+describe.skipIf(!hasDb)("patRouter.getQuestions (advanced)", () => {
   it("excludes deleted questions", async () => {
     const db = getDb();
     const q = await seedPatQuestion({ category: "pattern_folding" });
@@ -266,7 +267,7 @@ describe("patRouter.getQuestions", () => {
   });
 });
 
-describe("patRouter.verifyAnswer", () => {
+describe.skipIf(!hasDb)("patRouter.verifyAnswer", () => {
   it("returns correct=true and explanations for right answer", async () => {
     const question = await seedPatQuestion({ correctAnswer: 0 });
     const user = await createTestUser();
@@ -308,7 +309,7 @@ describe("patRouter.verifyAnswer", () => {
   });
 });
 
-describe("patRouter.recordAttempt with seed", () => {
+describe.skipIf(!hasDb)("patRouter.recordAttempt with seed", () => {
   it("records an attempt with seed and increments quota", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);
@@ -408,7 +409,7 @@ describe("patRouter.recordAttempt with seed", () => {
   });
 });
 
-describe("patRouter.getQuota", () => {
+describe.skipIf(!hasDb)("patRouter.getQuota", () => {
   it("returns default quota for new user", async () => {
     const user = await createTestUser();
     const caller = createCaller(user);

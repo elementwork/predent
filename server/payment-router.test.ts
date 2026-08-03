@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createTestUser, mockContext } from "./test-helpers";
+import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   paymentRouter.createCaller(mockContext(user));
 
 let paymentRouter: typeof import("./payment-router").paymentRouter;
 
-describe("paymentRouter", () => {
+describe.skipIf(!hasDb)("paymentRouter", () => {
   let originalEnv: Record<string, string | undefined>;
 
   beforeAll(async () => {
