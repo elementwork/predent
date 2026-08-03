@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { GenerationResult } from "../pat-types.js";
-import { renderHTML } from "../pat-renderers/html-renderer.js";
+import { renderHTMLFiles } from "../pat-renderers/html-renderer.js";
 
 function printHelp() {
   console.log(`
@@ -14,7 +14,7 @@ Usage:
 Options:
   -i, --input <file>          Input JSON file (required)
   -o, --output <path>         Output path (default: ./pat-output/)
-  -t, --template <style>      Template: modern, classic, minimal (default: modern)
+  -t, --template <style>      Template: modern, classic, minimal, print (default: modern)
   --split                     Split by category
   --per-file <number>         Questions per file (default: 100)
   --filter-categories <list>  Filter by categories
@@ -23,6 +23,9 @@ Options:
   --no-explanations           Exclude explanations
   --show-answers              Pre-show answers
   --print                     Print format
+  --page-size <size>          Paper size: a4, letter (default: a4)
+  --page-numbers              Add page numbers
+  --answer-key                Add answer key page
   -q, --quiet                 Suppress output
 
 Examples:
@@ -47,6 +50,9 @@ export async function runConvert(args: string[]): Promise<void> {
       explanations: { type: "boolean", default: true },
       "show-answers": { type: "boolean", default: false },
       print: { type: "boolean", default: false },
+      "page-size": { type: "string", default: "a4" },
+      "page-numbers": { type: "boolean", default: false },
+      "answer-key": { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -88,11 +94,22 @@ export async function runConvert(args: string[]): Promise<void> {
   };
 
   await mkdir(values.output!, { recursive: true });
-  const htmlPath = join(values.output!, "index.html");
-  await writeFile(htmlPath, renderHTML(filteredData));
-
-  if (!values.quiet) {
-    console.log(`HTML written to: ${htmlPath}`);
-    console.log(`  Total questions: ${questions.length}`);
+  const files = renderHTMLFiles(filteredData, {
+    template: values.template as "modern" | "classic" | "minimal" | "print",
+    pageSize: values["page-size"] as "a4" | "letter",
+    pageNumbers: values["page-numbers"]!,
+    answerKey: values["answer-key"]!,
+    showAnswers: values["show-answers"]!,
+    pageTitle: values["page-title"]!,
+    noExplanations: !values.explanations,
+    split: values.split!,
+    perFile: parseInt(values["per-file"]!, 10),
+  });
+  for (const file of files) {
+    const htmlPath = join(values.output!, file.path);
+    await writeFile(htmlPath, file.content);
+    if (!values.quiet) {
+      console.log(`HTML written to: ${htmlPath}`);
+    }
   }
 }

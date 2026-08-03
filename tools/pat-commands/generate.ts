@@ -5,7 +5,8 @@ import { generateProblem, getCorrectAnswer } from "../../server/lib/pat-generati
 import type { QuestionCategory, Difficulty, CLIOptions, GeneratedQuestion, GenerationResult } from "../pat-types.js";
 import { ALL_CATEGORIES } from "../pat-types.js";
 import { generateExplanation } from "../pat-explanations/index.js";
-import { renderHTML } from "../pat-renderers/html-renderer.js";
+import { validateQuestion } from "./validate.js";
+import { renderHTMLFiles } from "../pat-renderers/html-renderer.js";
 import { renderJSON } from "../pat-renderers/json-renderer.js";
 
 function parseDifficultyDistribution(dist: string): { easy: number; medium: number; hard: number } {
@@ -44,7 +45,7 @@ function createQuestionId(category: QuestionCategory, index: number): string {
   return `${category}-${String(index).padStart(6, "0")}`;
 }
 
-async function generateQuestions(options: CLIOptions): Promise<GenerationResult> {
+export async function generateQuestions(options: CLIOptions): Promise<GenerationResult> {
   const categories = options.categories === "all" ? ALL_CATEGORIES : options.categories;
   const distribution = parseDifficultyDistribution(options.difficulty);
   const baseSeed = options.seed ?? Math.floor(Math.random() * 1000000);
@@ -89,12 +90,12 @@ async function generateQuestions(options: CLIOptions): Promise<GenerationResult>
         metadata: problem as Record<string, unknown>,
       };
 
-      if (cliOptions.explanations) {
+      if (options.explanations) {
         question.explanation = generateExplanation(
           category,
           problem,
           correctIndex,
-          cliOptions.explanationDepth
+          options.explanationDepth
         );
       }
 
@@ -133,7 +134,7 @@ Options:
   -o, --output <path>        Output path (default: ./pat-output/)
   -s, --seed <number>        Random seed for reproducibility
   -v, --validate             Validate after generation
-  -t, --template <style>     Template: modern, classic, minimal (default: modern)
+  -t, --template <style>     Template: modern, classic, minimal, print (default: modern)
   --split                    Split by category into separate files
   --per-file <number>        Questions per file when splitting (default: 100)
   --no-explanations          Exclude explanations
@@ -142,6 +143,7 @@ Options:
   --page-size <size>         Paper size: a4, letter (default: a4)
   --page-numbers             Add page numbers
   --answer-key               Add answer key page
+  --show-answers             Pre-show correct answers and explanations
   -q, --quiet                Suppress output
 
 Categories:
@@ -175,6 +177,7 @@ export async function runGenerate(args: string[]): Promise<void> {
       "page-size": { type: "string", default: "a4" },
       "page-numbers": { type: "boolean", default: false },
       "answer-key": { type: "boolean", default: false },
+      "show-answers": { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -199,7 +202,7 @@ export async function runGenerate(args: string[]): Promise<void> {
     output: values.output!,
     seed: values.seed ? parseInt(values.seed, 10) : undefined,
     validate: values.validate!,
-    template: values.template as "modern" | "classic" | "minimal",
+    template: values.template as "modern" | "classic" | "minimal" | "print",
     split: values.split!,
     perFile: parseInt(values["per-file"]!, 10),
     explanations: values.explanations!,
@@ -208,6 +211,7 @@ export async function runGenerate(args: string[]): Promise<void> {
     pageSize: values["page-size"]!,
     pageNumbers: values["page-numbers"]!,
     answerKey: values["answer-key"]!,
+    showAnswers: values["show-answers"]!,
     quiet: values.quiet!,
   };
 
@@ -224,6 +228,24 @@ export async function runGenerate(args: string[]): Promise<void> {
 
   const result = await generateQuestions(options);
 
+  if (options.validate) {
+    const errors: string[] = [];
+    for (const question of result.questions) {
+      errors.push(...validateQuestion(question));
+    }
+    if (errors.length > 0) {
+      console.error(`Validation FAILED: ${errors.length} issue(s)`);
+      for (const error of errors.slice(0, 20)) {
+        console.error(`  - ${error}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    if (!options.quiet) {
+      console.log(`Validation PASSED (${result.questions.length} questions)`);
+    }
+  }
+
   // Ensure output directory exists
   await mkdir(options.output, { recursive: true });
 
@@ -237,10 +259,23 @@ export async function runGenerate(args: string[]): Promise<void> {
   }
 
   if (options.format === "html" || options.format === "both") {
-    const htmlPath = join(options.output, "index.html");
-    await writeFile(htmlPath, renderHTML(result));
-    if (!options.quiet) {
-      console.log(`HTML written to: ${htmlPath}`);
+    const files = renderHTMLFiles(result, {
+      template: options.template,
+      pageSize: options.pageSize as "a4" | "letter",
+      pageNumbers: options.pageNumbers,
+      answerKey: options.answerKey,
+      showAnswers: options.showAnswers,
+      pageTitle: "PAT Question Bank",
+      noExplanations: !options.explanations,
+      split: options.split,
+      perFile: options.perFile,
+    });
+    for (const file of files) {
+      const htmlPath = join(options.output, file.path);
+      await writeFile(htmlPath, file.content);
+      if (!options.quiet) {
+        console.log(`HTML written to: ${htmlPath}`);
+      }
     }
   }
 

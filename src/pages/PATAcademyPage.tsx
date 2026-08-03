@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/providers/trpc";
 import { Badge } from "@/components/ui/badge";
+import { PAT_QUESTION_COUNTS } from "@contracts/pat-stats";
 
 const CATEGORY_META: Record<
   string,
@@ -101,8 +102,6 @@ function CircularProgress({
 
 export default function PATAcademyPage() {
   usePageTitle("PAT Academy");
-  const { data: counts, isLoading: countsLoading } =
-    trpc.pat.getQuestionCount.useQuery({});
   const { data: quota } = trpc.pat.getQuota.useQuery();
   const { data: stats } = trpc.pat.getStats.useQuery();
 
@@ -121,7 +120,7 @@ export default function PATAcademyPage() {
     return {
       id,
       ...meta,
-      questions: counts?.[id] ?? 0,
+      questions: PAT_QUESTION_COUNTS[id] ?? 0,
       accuracy: catStats?.accuracy ?? 0,
       attempts: catStats?.total ?? 0,
     };
@@ -280,9 +279,7 @@ export default function PATAcademyPage() {
                             {cat.name}
                           </h3>
                           <p className="text-xs text-[var(--text-tertiary)]">
-                            {countsLoading
-                              ? "Loading..."
-                              : `${cat.questions.toLocaleString()} questions`}
+                            {`${cat.questions.toLocaleString()} questions`}
                           </p>
                         </div>
                       </div>

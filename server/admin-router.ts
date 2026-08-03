@@ -4,9 +4,9 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { env } from "./lib/env";
+import { PAT_TOTAL_QUESTION_COUNT } from "@contracts/pat-stats";
 import {
   users,
-  patQuestions,
   patAttempts,
   datQuestions,
   datAttempts,
@@ -17,13 +17,9 @@ export const adminRouter = createRouter({
   stats: adminQuery.query(async () => {
     const db = getDb();
 
-    const [userRows, patQuestionRows, patAttemptRows, datQuestionRows, datAttemptRows] =
+    const [userRows, patAttemptRows, datQuestionRows, datAttemptRows] =
       await Promise.all([
         db.select({ total: count() }).from(users),
-        db
-          .select({ total: count() })
-          .from(patQuestions)
-          .where(isNull(patQuestions.deletedAt)),
         db.select({ total: count() }).from(patAttempts),
         db
           .select({ total: count() })
@@ -34,7 +30,7 @@ export const adminRouter = createRouter({
 
     return {
       users: userRows[0]?.total ?? 0,
-      patQuestions: patQuestionRows[0]?.total ?? 0,
+      patQuestions: PAT_TOTAL_QUESTION_COUNT,
       patAttempts: patAttemptRows[0]?.total ?? 0,
       datQuestions: datQuestionRows[0]?.total ?? 0,
       datAttempts: datAttemptRows[0]?.total ?? 0,
@@ -132,20 +128,7 @@ export const adminRouter = createRouter({
     .query(async ({ input }) => {
       const db = getDb();
       if (input.type === "pat") {
-        const rows = await db
-          .select({
-            id: patQuestions.id,
-            publicId: patQuestions.publicId,
-            category: patQuestions.category,
-            difficulty: patQuestions.difficulty,
-            createdAt: patQuestions.createdAt,
-          })
-          .from(patQuestions)
-          .where(isNull(patQuestions.deletedAt))
-          .orderBy(desc(patQuestions.createdAt))
-          .limit(input.limit)
-          .offset(input.offset);
-        return rows.map(r => ({ ...r, type: "pat" as const }));
+        return [];
       }
 
       const rows = await db
@@ -175,20 +158,19 @@ export const adminRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       if (input.type === "pat") {
-        await db
-          .update(patQuestions)
-          .set({ deletedAt: new Date() })
-          .where(eq(patQuestions.id, input.id));
-      } else {
-        await db
-          .update(datQuestions)
-          .set({ deletedAt: new Date() })
-          .where(eq(datQuestions.id, input.id));
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "PAT questions are generated on the fly and cannot be deleted.",
+        });
       }
+      await db
+        .update(datQuestions)
+        .set({ deletedAt: new Date() })
+        .where(eq(datQuestions.id, input.id));
       await db.insert(adminActions).values({
         adminId: ctx.user.id,
-        action: input.type === "pat" ? "delete_pat" : "delete_dat",
-        targetType: input.type === "pat" ? "pat_question" : "dat_question",
+        action: "delete_dat",
+        targetType: "dat_question",
         targetId: input.id,
         metadata: { deletedAt: new Date().toISOString() },
       });

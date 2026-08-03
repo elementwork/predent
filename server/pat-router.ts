@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { eq, desc, inArray, notInArray, and, sql, count, isNull } from "drizzle-orm";
-import { createRouter, publicQuery, authedQuery } from "./middleware";
+import { eq, desc, sql } from "drizzle-orm";
+import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { patAttempts, patQuestions, users } from "@db/schema";
+import { patAttempts, users } from "@db/schema";
 import { TRPCError } from "@trpc/server";
 import { getCorrectAnswer, type PatCategory, type Difficulty } from "./lib/pat-generation";
 import { computePredictedScore } from "./lib/score-prediction";
@@ -32,108 +32,12 @@ const difficultyEnum = z.enum([
 ]);
 
 export const patRouter = createRouter({
-  getQuestions: authedQuery
-    .input(
-      z.object({
-        categories: z.array(categoryEnum).default([]),
-        difficulties: z.array(difficultyEnum).default([]),
-        count: z.number().int().min(1).max(90).default(10),
-        excludeIds: z.array(z.string()).default([]),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const db = getDb();
-
-      const conditions = [isNull(patQuestions.deletedAt)];
-      if (input.categories.length > 0) {
-        conditions.push(inArray(patQuestions.category, input.categories));
-      }
-      if (input.difficulties.length > 0) {
-        conditions.push(inArray(patQuestions.difficulty, input.difficulties));
-      }
-      if (input.excludeIds.length > 0) {
-        conditions.push(notInArray(patQuestions.publicId, input.excludeIds));
-      }
-
-      const rows = await db
-        .select()
-        .from(patQuestions)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(sql`RANDOM()`)
-        .limit(input.count);
-
-      // Return question WITHOUT correct answer — prevents cheating via network inspection
-      return rows.map(q => ({
-        id: q.publicId,
-        dbId: q.id,
-        category: q.category,
-        difficulty: q.difficulty,
-        prompt: q.questionData.prompt,
-        diagram: q.questionData.diagram,
-        options: q.questionData.options,
-        concepts: q.concepts,
-        timeTarget: q.timeTarget,
-      }));
-    }),
-
-  getQuestionCount: publicQuery
-    .input(z.object({ category: categoryEnum.optional() }).default({}))
-    .query(async ({ input }) => {
-      const db = getDb();
-
-      if (input.category) {
-        const [row] = await db
-          .select({ total: count() })
-          .from(patQuestions)
-          .where(and(eq(patQuestions.category, input.category), isNull(patQuestions.deletedAt)));
-        return { total: row?.total ?? 0 };
-      }
-
-      const rows = await db
-        .select({ category: patQuestions.category, total: count() })
-        .from(patQuestions)
-        .where(isNull(patQuestions.deletedAt))
-        .groupBy(patQuestions.category);
-
-      return rows.reduce<Record<string, number>>((acc, r) => {
-        acc[r.category] = r.total;
-        return acc;
-      }, {});
-    }),
-
-  verifyAnswer: authedQuery
-    .input(
-      z.object({
-        questionId: z.string(),
-        userAnswer: z.number().int().min(0).max(3),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const db = getDb();
-      const [question] = await db
-        .select()
-        .from(patQuestions)
-        .where(and(eq(patQuestions.publicId, input.questionId), isNull(patQuestions.deletedAt)))
-        .limit(1);
-
-      if (!question) throw new TRPCError({ code: "NOT_FOUND" });
-
-      return {
-        isCorrect: question.correctAnswer === input.userAnswer,
-        correctAnswer: question.correctAnswer,
-        explanationL1: question.explanationL1,
-        explanationL2: question.explanationL2,
-        explanationL3: question.explanationL3,
-      };
-    }),
-
   recordAttempt: authedQuery
     .input(
       z.object({
         category: categoryEnum,
         difficulty: difficultyEnum,
-        questionId: z.string().optional(),
-        seed: z.number().int().optional(),
+        seed: z.number().int(),
         userAnswer: z.number().int().min(-1).max(3),
         timeSpent: z.number().int(),
         sessionId: z.string(),
@@ -142,30 +46,12 @@ export const patRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
 
-      let correctAnswer: number;
-      let questionIdStr: string;
-
-      if (input.seed !== undefined) {
-        // Generated question: re-derive answer from seed
-        const genDifficulty = apiToGenDifficulty[input.difficulty] ?? "medium";
-        correctAnswer = getCorrectAnswer(
-          input.category as PatCategory,
-          { seed: input.seed, difficulty: genDifficulty }
-        );
-        questionIdStr = String(input.seed);
-      } else if (input.questionId) {
-        // DB question: look up answer
-        const [q] = await db
-          .select({ correctAnswer: patQuestions.correctAnswer })
-          .from(patQuestions)
-          .where(and(eq(patQuestions.publicId, input.questionId), isNull(patQuestions.deletedAt)))
-          .limit(1);
-        if (!q) throw new TRPCError({ code: "NOT_FOUND" });
-        correctAnswer = q.correctAnswer;
-        questionIdStr = input.questionId;
-      } else {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Either seed or questionId is required" });
-      }
+      // Generated question: re-derive answer from seed
+      const genDifficulty = apiToGenDifficulty[input.difficulty] ?? "medium";
+      const correctAnswer = getCorrectAnswer(
+        input.category as PatCategory,
+        { seed: input.seed, difficulty: genDifficulty }
+      );
 
       const isCorrect = input.userAnswer === correctAnswer;
 
@@ -173,20 +59,17 @@ export const patRouter = createRouter({
         userId: ctx.user.id,
         category: input.category,
         difficulty: input.difficulty,
-        questionId: questionIdStr,
+        questionId: String(input.seed),
         userAnswer: input.userAnswer,
         isCorrect,
         timeSpent: input.timeSpent,
         sessionId: input.sessionId,
       });
 
-      // Increment quota counter only for generated questions
-      if (input.seed !== undefined) {
-        await db
-          .update(users)
-          .set({ patQuestionsGenerated: sql`${users.patQuestionsGenerated} + 1` })
-          .where(eq(users.id, ctx.user.id));
-      }
+      await db
+        .update(users)
+        .set({ patQuestionsGenerated: sql`${users.patQuestionsGenerated} + 1` })
+        .where(eq(users.id, ctx.user.id));
 
       return { success: true, isCorrect };
     }),

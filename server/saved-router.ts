@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { savedQuestions, patQuestions, datQuestions } from "@db/schema";
+import { savedQuestions, datQuestions } from "@db/schema";
 
 const sourceEnum = z.enum(["pat", "dat"]);
 
@@ -28,9 +28,6 @@ export const savedRouter = createRouter({
           questionId: savedQuestions.questionId,
           note: savedQuestions.note,
           createdAt: savedQuestions.createdAt,
-          patCategory: patQuestions.category,
-          patDifficulty: patQuestions.difficulty,
-          patPrompt: patQuestions.questionData,
           datSubject: datQuestions.subject,
           datTopic: datQuestions.topic,
           datDifficulty: datQuestions.difficulty,
@@ -38,10 +35,6 @@ export const savedRouter = createRouter({
           datOptions: datQuestions.options,
         })
         .from(savedQuestions)
-        .leftJoin(patQuestions, and(
-          eq(savedQuestions.source, "pat"),
-          eq(savedQuestions.questionId, patQuestions.id)
-        ))
         .leftJoin(datQuestions, and(
           eq(savedQuestions.source, "dat"),
           eq(savedQuestions.questionId, datQuestions.id)
@@ -57,11 +50,6 @@ export const savedRouter = createRouter({
             questionId: row.questionId,
             note: row.note,
             createdAt: row.createdAt,
-            category: row.patCategory,
-            difficulty: row.patDifficulty,
-            prompt: row.patPrompt?.prompt,
-            diagram: row.patPrompt?.diagram,
-            options: row.patPrompt?.options,
           };
         }
         return {

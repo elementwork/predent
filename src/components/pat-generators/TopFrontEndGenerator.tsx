@@ -36,15 +36,15 @@ export default function TopFrontEndGenerator({
   const [difficulty, setDifficulty] = useState<Diff>(
     config?.difficulty ?? "easy"
   );
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000000) + 1);
   const [problem, setProblem] = useState<TFEProblem>(() =>
     config
       ? generateTFEProblem(createPRNG(config.seed), config.difficulty)
-      : generateTFEProblem(Math.random, "easy")
+      : generateTFEProblem(createPRNG(seed), "easy")
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
   const sessionIdRef = useRef(nanoid());
-  const questionIdRef = useRef(nanoid());
   const startRef = useRef(0);
   useEffect(() => { startRef.current = Date.now(); }, []);
   const { start, recordAttempt } = useRecordPATAttempt();
@@ -52,11 +52,15 @@ export default function TopFrontEndGenerator({
   const { shape, missingView, givenViews, options, correctIndex } = problem;
 
   const regenerate = useCallback(() => {
-    const random = controlled ? createPRNG(Date.now()) : Math.random;
-    setProblem(generateTFEProblem(random, difficulty));
+    if (controlled) {
+      setProblem(generateTFEProblem(createPRNG(Date.now()), difficulty));
+    } else {
+      const nextSeed = Math.floor(Math.random() * 1000000) + 1;
+      setSeed(nextSeed);
+      setProblem(generateTFEProblem(createPRNG(nextSeed), difficulty));
+    }
     setSelectedIndex(null);
     setResult(null);
-    questionIdRef.current = nanoid();
     startRef.current = Date.now();
     start();
   }, [controlled, difficulty, start]);
@@ -70,9 +74,9 @@ export default function TopFrontEndGenerator({
       const timeSpent = Math.round((Date.now() - startRef.current) / 1000);
       onAnswer({ isCorrect, timeSpent, answerIndex: index });
     } else {
-      recordAttempt("tfe", difficulty, questionIdRef.current, index, sessionIdRef.current);
+      recordAttempt("tfe", difficulty, seed, index, sessionIdRef.current);
     }
-  }, [result, correctIndex, controlled, onAnswer, difficulty, recordAttempt, sessionIdRef]);
+  }, [result, correctIndex, controlled, onAnswer, difficulty, seed, recordAttempt, sessionIdRef]);
 
   return (
     <div className="bg-[var(--page-surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm">

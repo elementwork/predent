@@ -42,7 +42,6 @@ cp .env.example .env
 
 # Initialize database
 npm run db:push
-npm run db:seed            # 360 PAT questions
 npm run db:seed:dat:full   # 500 DAT questions (200 bio + 200 chem + 100 RC)
 npm run db:seed:interview  # 24 interview questions
 
@@ -66,7 +65,6 @@ The app runs at `http://localhost:3000`.
 | `npm run db:push` | Push schema to database |
 | `npm run db:generate` | Generate Drizzle migrations |
 | `npm run db:migrate` | Run migrations |
-| `npm run db:seed` | Seed PAT questions (360) |
 | `npm run db:seed:dat:full` | Seed DAT questions (500) |
 | `npm run db:seed:interview` | Seed interview questions (24) |
 | `npm run docker:build` | Build Docker image |
@@ -116,7 +114,6 @@ The app runs at `http://localhost:3000`.
 ├── db/                     # Drizzle schema, relations, migrations, seeds
 │   ├── schema.ts           # 18 tables
 │   ├── relations.ts        # Foreign-key relationships
-│   ├── seed.ts             # PAT question seeder (360 questions)
 │   ├── seed-dat-full.ts    # DAT question seeder (500 questions)
 │   ├── seed-interview.ts   # Interview question seeder (24 questions)
 │   ├── data/               # DAT question data files (bio, chem, reading)
@@ -125,7 +122,7 @@ The app runs at `http://localhost:3000`.
 │   ├── user/               # End-user guides
 │   ├── dev/                # Developer & operator guides
 │   └── design/             # PRD, feature list, planning docs
-├── tools/                  # Standalone tools (PAT Generator)
+├── tools/                  # Standalone PAT tooling — pat CLI (generate/render/convert/validate/standalone)
 ├── .agents/                # Agent session resume
 ├── public/                 # Static assets, PWA manifest, icons, sw.js
 ├── Dockerfile

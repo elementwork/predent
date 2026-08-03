@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-07-31T17:30:00-04:00
+> Last updated: 2026-08-03T00:00:00-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -47,6 +47,7 @@ PreDent Canada is a full-stack web platform for Canadian dental school applicant
 | `7437705` | Security   | Audit-02 remediation — session invalidation, rate limiting, admin soft-delete + audit log, Drizzle relations, auth status codes, env cleanup, Stripe reuse, notification links, mobile theme toggle. |
 | (pending) | Docs       | Documentation reorganization — moved user/dev/admin guides under `docs/`, moved resume to `.agents/`, moved design docs under `docs/design/`, added index files, updated README/AGENTS.md. |
 | (pending) | Feature    | Comprehensive documentation update + P1 features — updated feature_list, dev-guide, user-guide; merged READMEs; implemented onboarding flow, Sentry error tracking, Playwright E2E tests, landing page testimonials removal, study streak computation (PAT+DAT), flashcard/DA module real DB counts, community sidebar cleanup, study reminder wiring, PWA theme color, CI migration check. |
+| (pending) | Feature    | PAT CLI toolset + remove PAT question bank — `tools/pat-cli.ts` (generate/render/convert/validate/standalone), HTML renderer with modern/classic/minimal/print templates, split/per-file output, answer keys, validation of all 18 category×difficulty combos, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`), static counts in `contracts/pat-stats.ts`, seed-based flashcards (SM-2 reviews store category+difficulty+seed), seed-based `recordAttempt`, saved-questions PAT branch, fixed angle_ranking rejection-sampler infinite loop and pattern_folding NaN-seed option shuffle; `db/seed.ts` removed. |
 | (pending) | Feature    | On-the-fly PAT question generation — seeded PRNG (mulberry32), 6 generator logic modules (client + server), `recordAttempt` with seed-based answer re-derivation, `getQuota` endpoint, `patQuestionsGenerated` column, tier quota system (free=20, premium=360, plus=1080), PAT Academy quota display with progress bar, difficulty mapping fix (API→generation). |
 | `f9755ba` | Release    | Squashed release — all on-the-fly generation phases complete, 134 tests passing, docs updated. |
 | `be42e66` | Feature    | P2 quick wins — community post edit dialog, interview questions moved to DB, DAT analytics endpoints, study schedule generator, shared provinces array. |
@@ -565,6 +566,40 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 - Fixed pre-existing lint errors in `server/admin-router.test.ts`, `server/community-router.test.ts`, `src/components/planner/__tests__/TaskForm.test.tsx`, and `src/test-helpers.tsx`.
 
 **Verification:** `npm run check` ✓, `npm run lint` ✓, `npm test` ✓ (123 tests)
+
+---
+
+### 34. PAT CLI Toolset & PAT Question Bank Removal
+
+Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of the `patQuestions` database bank in favor of pure seed-based generation everywhere.
+
+**Part 1 — PAT CLI toolset (`tools/`):**
+- `tools/pat-cli.ts` — single CLI entry with five commands:
+  - `generate` — deterministic PAT questions from a seed (all 6 categories × 3 difficulties), `--validate` mode runs the validator and exits non-zero on failures, `--answer-key`, `--page-numbers`, `--template` (modern/classic/minimal/print), `--split`/`--per-file` (category-per-file rendering), `--no-explanations`, `-f both`.
+  - `render` — renders question cards to HTML templates (modern/classic/minimal/print), `--answer-key` appends a printable answer key, `--page-numbers` adds page rules with `data-page-number` attributes.
+  - `convert` — converts between JSON question-sets and HTML, with category/difficulty filters and full render options.
+  - `validate` — verifies questions against shared `validateQuestion` rules (option count, unique answer, missing fields, per-category constraints).
+  - `standalone` — esbuild-bundles a self-contained browser build (`dist/pat-standalone/pat-standalone.js`) exposing `window.PAT_ENGINE` (generateProblem/getCorrectAnswer/generateExplanation/renderQuestionCard) plus an init snippet that mounts inline practice cards on any page.
+- `tools/pat-renderers/html-renderer.ts` — full HTML template rewrite (templates + print CSS), replaces old html-core.
+- `tools/pat-standalone/entry.ts` — browser entry exposing the PAT engine on `window.PAT_ENGINE`.
+- Shared logic: `tools/pat-explanations/` (tier-aware explanations), `tools/pat-commands/`, `tools/pat-utils/`; question types from `tools/pat-types.ts` mirror the server generation contracts.
+- **Generator bugs found & fixed while building the CLI** (these also affected the live site):
+  - `angle_ranking`: rejection-sampler could loop forever (no valid 4th angle for some ranges) → rewritten as candidate-list sampling. Verified seeds 1/42/100/999/123456.
+  - `pattern_folding`: `shuffleOptions` seeded with `"".charCodeAt(0)` = NaN for easy/medium (empty symbol slots) → degenerate shuffle crashed with "Cannot read properties of undefined (reading 'mapping')" → now takes the PRNG + correct mapping. Verified all 18 category×difficulty combos render.
+  - Server copies in `server/lib/pat-generation/` updated to match.
+
+**Part 2 — Remove the PAT question bank:**
+- `db/schema.ts`: deleted `patQuestions` table + types; `flashcardReviews` gained nullable `category` + `difficulty` columns (varchar enums matching PAT categories/difficulties).
+- Migration `0007_handy_nomad.sql`: `DROP TABLE pat_questions CASCADE; ALTER TABLE flashcard_reviews ADD category/difficulty`.
+- `server/pat-router.ts`: removed `getQuestions`/`getQuestionCount`/`verifyAnswer`; `recordAttempt` is seed-only (stores `questionId: String(input.seed)`, increments `patQuestionsGenerated`).
+- `server/admin-router.ts`: stats use `PAT_TOTAL_QUESTION_COUNT` (360); PAT question listing returns empty; PAT delete rejects.
+- `server/saved-router.ts`: PAT saved rows return `source`/`questionId`/`note` without a DB join.
+- `server/flashcard-router.ts`: PAT cards regenerate from `(seed, category, difficulty)` stored in `flashcard_reviews`; new-card deck scans a deterministic per-user seed space (base seed `(userId*7919+17)%1000000||1`, 60 slots × 6 categories, difficulty cycles easy→medium→hard); `recordReview` validates PAT answers server-side and requires category+difficulty on insert.
+- Frontend: new `PatFlashcardRenderer` component renders PAT flashcards (cube stacks, grids, angles, folded paper, nets, 3D); `FlashcardsPage`, `PATAcademyPage` (uses `PAT_QUESTION_COUNTS`), `useRecordPATAttempt` (seed-only), and all 6 uncontrolled PAT generators now pass a numeric seed to `recordAttempt` instead of a nanoid questionId.
+- `db/seed.ts` deleted; `npm run db:seed` script removed from package.json; `seedPatQuestion` removed from test helpers; tests updated (pat-router, admin-router).
+- Docs updated: AGENTS.md, README.md, dev-guide, setup-guide, admin-guide, feature_list, this log.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓ (0 errors, 2 pre-existing warnings), `npm test` ✓ (124 tests), CLI smoke tests ✓ (generate with all options, split/per-file, convert filters, standalone bundle 475.5 KB with syntax-verified script blocks).
 
 ---
 

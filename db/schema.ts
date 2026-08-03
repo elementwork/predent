@@ -172,53 +172,6 @@ export const patAttempts = pgTable(
 export type PATAttempt = typeof patAttempts.$inferSelect;
 export type InsertPATAttempt = typeof patAttempts.$inferInsert;
 
-/* ─── PAT Questions ─── */
-export const patQuestions = pgTable("pat_questions", {
-  id: serial("id").primaryKey(),
-  publicId: text("public_id").notNull().unique(),
-  category: varchar("category", {
-    enum: [
-      "keyholes",
-      "tfe",
-      "angle_ranking",
-      "hole_punching",
-      "cube_counting",
-      "pattern_folding",
-    ],
-  }).notNull(),
-  difficulty: varchar("difficulty", {
-    enum: ["beginner", "intermediate", "advanced", "elite"],
-  }).notNull(),
-  source: varchar("source", { enum: ["curated", "generated", "user_contributed"] })
-    .default("curated")
-    .notNull(),
-  questionData: jsonb("question_data")
-    .$type<{
-      prompt: string;
-      diagram: string;
-      options: string[];
-    }>()
-    .notNull(),
-  correctAnswer: integer("correct_answer").notNull(),
-  explanationL1: text("explanation_l1").notNull(),
-  explanationL2: text("explanation_l2").notNull(),
-  explanationL3: text("explanation_l3").notNull(),
-  concepts: jsonb("concepts").$type<string[]>().notNull(),
-  timeTarget: integer("time_target").notNull(),
-  correctRate: real("correct_rate"),
-  avgTime: real("avg_time"),
-  timesUsed: integer("times_used").default(0).notNull(),
-  deletedAt: timestamp("deleted_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-});
-
-export type PATQuestion = typeof patQuestions.$inferSelect;
-export type InsertPATQuestion = typeof patQuestions.$inferInsert;
-
 /* ─── School Stats ─── */
 export const schoolStats = pgTable("school_stats", {
   id: serial("id").primaryKey(),
@@ -498,6 +451,19 @@ export const flashcardReviews = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     source: varchar("source", { enum: ["pat", "dat"] }).notNull(),
     questionId: integer("question_id").notNull(),
+    category: varchar("category", {
+      enum: [
+        "keyholes",
+        "tfe",
+        "angle_ranking",
+        "hole_punching",
+        "cube_counting",
+        "pattern_folding",
+      ],
+    }),
+    difficulty: varchar("difficulty", {
+      enum: ["easy", "medium", "hard"],
+    }),
     easeFactor: real("ease_factor").default(2.5).notNull(),
     interval: integer("interval").default(0).notNull(),
     repetitions: integer("repetitions").default(0).notNull(),

@@ -29,15 +29,15 @@ export default function CubeCountingGenerator({
   const [difficulty, setDifficulty] = useState<Diff>(
     config?.difficulty ?? "easy"
   );
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000000) + 1);
   const [problem, setProblem] = useState<CubeCountingProblem>(() =>
     config
       ? generateCubeCountingProblem(createPRNG(config.seed), config.difficulty)
-      : generateCubeCountingProblem(Math.random, "easy")
+      : generateCubeCountingProblem(createPRNG(seed), "easy")
   );
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
   const sessionIdRef = useRef(nanoid());
-  const questionIdRef = useRef(nanoid());
   const startRef = useRef(0);
   useEffect(() => { startRef.current = Date.now(); }, []);
   const { start, recordAttempt } = useRecordPATAttempt();
@@ -45,11 +45,15 @@ export default function CubeCountingGenerator({
   const { cubes, painted, answer, choices } = problem;
 
   const regenerate = useCallback(() => {
-    const random = controlled ? createPRNG(Date.now()) : Math.random;
-    setProblem(generateCubeCountingProblem(random, difficulty));
+    if (controlled) {
+      setProblem(generateCubeCountingProblem(createPRNG(Date.now()), difficulty));
+    } else {
+      const nextSeed = Math.floor(Math.random() * 1000000) + 1;
+      setSeed(nextSeed);
+      setProblem(generateCubeCountingProblem(createPRNG(nextSeed), difficulty));
+    }
     setSelected(null);
     setResult(null);
-    questionIdRef.current = nanoid();
     startRef.current = Date.now();
     start();
   }, [controlled, difficulty, start]);
@@ -63,9 +67,9 @@ export default function CubeCountingGenerator({
       const timeSpent = Math.round((Date.now() - startRef.current) / 1000);
       onAnswer({ isCorrect, timeSpent, answerIndex: choices.indexOf(value) });
     } else {
-      recordAttempt("cube_counting", difficulty, questionIdRef.current, choices.indexOf(value), sessionIdRef.current);
+      recordAttempt("cube_counting", difficulty, seed, choices.indexOf(value), sessionIdRef.current);
     }
-  }, [result, answer, controlled, onAnswer, difficulty, recordAttempt, choices, sessionIdRef]);
+  }, [result, answer, controlled, onAnswer, difficulty, seed, recordAttempt, choices, sessionIdRef]);
 
   return (
     <div className="bg-[var(--page-surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm">

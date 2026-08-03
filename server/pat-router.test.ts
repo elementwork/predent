@@ -1,65 +1,14 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { patRouter } from "./pat-router";
 import { getDb } from "./queries/connection";
-import { patAttempts, patQuestions, users, type User } from "@db/schema";
-import { createTestUser, mockContext, seedPatQuestion } from "./test-helpers";
+import { patAttempts, users, type User } from "@db/schema";
+import { createTestUser, mockContext } from "./test-helpers";
 import { eq } from "drizzle-orm";
 import { getCorrectAnswer } from "./lib/pat-generation";
 import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Partial<User>) =>
   patRouter.createCaller(mockContext(user as User | undefined));
-
-const db = getDb();
-
-const seedQuestion = async (
-  overrides: Partial<typeof patQuestions.$inferInsert> = {}
-) => {
-  const db = getDb();
-  await db.insert(patQuestions).values({
-    publicId: `test-${Math.random().toString(36).slice(2)}`,
-    category: "keyholes",
-    difficulty: "beginner",
-    source: "curated",
-    questionData: {
-      prompt: "Test prompt",
-      diagram: "",
-      options: ["A", "B", "C", "D"],
-    },
-    correctAnswer: 0,
-    explanationL1: "L1",
-    explanationL2: "L2",
-    explanationL3: "L3",
-    concepts: ["concept"],
-    timeTarget: 30,
-    ...overrides,
-  });
-};
-
-describe.skipIf(!hasDb)("patRouter.getQuestionCount", () => {
-  beforeAll(async () => {
-    await db!.delete(patAttempts);
-    await db!.delete(patQuestions);
-    await seedQuestion({ category: "keyholes" });
-    await seedQuestion({ category: "keyholes" });
-    await seedQuestion({ category: "tfe" });
-  });
-
-  it("returns total counts per category", async () => {
-    const caller = createCaller();
-    const counts = await caller.getQuestionCount({});
-
-    expect(counts.keyholes).toBe(2);
-    expect(counts.tfe).toBe(1);
-  });
-
-  it("can filter by category", async () => {
-    const caller = createCaller();
-    const count = await caller.getQuestionCount({ category: "keyholes" });
-
-    expect(count).toEqual({ total: 2 });
-  });
-});
 
 describe.skipIf(!hasDb)("patRouter.getPredictedScore", () => {
   it("returns null score when no attempts exist", async () => {
@@ -106,40 +55,19 @@ describe.skipIf(!hasDb)("patRouter.getAnalytics", () => {
   });
 });
 
-describe.skipIf(!hasDb)("patRouter.getQuestions", () => {
-  it("returns questions for authenticated user", async () => {
-    await seedQuestion({ category: "keyholes" });
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const questions = await caller.getQuestions({ count: 1 });
-
-    expect(questions.length).toBeLessThanOrEqual(1);
-  });
-
+describe.skipIf(!hasDb)("patRouter.recordAttempt", () => {
   it("throws UNAUTHORIZED when no user", async () => {
     const caller = createCaller();
-    await expect(caller.getQuestions({})).rejects.toThrow(
-      "Authentication required"
-    );
-  });
-});
-
-describe.skipIf(!hasDb)("patRouter.recordAttempt", () => {
-  it("records an attempt", async () => {
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const result = await caller.recordAttempt({
-      category: "keyholes",
-      difficulty: "beginner",
-      seed: 12345,
-      userAnswer: 0,
-      timeSpent: 30,
-      sessionId: "s1",
-    });
-
-    expect(result.success).toBe(true);
+    await expect(
+      caller.recordAttempt({
+        category: "keyholes",
+        difficulty: "beginner",
+        seed: 1,
+        userAnswer: 0,
+        timeSpent: 10,
+        sessionId: "s1",
+      })
+    ).rejects.toThrow("Authentication required");
   });
 });
 
@@ -217,95 +145,6 @@ describe.skipIf(!hasDb)("patRouter.getStats", () => {
     const stats = await caller.getStats();
 
     expect(stats.recentAttempts.length).toBeLessThanOrEqual(50);
-  });
-});
-
-describe.skipIf(!hasDb)("patRouter.getQuestions (advanced)", () => {
-  it("excludes deleted questions", async () => {
-    const db = getDb();
-    const q = await seedPatQuestion({ category: "pattern_folding" });
-    await db
-      .update(patQuestions)
-      .set({ deletedAt: new Date() })
-      .where(eq(patQuestions.id, q.id));
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const questions = await caller.getQuestions({
-      count: 10,
-      categories: ["pattern_folding"],
-    });
-
-    expect(questions).toHaveLength(0);
-  });
-
-  it("excludes specified excludeIds", async () => {
-    const q = await seedPatQuestion({ category: "keyholes" });
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const questions = await caller.getQuestions({
-      count: 10,
-      excludeIds: [q.publicId],
-    });
-
-    expect(questions.some(item => item.id === q.publicId)).toBe(false);
-  });
-
-  it("strips correctAnswer from response (anti-cheat)", async () => {
-    await seedPatQuestion({ category: "keyholes" });
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const questions = await caller.getQuestions({ count: 1 });
-
-    expect(questions.length).toBeGreaterThan(0);
-    const q = questions[0];
-    expect(q).toHaveProperty("prompt");
-    expect(q).toHaveProperty("options");
-    expect(q).not.toHaveProperty("correctAnswer");
-  });
-});
-
-describe.skipIf(!hasDb)("patRouter.verifyAnswer", () => {
-  it("returns correct=true and explanations for right answer", async () => {
-    const question = await seedPatQuestion({ correctAnswer: 0 });
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const result = await caller.verifyAnswer({
-      questionId: question.publicId,
-      userAnswer: 0,
-    });
-
-    expect(result.isCorrect).toBe(true);
-    expect(result.correctAnswer).toBe(0);
-    expect(result.explanationL1).toBeDefined();
-    expect(result.explanationL2).toBeDefined();
-    expect(result.explanationL3).toBeDefined();
-  });
-
-  it("returns correct=false and explanations for wrong answer", async () => {
-    const question = await seedPatQuestion({ correctAnswer: 2 });
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    const result = await caller.verifyAnswer({
-      questionId: question.publicId,
-      userAnswer: 0,
-    });
-
-    expect(result.isCorrect).toBe(false);
-    expect(result.correctAnswer).toBe(2);
-  });
-
-  it("throws NOT_FOUND for missing question", async () => {
-    const user = await createTestUser();
-    const caller = createCaller(user);
-
-    await expect(
-      caller.verifyAnswer({ questionId: "nonexistent", userAnswer: 0 })
-    ).rejects.toThrow("NOT_FOUND");
   });
 });
 

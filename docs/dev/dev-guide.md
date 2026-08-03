@@ -86,7 +86,7 @@ This guide is for developers who will extend, maintain, or deploy PreDent Canada
 npm install
 # create .env (see [Admin & Operations Guide](./admin-guide.md))
 npm run db:migrate
-npm run db:seed
+npm run db:seed:dat:full
 npm run dev
 ```
 
@@ -122,9 +122,10 @@ OAuth is handled by `server/auth/auth.ts` and provider-specific code in `server/
 
 ### Database
 
-- `db/schema.ts` defines 15 tables using Drizzle PostgreSQL core: `users`, `profiles`, `tasks`, `patQuestions`, `patAttempts`, `datQuestions`, `datAttempts`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `pushSubscriptions`, `schoolStats`, `stripeWebhookEvents`, `adminActions`.
+- `db/schema.ts` defines 17 tables using Drizzle PostgreSQL core: `users`, `profiles`, `tasks`, `patAttempts`, `datQuestions`, `datAttempts`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `pushSubscriptions`, `schoolStats`, `stripeWebhookEvents`, `adminActions`, `interviewQuestions`, `savedQuestions`, `flashcardReviews`.
 - `db/relations.ts` defines all foreign-key relationships.
-- `db/seed.ts` seeds 360 PAT questions; `db/seed-dat.ts` seeds 15 DAT questions.
+- PAT questions are never stored in the DB — generated on the fly from numeric seeds (see `contracts/pat-stats.ts`, `server/lib/pat-generation/`, `src/lib/prng.ts`).
+- `db/seed-dat.ts` seeds 15 DAT questions; `db/seed-dat-full.ts` seeds 500; `db/seed-interview.ts` seeds 24 interview questions.
 - Migrations are generated with `npm run db:generate` and applied with `npm run db:migrate`.
 
 ---

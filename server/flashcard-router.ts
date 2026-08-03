@@ -2,7 +2,27 @@ import { z } from "zod";
 import { eq, and, desc, sql, isNull, lte, count } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { flashcardReviews, patQuestions, datQuestions } from "@db/schema";
+import { flashcardReviews, datQuestions } from "@db/schema";
+import {
+  generateProblem,
+  getCorrectAnswer,
+  type PatCategory,
+  type Difficulty,
+} from "./lib/pat-generation";
+
+const patCategories: PatCategory[] = [
+  "keyholes",
+  "tfe",
+  "angle_ranking",
+  "hole_punching",
+  "cube_counting",
+  "pattern_folding",
+];
+
+const patDifficulties: Difficulty[] = ["easy", "medium", "hard"];
+
+const PAT_SLOTS_PER_CATEGORY = 60;
+const PAT_TOTAL_SLOTS = patCategories.length * PAT_SLOTS_PER_CATEGORY;
 
 function applySM2(
   quality: number,
@@ -59,6 +79,9 @@ export const flashcardRouter = createRouter({
       const results: Array<{
         source: "pat" | "dat";
         questionId: number;
+        seed?: number;
+        category?: string;
+        difficulty?: string;
         questionData: unknown;
         review: {
           id: number;
@@ -81,22 +104,15 @@ export const flashcardRouter = createRouter({
               repetitions: flashcardReviews.repetitions,
               nextReview: flashcardReviews.nextReview,
               lastReview: flashcardReviews.lastReview,
-              questionId: flashcardReviews.questionId,
-              questionData: patQuestions.questionData,
-              category: patQuestions.category,
-              difficulty: patQuestions.difficulty,
-              explanationL1: patQuestions.explanationL1,
+              seed: flashcardReviews.questionId,
+              category: flashcardReviews.category,
+              difficulty: flashcardReviews.difficulty,
             })
             .from(flashcardReviews)
-            .innerJoin(
-              patQuestions,
-              eq(flashcardReviews.questionId, patQuestions.id)
-            )
             .where(
               and(
                 eq(flashcardReviews.userId, userId),
                 eq(flashcardReviews.source, "pat"),
-                isNull(patQuestions.deletedAt),
                 lte(flashcardReviews.nextReview, now)
               )
             )
@@ -104,10 +120,18 @@ export const flashcardRouter = createRouter({
             .limit(input.limit);
 
           for (const r of reviewed) {
+            if (!r.category || !r.difficulty) continue;
+            const problem = generateProblem(r.category as PatCategory, {
+              seed: r.seed,
+              difficulty: r.difficulty as Difficulty,
+            });
             results.push({
               source: "pat",
-              questionId: r.questionId,
-              questionData: r.questionData,
+              questionId: r.seed,
+              seed: r.seed,
+              category: r.category,
+              difficulty: r.difficulty,
+              questionData: problem,
               review: {
                 id: r.reviewId,
                 easeFactor: r.easeFactor,
@@ -120,36 +144,45 @@ export const flashcardRouter = createRouter({
             });
           }
 
-          const newCards = await db
-            .select({
-              id: patQuestions.id,
-              questionData: patQuestions.questionData,
-              category: patQuestions.category,
-              difficulty: patQuestions.difficulty,
-              explanationL1: patQuestions.explanationL1,
-            })
-            .from(patQuestions)
+          // New cards: deterministic seeds not yet reviewed by this user.
+          // The seed space mirrors the practice generator (seed + i*1000 + catIndex*100000),
+          // so flashcard questions share the on-the-fly question space.
+          const usedRows = await db
+            .select({ seed: flashcardReviews.questionId })
+            .from(flashcardReviews)
             .where(
               and(
-                isNull(patQuestions.deletedAt),
-                sql`NOT EXISTS (
-                  SELECT 1 FROM ${flashcardReviews}
-                  WHERE ${flashcardReviews.userId} = ${userId}
-                    AND ${flashcardReviews.source} = 'pat'
-                    AND ${flashcardReviews.questionId} = ${patQuestions.id}
-                )`
+                eq(flashcardReviews.userId, userId),
+                eq(flashcardReviews.source, "pat")
               )
-            )
-            .limit(input.limit);
+            );
+          const used = new Set(usedRows.map(u => u.seed));
+          const usedInBatch = new Set<number>();
+          const baseSeed = ((userId * 7919 + 17) % 1000000) || 1;
 
-          for (const q of newCards) {
-            results.push({
-              source: "pat",
-              questionId: q.id,
-              questionData: q.questionData,
-              review: null,
-              isNew: true,
-            });
+          let candidate = 0;
+          while (results.length < input.limit && candidate < PAT_TOTAL_SLOTS) {
+            const catIndex = candidate % patCategories.length;
+            const slotIndex = Math.floor(candidate / patCategories.length);
+            const category = patCategories[catIndex]!;
+            const difficulty = patDifficulties[slotIndex % patDifficulties.length]!;
+            const seed = baseSeed + slotIndex * 1000 + catIndex * 100000;
+
+            if (!used.has(seed) && !usedInBatch.has(seed)) {
+              const problem = generateProblem(category, { seed, difficulty });
+              results.push({
+                source: "pat",
+                questionId: seed,
+                seed,
+                category,
+                difficulty,
+                questionData: problem,
+                review: null,
+                isNew: true,
+              });
+              usedInBatch.add(seed);
+            }
+            candidate++;
           }
         } else {
           const reviewed = await db
@@ -268,27 +301,47 @@ export const flashcardRouter = createRouter({
         source: z.enum(["pat", "dat"]),
         questionId: z.number().int().positive(),
         quality: z.number().int().min(0).max(5),
+        category: z
+          .enum([
+            "keyholes",
+            "tfe",
+            "angle_ranking",
+            "hole_punching",
+            "cube_counting",
+            "pattern_folding",
+          ])
+          .optional(),
+        difficulty: z.enum(["easy", "medium", "hard"]).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const userId = ctx.user.id;
 
-      const questionTable =
-        input.source === "pat" ? patQuestions : datQuestions;
-      const [question] = await db
-        .select({ id: questionTable.id })
-        .from(questionTable)
-        .where(
-          and(
-            eq(questionTable.id, input.questionId),
-            isNull(questionTable.deletedAt)
+      if (input.source === "pat") {
+        if (!input.category || !input.difficulty) {
+          throw new Error("category and difficulty are required for PAT flashcards");
+        }
+        // Validate that the seed actually generates a solvable question
+        getCorrectAnswer(input.category as PatCategory, {
+          seed: input.questionId,
+          difficulty: input.difficulty as Difficulty,
+        });
+      } else {
+        const [question] = await db
+          .select({ id: datQuestions.id })
+          .from(datQuestions)
+          .where(
+            and(
+              eq(datQuestions.id, input.questionId),
+              isNull(datQuestions.deletedAt)
+            )
           )
-        )
-        .limit(1);
+          .limit(1);
 
-      if (!question) {
-        throw new Error("Question not found");
+        if (!question) {
+          throw new Error("Question not found");
+        }
       }
 
       const [existing] = await db
@@ -326,6 +379,8 @@ export const flashcardRouter = createRouter({
           userId,
           source: input.source,
           questionId: input.questionId,
+          category: input.category,
+          difficulty: input.difficulty,
           easeFactor: sm2.easeFactor,
           interval: sm2.interval,
           repetitions: sm2.repetitions,

@@ -36,17 +36,16 @@ function generateDistractorMappings(symbols: string[]): string[][] {
 }
 
 function shuffleOptions(
-  correctMapping: string[],
-  symbols: string[]
+  random: PRNG,
+  correctMapping: string[]
 ): { options: string[][]; correctIndex: number } {
-  const distractors = generateDistractorMappings(symbols);
+  const distractors = generateDistractorMappings(correctMapping);
   const tagged = [
     { mapping: correctMapping, isCorrect: true },
     ...distractors.map(d => ({ mapping: d, isCorrect: false })),
   ];
-  const seed = symbols.reduce((acc, s) => acc + s.charCodeAt(0), 1);
   for (let i = tagged.length - 1; i > 0; i--) {
-    const j = (seed * (i + 1)) % (i + 1);
+    const j = Math.floor(random() * (i + 1));
     [tagged[i], tagged[j]] = [tagged[j]!, tagged[i]!];
   }
   const options = tagged.map(t => t.mapping);
@@ -60,6 +59,6 @@ export function generatePatternFoldingProblem(
 ): PatternFoldingProblem {
   const symbols = generateSymbols(random, difficulty);
   const correctMapping = generateCorrectMapping(symbols);
-  const { options, correctIndex } = shuffleOptions(correctMapping, symbols);
+  const { options, correctIndex } = shuffleOptions(random, correctMapping);
   return { symbols, options, correctIndex };
 }

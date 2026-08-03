@@ -10,7 +10,7 @@ export type Difficulty = "easy" | "medium" | "hard";
 
 export type OutputFormat = "html" | "json" | "both";
 
-export type TemplateStyle = "modern" | "classic" | "minimal";
+export type TemplateStyle = "modern" | "classic" | "minimal" | "print";
 
 export type ExplanationDepth = "brief" | "detailed" | "full";
 
@@ -31,6 +31,7 @@ export interface CLIOptions {
   pageSize: string;
   pageNumbers: boolean;
   answerKey: boolean;
+  showAnswers: boolean;
   quiet: boolean;
 }
 

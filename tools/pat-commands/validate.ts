@@ -29,7 +29,7 @@ Examples:
 `);
 }
 
-function validateQuestion(question: GeneratedQuestion): string[] {
+export function validateQuestion(question: GeneratedQuestion): string[] {
   const errors: string[] = [];
 
   if (!question.id) errors.push("Missing id");

@@ -17,6 +17,8 @@ import {
   Trophy,
   Sparkles,
 } from "lucide-react";
+import type { PatCategory } from "@/components/pat-generators/logic";
+import { PatFlashcardRenderer } from "@/components/pat-generators/shared/PatFlashcardRenderer";
 
 type ViewMode = "dashboard" | "review" | "complete";
 
@@ -25,6 +27,10 @@ interface NormalizedCard {
   questionId: number;
   questionText: string;
   answerText: string;
+  category?: string;
+  difficulty?: string;
+  problem?: unknown;
+  correctIndex?: number;
 }
 
 const qualityLabels: Record<number, { label: string; color: string }> = {
@@ -44,15 +50,16 @@ const qualityKeys: Record<string, number> = {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function normalizeCard(raw: any): NormalizedCard {
   if (raw.source === "pat") {
-    const data = raw.questionData as {
-      prompt?: string;
-      options?: string[];
-    };
+    const data = raw.questionData as Record<string, any>;
     return {
       source: "pat",
       questionId: raw.questionId,
-      questionText: data?.prompt ?? "Question",
-      answerText: data?.options?.join(" / ") ?? "Answer",
+      questionText: "PAT question",
+      answerText: "Flip to see the diagram answer",
+      category: raw.category,
+      difficulty: raw.difficulty,
+      problem: data,
+      correctIndex: data?.correctIndex ?? 0,
     };
   }
   const data = raw.questionData as {
@@ -311,16 +318,40 @@ function ReviewView({
                 : "hover:border-[#8B5CF6]/50"
             }`}
           >
-            <CardContent className="p-8 min-h-[280px] flex flex-col items-center justify-center text-center">
+            <CardContent className="p-8 min-h-[320px] flex flex-col items-center justify-center text-center">
               {!flipped ? (
+                card.source === "pat" ? (
+                  <>
+                    <BookOpen className="w-8 h-8 text-[var(--text-tertiary)] mb-4" />
+                    <PatFlashcardRenderer
+                      category={(card.category ?? "keyholes") as PatCategory}
+                      problem={card.problem as never}
+                      correctIndex={card.correctIndex ?? 0}
+                    />
+                    <p className="text-xs text-[var(--text-tertiary)] mt-4">
+                      Click or press Space to reveal answer
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="w-8 h-8 text-[var(--text-tertiary)] mb-4" />
+                    <p className="text-lg text-[var(--text-primary)] leading-relaxed">
+                      {card.questionText}
+                    </p>
+                    <p className="text-xs text-[var(--text-tertiary)] mt-6">
+                      Click or press Space to reveal answer
+                    </p>
+                  </>
+                )
+              ) : card.source === "pat" ? (
                 <>
-                  <BookOpen className="w-8 h-8 text-[var(--text-tertiary)] mb-4" />
-                  <p className="text-lg text-[var(--text-primary)] leading-relaxed">
-                    {card.questionText}
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-6">
-                    Click or press Space to reveal answer
-                  </p>
+                  <CheckCircle className="w-8 h-8 text-[#10B981] mb-4" />
+                  <PatFlashcardRenderer
+                    category={(card.category ?? "keyholes") as PatCategory}
+                    problem={card.problem as never}
+                    correctIndex={card.correctIndex ?? 0}
+                    revealAnswer
+                  />
                 </>
               ) : (
                 <>
@@ -507,6 +538,8 @@ export default function FlashcardsPage() {
         source: raw.source,
         questionId: raw.questionId,
         quality,
+        category: raw.category as "keyholes" | "tfe" | "angle_ranking" | "hole_punching" | "cube_counting" | "pattern_folding" | undefined,
+        difficulty: raw.difficulty as "easy" | "medium" | "hard" | undefined,
       });
 
       setRatings(prev => ({ ...prev, [currentIndex]: quality }));

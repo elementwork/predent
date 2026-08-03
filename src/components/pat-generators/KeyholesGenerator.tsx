@@ -29,15 +29,15 @@ export default function KeyholesGenerator({
   const [difficulty, setDifficulty] = useState<Diff>(
     config?.difficulty ?? "easy"
   );
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000000) + 1);
   const [problem, setProblem] = useState<KeyholesProblem>(() =>
     config
       ? generateKeyholesProblem(createPRNG(config.seed), config.difficulty)
-      : generateKeyholesProblem(Math.random, "easy")
+      : generateKeyholesProblem(createPRNG(seed), "easy")
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
   const sessionIdRef = useRef(nanoid());
-  const questionIdRef = useRef(nanoid());
   const startRef = useRef(0);
   useEffect(() => { startRef.current = Date.now(); }, []);
   const { start, recordAttempt } = useRecordPATAttempt();
@@ -45,11 +45,15 @@ export default function KeyholesGenerator({
   const { cubes, options, correctIndex } = problem;
 
   const regenerate = useCallback(() => {
-    const random = controlled ? createPRNG(Date.now()) : Math.random;
-    setProblem(generateKeyholesProblem(random, difficulty));
+    if (controlled) {
+      setProblem(generateKeyholesProblem(createPRNG(Date.now()), difficulty));
+    } else {
+      const nextSeed = Math.floor(Math.random() * 1000000) + 1;
+      setSeed(nextSeed);
+      setProblem(generateKeyholesProblem(createPRNG(nextSeed), difficulty));
+    }
     setSelectedIndex(null);
     setResult(null);
-    questionIdRef.current = nanoid();
     startRef.current = Date.now();
     start();
   }, [controlled, difficulty, start]);
@@ -63,9 +67,9 @@ export default function KeyholesGenerator({
       const timeSpent = Math.round((Date.now() - startRef.current) / 1000);
       onAnswer({ isCorrect, timeSpent, answerIndex: index });
     } else {
-      recordAttempt("keyholes", difficulty, questionIdRef.current, index, sessionIdRef.current);
+      recordAttempt("keyholes", difficulty, seed, index, sessionIdRef.current);
     }
-  }, [result, correctIndex, controlled, onAnswer, difficulty, recordAttempt, sessionIdRef]);
+  }, [result, correctIndex, controlled, onAnswer, difficulty, seed, recordAttempt, sessionIdRef]);
 
   return (
     <div className="bg-[var(--page-surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm">

@@ -29,15 +29,15 @@ export default function AngleRankingGenerator({
   const [difficulty, setDifficulty] = useState<Diff>(
     config?.difficulty ?? "easy"
   );
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000000) + 1);
   const [problem, setProblem] = useState<AngleRankingProblem>(() =>
     config
       ? generateAngleRankingProblem(createPRNG(config.seed), config.difficulty)
-      : generateAngleRankingProblem(Math.random, "easy")
+      : generateAngleRankingProblem(createPRNG(seed), "easy")
   );
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
   const sessionIdRef = useRef(nanoid());
-  const questionIdRef = useRef(nanoid());
   const startRef = useRef(0);
   useEffect(() => { startRef.current = Date.now(); }, []);
   const { start, recordAttempt } = useRecordPATAttempt();
@@ -48,11 +48,15 @@ export default function AngleRankingGenerator({
   const sorted = useMemo(() => [...angles].sort((a, b) => a - b), [angles]);
 
   const regenerate = useCallback(() => {
-    const random = controlled ? createPRNG(Date.now()) : Math.random;
-    setProblem(generateAngleRankingProblem(random, difficulty));
+    if (controlled) {
+      setProblem(generateAngleRankingProblem(createPRNG(Date.now()), difficulty));
+    } else {
+      const nextSeed = Math.floor(Math.random() * 1000000) + 1;
+      setSeed(nextSeed);
+      setProblem(generateAngleRankingProblem(createPRNG(nextSeed), difficulty));
+    }
     setSelected(null);
     setResult(null);
-    questionIdRef.current = nanoid();
     startRef.current = Date.now();
     start();
   }, [controlled, difficulty, start]);
@@ -67,9 +71,9 @@ export default function AngleRankingGenerator({
       const timeSpent = Math.round((Date.now() - startRef.current) / 1000);
       onAnswer({ isCorrect, timeSpent, answerIndex: idx });
     } else {
-      recordAttempt("angle_ranking", difficulty, questionIdRef.current, idx, sessionIdRef.current);
+      recordAttempt("angle_ranking", difficulty, seed, idx, sessionIdRef.current);
     }
-  }, [result, correctIndex, controlled, onAnswer, difficulty, recordAttempt, sessionIdRef, labels]);
+  }, [result, correctIndex, controlled, onAnswer, difficulty, seed, recordAttempt, sessionIdRef, labels]);
 
   return (
     <div className="bg-[var(--page-surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm">

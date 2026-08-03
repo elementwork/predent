@@ -186,7 +186,7 @@ The first user whose `unionId` matches `OWNER_UNION_ID` is automatically promote
 ```bash
 npm install
 npm run db:migrate
-npm run db:seed
+npm run db:seed:dat:full
 npm run dev
 ```
 
@@ -219,11 +219,7 @@ npm run db:migrate
 
 ### Seed Data
 
-Seed PAT questions (360 deterministic questions):
-
-```bash
-npm run db:seed
-```
+PAT questions are generated on the fly from numeric seeds (seeded PRNG) — there is no `pat_questions` table and nothing to seed for PAT.
 
 Seed DAT questions (500 questions: 200 bio + 200 chem + 100 RC):
 
@@ -246,7 +242,7 @@ Connect via any PostgreSQL client, for example:
 ```bash
 psql "postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres"
 
-SELECT COUNT(*) FROM pat_questions;
+SELECT COUNT(*) FROM pat_attempts;
 SELECT COUNT(*) FROM dat_questions;
 SELECT COUNT(*) FROM users;
 ```
@@ -381,7 +377,7 @@ The project includes a `vercel.json` configuration for serverless deployment:
 1. Set all required environment variables.
 2. Ensure `DATABASE_URL` points to a persistent PostgreSQL database.
 3. Run `npm run db:migrate`.
-4. Run `npm run db:seed` and/or `npm run db:seed:dat` on a fresh database.
+4. Run `npm run db:seed:dat:full` and/or `npm run db:seed:dat` on a fresh database (PAT needs no seeding).
 5. Configure OAuth redirect URIs for every enabled provider:
    - `https://your-domain.com/api/oauth/callback`
 6. Configure Stripe webhook endpoint to `https://your-domain.com/api/webhooks/stripe` (if using payments).
@@ -401,19 +397,16 @@ The project includes a `vercel.json` configuration for serverless deployment:
 
 ### PAT Questions
 
-PAT questions live in the `pat_questions` table. Each row contains:
+PAT questions are **not stored in the database**. Every question is generated on the fly from a numeric seed using the mulberry32 PRNG (`server/lib/pat-generation/` on the server, `src/lib/prng.ts` on the client):
 
-- `publicId` — unique stable identifier
-- `category` — keyholes, tfe, angle_ranking, hole_punching, cube_counting, pattern_folding
-- `difficulty` — beginner, intermediate, advanced, elite
-- `questionData` — JSON with prompt, diagram, options
-- `correctAnswer`, `explanationL1/L2/L3`, `concepts`, `timeTarget`
+- Seeds are integers (1–1,000,000); each `(seed, category, difficulty)` triple deterministically produces one question.
+- The server re-derives the question and correct answer from the seed to grade attempts — no answer ever travels to the client.
+- Practice (uncontrolled generators), flashcards, and the CLI all derive questions from seeds.
+- Static per-category counts (60 × 6 = 360) live in `contracts/pat-stats.ts` (`PAT_QUESTION_COUNTS`).
+- Attempts are recorded in `pat_attempts` (category, difficulty, seed, correctness, time).
+- Flashcard PAT reviews store `category`, `difficulty`, and `seed` in `flashcard_reviews`; due cards are regenerated from the stored seed.
 
-Add or update questions by:
-
-1. Extending `db/seed.ts` and running `npm run db:seed`.
-2. Inserting rows directly via SQL or a migration.
-3. Building admin UI CRUD (future enhancement).
+To change the question universe, edit the generator logic under `server/lib/pat-generation/` (server) and `src/components/pat-generators/logic/` (client) — both sides must stay in sync.
 
 ### DAT Questions
 
@@ -643,11 +636,10 @@ Provider-specific tips:
 
 ### PAT/DAT question count shows zero
 
-Run the relevant seed:
+PAT questions are generated on the fly from seeds (see Content Management → PAT Questions) — a zero count there is not a data problem. DAT questions are stored:
 
 ```bash
-npm run db:seed
-npm run db:seed:dat
+npm run db:seed:dat:full
 ```
 
 ### 500 errors after deployment

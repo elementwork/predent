@@ -131,14 +131,11 @@ npm run db:generate
 npm run db:migrate
 ```
 
-This creates all 18 tables: `users`, `profiles`, `tasks`, `pat_questions`, `dat_questions`, `community_posts`, etc.
+This creates all 17 tables: `users`, `profiles`, `tasks`, `pat_attempts`, `dat_questions`, `community_posts`, etc. (PAT questions are **not** stored in the database — they are generated on the fly from numeric seeds.)
 
 ### 3.4 Seed Data
 
 ```bash
-# Seed 360 PAT questions (deterministic, on-the-fly generation)
-npm run db:seed
-
 # Seed 500 DAT questions (200 bio + 200 chem + 100 RC)
 npm run db:seed:dat:full
 
@@ -156,9 +153,7 @@ Connect via any PostgreSQL client:
 psql "$DATABASE_URL"
 
 # Check table counts
-SELECT 'pat_questions' as tbl, COUNT(*) FROM pat_questions
-UNION ALL
-SELECT 'dat_questions', COUNT(*) FROM dat_questions
+SELECT 'dat_questions' as tbl, COUNT(*) FROM dat_questions
 UNION ALL
 SELECT 'interview_questions', COUNT(*) FROM interview_questions;
 ```
@@ -167,7 +162,6 @@ Expected output:
 ```
        tbl        | count
 ------------------+------
- pat_questions    |  360
  dat_questions    |  500
  interview_questions |   24
 ```
@@ -847,8 +841,8 @@ npm run build
 | Email not sending | Check `EMAIL_PROVIDER=resend`, verify API key, check Resend logs |
 | Stripe webhook fails | Verify `STRIPE_WEBHOOK_SECRET`, check webhook endpoint URL |
 | Database connection error | Verify `DATABASE_URL`, check Supabase project is not paused |
-| PAT questions show 0 | Run `npm run db:seed` |
 | DAT questions show 0 | Run `npm run db:seed:dat:full` |
+| PAT Academy shows no questions | Expected — PAT questions are generated on the fly from seeds, never stored |
 
 ### 10.5 Supabase Inactivity Pause
 

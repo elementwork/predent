@@ -68,7 +68,7 @@ The backend and frontend are built together and served from the same Node proces
 │   ├── notification-router.ts # In-app notifications, settings
 │   ├── admin-router.ts     # Admin stats, user management, question management
 │   ├── saved-router.ts     # Saved/bookmarked questions (PAT + DAT)
-│   ├── flashcard-router.ts # Flashcard SRS (SM-2 algorithm, due cards, reviews)
+│   ├── flashcard-router.ts # Flashcard SRS (SM-2 algorithm, seed-based PAT cards, due cards, reviews)
 │   ├── middleware.ts       # tRPC init, auth middleware, procedure builders
 │   ├── context.ts          # tRPC context creation
 │   ├── auth/               # Google OAuth / session integration
@@ -109,13 +109,14 @@ The backend and frontend are built together and served from the same Node proces
 │   └── lib/                # Frontend utilities (cn, prng.ts for seeded PRNG)
 ├── contracts/              # Shared constants, error types, re-exports from db
 │   ├── schools.ts          # Normalized Canadian dental school data
-│   └── tiers.ts            # Tier quota definitions (free, premium, premium_plus)
-│   ├── schools.ts          # Normalized Canadian dental school data
-│   └── tiers.ts            # Tier quota definitions (free, premium, premium_plus)
-├── db/                     # Database schema, relations, seed
+│   ├── tiers.ts            # Tier quota definitions (free, premium, premium_plus)
+│   └── pat-stats.ts        # Static PAT counts (60 per category, 360 total)
+├── db/                     # Database schema, relations, seeds
 │   ├── schema.ts           # Drizzle PostgreSQL schema
 │   ├── relations.ts        # Drizzle relations for all foreign keys
-│   ├── seed.ts             # Seeds 360 PAT questions
+│   ├── seed-dat.ts         # Seeds 15 DAT questions
+│   ├── seed-dat-full.ts    # Seeds 500 DAT questions (200 bio + 200 chem + 100 RC)
+│   ├── seed-interview.ts   # Seeds 24 interview questions
 │   └── migrations/         # Drizzle Kit output directory (committed SQL files)
 ├── docs/                   # Documentation
 │   ├── user/               # End-user guides
@@ -187,7 +188,6 @@ npm test
 npm run db:generate   # Generate migration SQL from schema changes
 npm run db:migrate    # Apply pending migrations
 npm run db:push       # Push schema changes directly
-npm run db:seed       # Seed PAT questions
 npm run db:seed:dat   # Seed DAT questions
 npm run db:seed:dat:full # Seed 500 DAT questions (200 bio + 200 chem + 100 RC)
 npm run db:seed:interview # Seed 24 interview questions
@@ -287,8 +287,7 @@ Tables (defined in `db/schema.ts`):
 - `users` — OAuth users (provider, unionId/subject, name, email, avatar, role, tier, tokenVersion, premium fields, email preferences)
 - `profiles` — Extended user profile (name, province, GPA, year level, target schools, etc.)
 - `tasks` — Application planner tasks (category, due date, status, priority, notes, due-date notification tracking)
-- `patQuestions` — PAT question bank (360 seeded rows, soft-delete support)
-- `patAttempts` — PAT practice question attempts (category, difficulty, correctness, time)
+- `patAttempts` — PAT practice question attempts (category, difficulty, seed, correctness, time; PAT questions are generated on the fly from the seed via PRNG — no bank table)
 - `datQuestions` — DAT Biology/Chemistry/Reading question bank (soft-delete support)
 - `datAttempts` — DAT question attempts
 - `communityPosts` — User-generated community posts (results, questions, discussions)
@@ -301,15 +300,16 @@ Tables (defined in `db/schema.ts`):
 - `adminActions` — Audit log of destructive admin actions
 - `interviewQuestions` — Interview question bank (MMI + Panel, DB-backed)
 - `savedQuestions` — User-bookmarked questions (PAT + DAT)
-- `flashcardReviews` — Spaced repetition review records (SM-2 algorithm)
+- `flashcardReviews` — Spaced repetition review records (SM-2 algorithm; PAT cards store `category` + `difficulty` + `seed`, DAT cards store `datQuestionId`)
 
 Drizzle migrations live in `db/migrations/`. Migration SQL files are committed to the repository so they can be applied in CI/CD and production deployments.
 
 Seed scripts:
-- `npm run db:seed` — Seeds 360 deterministic PAT questions
 - `npm run db:seed:dat` — Seeds 15 DAT questions (original)
 - `npm run db:seed:dat:full` — Seeds 500 DAT questions (200 bio + 200 chem + 100 RC)
 - `npm run db:seed:interview` — Seeds 24 interview questions
+
+PAT questions are never stored in the database — all practice/analytics/flashcard questions are generated on the fly from a numeric seed using the mulberry32 PRNG (`src/lib/prng.ts` client, `server/lib/pat-generation/prng.ts` server). The server re-derives the correct answer from the seed to grade attempts. Static counts live in `contracts/pat-stats.ts`.
 
 ---
 

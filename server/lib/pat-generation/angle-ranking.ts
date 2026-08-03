@@ -20,9 +20,17 @@ export function generateAngleRankingProblem(
 
   const angles: number[] = [];
   while (angles.length < 4) {
-    const angle = Math.floor(random() * (max - min + 1)) + min;
-    const tooClose = angles.some(a => Math.abs(a - angle) < separation);
-    if (!tooClose) angles.push(angle);
+    const candidates: number[] = [];
+    for (let value = min; value <= max; value++) {
+      if (angles.every((a) => Math.abs(a - value) >= separation)) {
+        candidates.push(value);
+      }
+    }
+    if (candidates.length === 0) {
+      angles.length = 0;
+      continue;
+    }
+    angles.push(candidates[Math.floor(random() * candidates.length)]);
   }
 
   // Deterministic shuffle using Fisher-Yates with the PRNG

@@ -353,10 +353,10 @@ export default function AdminDashboardPage() {
                             {q.publicId}
                           </td>
                           <td className="py-2 text-[var(--text-secondary)] capitalize">
-                            {"subject" in q ? q.subject : q.category}
+                            {q.subject}
                           </td>
                           <td className="py-2 text-[var(--text-secondary)]">
-                            {"topic" in q ? q.topic : "-"}
+                            {q.topic ?? "-"}
                           </td>
                           <td className="py-2">
                             <Badge className="bg-[var(--page-muted)] text-[var(--text-secondary)] capitalize">

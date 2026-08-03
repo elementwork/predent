@@ -4,12 +4,12 @@ A command-line tool for generating, validating, and exporting DAT PAT (Perceptua
 
 ## Requirements
 
-- **Node.js 18+** (v20+ recommended)
-- **tsx** (bundled with project — use `npx tsx`)
+- **Node.js 24+** (project engine requirement)
+- **tsx** (project dev dependency — use `npx tsx`)
 
 ```bash
 # Verify Node.js is installed
-node --version  # v18+ required
+node --version  # v24+ required
 
 # From project root
 cd /path/to/predent
@@ -19,17 +19,17 @@ npm install
 ## Quick Start
 
 ```bash
-# Generate 100 questions per category as HTML
-npx tsx tools/pat-cli.ts generate -n 100
+# Generate 10 questions per category as interactive HTML
+npx tsx tools/pat-cli.ts generate -n 10
 
 # Open in browser
 open ./pat-output/index.html
 
 # Generate JSON for programmatic use
-npx tsx tools/pat-cli.ts generate -n 500 -f json -o questions.json
+npx tsx tools/pat-cli.ts generate -n 50 -f json -o ./output/
 
-# Validate generated questions
-npx tsx tools/pat-cli.ts validate -i questions.json
+# Build a single-file offline practice page (no dev tools needed)
+npx tsx tools/pat-cli.ts standalone -n 60 -o pat-practice.html
 ```
 
 ## Commands Overview
@@ -41,6 +41,7 @@ npx tsx tools/pat-cli.ts validate -i questions.json
 | `validate` | Validate questions for correctness |
 | `stats` | Show statistics about questions |
 | `benchmark` | Test generator performance |
+| `standalone` | Build a self-contained offline practice HTML file |
 
 ```bash
 npx tsx tools/pat-cli.ts <command> [options]
@@ -67,20 +68,21 @@ Generates 100 questions per category (600 total) as interactive HTML in `./pat-o
 |--------|-------|-------------|---------|
 | `--count` | `-n` | Questions per category | `10` |
 | `--categories` | `-c` | Comma-separated categories or `"all"` | `all` |
-| `--difficulty` | `-d` | Difficulty distribution | `uniform` |
+| `--difficulty` | `-d` | Difficulty distribution: `uniform`, `weighted`, or custom | `uniform` |
 | `--format` | `-f` | Output format: `html`, `json`, `both` | `html` |
 | `--output` | `-o` | Output directory path | `./pat-output/` |
-| `--seed` | `-s` | Random seed for reproducibility | random |
-| `--validate` | `-v` | Validate after generation | `false` |
-| `--template` | `-t` | HTML template: `modern`, `classic`, `minimal` | `modern` |
+| `--seed` | `-s` | Base seed for reproducibility | random |
+| `--validate` | `-v` | Validate after generation (exit 1 on failure) | `false` |
+| `--template` | `-t` | HTML template: `modern`, `classic`, `minimal`, `print` | `modern` |
 | `--split` | | Split by category into separate files | `false` |
 | `--per-file` | | Questions per file when splitting | `100` |
 | `--no-explanations` | | Exclude explanations | include |
 | `--explanation-depth` | | Depth: `brief`, `detailed`, `full` | `detailed` |
-| `--print` | | Print-optimized output | `false` |
+| `--print` | | Print-optimized output (single column, print CSS) | `false` |
 | `--page-size` | | Paper size: `a4`, `letter` | `a4` |
-| `--page-numbers` | | Add page numbers | `false` |
-| `--answer-key` | | Add answer key page | `false` |
+| `--page-numbers` | | Add page rules with page numbers | `false` |
+| `--answer-key` | | Append a printable answer key | `false` |
+| `--show-answers` | | Pre-show correct answers and explanations | `false` |
 | `--quiet` | `-q` | Suppress output | `false` |
 
 ### Categories
@@ -134,10 +136,10 @@ npx tsx tools/pat-cli.ts generate -d "easy:10,medium:20,hard:70"
 npx tsx tools/pat-cli.ts generate -f html
 ```
 
-**JSON only** — raw data for programmatic use:
+**JSON only** — raw data for programmatic use (written to `<output>/questions.json`):
 
 ```bash
-npx tsx tools/pat-cli.ts generate -f json -o questions.json
+npx tsx tools/pat-cli.ts generate -f json -o ./output/
 ```
 
 **Both HTML and JSON**:
@@ -151,10 +153,15 @@ npx tsx tools/pat-cli.ts generate -f both -o ./output/
 Use a seed to get identical questions every time:
 
 ```bash
-# Same seed = same questions
+# Same base seed = same questions
 npx tsx tools/pat-cli.ts generate -s 42 -n 100
 npx tsx tools/pat-cli.ts generate -s 42 -n 100  # Identical output
 ```
+
+Each question's seed is derived from the base seed as
+`seed = baseSeed + i * 1000 + categoryIndex * 100000`, where `i` is the per-category
+question index and `categoryIndex` is the category position in
+`keyholes, tfe, angle_ranking, hole_punching, cube_counting, pattern_folding`.
 
 ### Split Output by Category
 
@@ -162,7 +169,8 @@ Generate separate HTML files per category:
 
 ```bash
 npx tsx tools/pat-cli.ts generate --split --per-file 50
-# Creates: keyholes.html, tfe.html, angle_ranking.html, etc.
+# Creates: index.html (overview), keyholes.html, tfe.html, angle_ranking.html, etc.
+# When a category has more than per-file questions: keyholes-1.html, keyholes-2.html, ...
 ```
 
 ### Print-Optimized Output
@@ -181,7 +189,7 @@ npx tsx tools/pat-cli.ts generate \
 
 ### Generate and Validate
 
-Validate questions immediately after generation:
+Validate questions immediately after generation (exits non-zero on failure — safe for CI):
 
 ```bash
 npx tsx tools/pat-cli.ts generate -n 500 --validate
@@ -204,16 +212,19 @@ npx tsx tools/pat-cli.ts convert -i questions.json
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--input` | `-i` | Input JSON file (required) | — |
-| `--output` | `-o` | Output path | `./pat-output/` |
-| `--template` | `-t` | HTML template | `modern` |
+| `--output` | `-o` | Output directory path | `./pat-output/` |
+| `--template` | `-t` | HTML template: `modern`, `classic`, `minimal`, `print` | `modern` |
 | `--split` | | Split by category | `false` |
-| `--per-file` | | Questions per file | `100` |
+| `--per-file` | | Questions per file when splitting | `100` |
 | `--filter-categories` | | Comma-separated category filter | all |
 | `--filter-difficulty` | | Comma-separated difficulty filter | all |
 | `--page-title` | | Custom page title | `PAT Question Bank` |
 | `--no-explanations` | | Exclude explanations | include |
-| `--show-answers` | | Pre-show correct answers | `false` |
+| `--show-answers` | | Pre-show correct answers and explanations | `false` |
 | `--print` | | Print-optimized format | `false` |
+| `--page-size` | | Paper size: `a4`, `letter` | `a4` |
+| `--page-numbers` | | Add page numbers | `false` |
+| `--answer-key` | | Add answer key page | `false` |
 | `--quiet` | `-q` | Suppress output | `false` |
 
 ### Examples
@@ -241,14 +252,15 @@ npx tsx tools/pat-cli.ts convert \
 npx tsx tools/pat-cli.ts convert \
   -i questions.json \
   --print \
-  --answer-key
+  --answer-key \
+  --page-numbers
 ```
 
 ---
 
 ## `validate` — Validate Questions
 
-Check questions for structural correctness and deterministic generation.
+Check questions for structural correctness and deterministic regeneration.
 
 ### Basic Usage
 
@@ -261,9 +273,9 @@ npx tsx tools/pat-cli.ts validate -i questions.json
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--input` | `-i` | Input JSON file (required) | — |
-| `--fix` | | Attempt to fix issues | `false` |
-| `--report` | | Generate detailed report | `false` |
-| `--quiet` | `-q` | Suppress output | `false` |
+| `--fix` | | Accepted (reserved) — currently no-op | `false` |
+| `--report` | | Accepted (reserved) — errors are always printed in detail | `false` |
+| `--quiet` | `-q` | Suppress output (only exit code) | `false` |
 
 ### What Gets Validated
 
@@ -272,8 +284,8 @@ npx tsx tools/pat-cli.ts validate -i questions.json
 | Required fields | `id`, `category`, `difficulty`, `seed`, `correctIndex` present |
 | Correct index | Value is between 0 and 3 |
 | Options array | Exactly 4 options |
-| Determinism | Same seed regenerates the same correct answer |
-| No errors | Question generates without throwing |
+| Determinism | Re-deriving the answer from the seed matches `correctIndex` |
+| No errors | Question regenerates without throwing |
 
 ### Examples
 
@@ -281,13 +293,7 @@ npx tsx tools/pat-cli.ts validate -i questions.json
 
 ```bash
 npx tsx tools/pat-cli.ts validate -i questions.json
-# Output: Validation PASSED / FAILED
-```
-
-**Detailed report**:
-
-```bash
-npx tsx tools/pat-cli.ts validate -i questions.json --report
+# Output: Validation PASSED / FAILED (with per-question error list)
 ```
 
 **Exit code**: Returns `0` if valid, `1` if any errors found. Use in scripts:
@@ -323,14 +329,14 @@ npx tsx tools/pat-cli.ts stats -i questions.json
 
 ```bash
 npx tsx tools/pat-cli.ts stats -i questions.json
-# Shows: total questions, generation time, seed
+# Shows: file, generatedAt, base seed, total questions
 ```
 
 **Full breakdown**:
 
 ```bash
 npx tsx tools/pat-cli.ts stats -i questions.json --breakdown --distribution
-# Shows: per-category counts, difficulty distribution, answer distribution
+# Shows: per-category counts with avg time target, difficulty distribution, answer distribution
 ```
 
 ---
@@ -374,7 +380,7 @@ npx tsx tools/pat-cli.ts benchmark -n 5000
 npx tsx tools/pat-cli.ts benchmark -c keyholes,angle_ranking -d hard
 ```
 
-### Sample Output
+### Sample Output (varies by hardware)
 
 ```
 PAT Generator Benchmark
@@ -383,15 +389,68 @@ PAT Generator Benchmark
   Difficulty: medium
   Categories: keyholes, tfe, angle_ranking, hole_punching, cube_counting, pattern_folding
 
-  keyholes                21603 ops/sec (0.05ms/op)
-  tfe                     27995 ops/sec (0.04ms/op)
-  angle_ranking          123401 ops/sec (0.01ms/op)
-  hole_punching           53552 ops/sec (0.02ms/op)
-  cube_counting           12228 ops/sec (0.08ms/op)
+  keyholes                66592 ops/sec (0.02ms/op)
+  tfe                     48273 ops/sec (0.02ms/op)
+  angle_ranking           62054 ops/sec (0.02ms/op)
+  hole_punching          152329 ops/sec (0.01ms/op)
+  cube_counting           27395 ops/sec (0.04ms/op)
+  pattern_folding        228346 ops/sec (0.00ms/op)
 
 ────────────────────────────────────────
-  Total time: 115ms
-  Avg ops/sec: 47755
+  Total time: 99ms
+```
+
+---
+
+## `standalone` — Build a Self-Contained Offline Practice Page
+
+Builds a **single HTML file** with the full PAT engine embedded (bundled with esbuild as an
+IIFE exposing `window.PAT_ENGINE`), pre-generated questions, and an inline "Regenerate"
+button. No server, internet, or dev tools required — open it in any browser.
+
+### Basic Usage
+
+```bash
+npx tsx tools/pat-cli.ts standalone -n 60 -o pat-practice.html
+open pat-practice.html
+```
+
+### Options
+
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--output` | `-o` | Output HTML file path | `./pat-standalone.html` |
+| `--count` | `-n` | Questions per category | `10` |
+| `--categories` | `-c` | Comma-separated categories or `"all"` | `all` |
+| `--difficulty` | `-d` | Difficulty distribution | `uniform` |
+| `--seed` | `-s` | Base seed for reproducibility | random |
+| `--template` | `-t` | HTML template: `modern`, `classic`, `minimal`, `print` | `modern` |
+| `--page-title` | | Custom page title | `PAT Practice — Standalone` |
+| `--show-answers` | | Pre-show correct answers and explanations | `false` |
+| `--no-explanations` | | Exclude explanations | include |
+| `--answer-key` | | Add answer key page | `false` |
+| `--page-numbers` | | Add page numbers | `false` |
+| `--page-size` | | Paper size: `a4`, `letter` | `a4` |
+| `--quiet` | `-q` | Suppress output | `false` |
+
+### How It Works
+
+- The PAT engine (`tools/pat-standalone/entry.ts`) is bundled into the page as
+  `window.PAT_ENGINE` with `generateProblem`, `getCorrectAnswer`,
+  `generateExplanation`, and `renderQuestionCard`.
+- Questions are generated at build time from seeds and rendered as interactive cards.
+- The "Regenerate Questions" button re-derives every card in the browser
+  (`seed + 7919 * n` per card) and rebuilds the answer key — fully deterministic
+  and offline.
+
+### Examples
+
+```bash
+# Practice page for two categories, reproducible
+npx tsx tools/pat-cli.ts standalone -c cube_counting,angle_ranking -n 20 -s 42
+
+# Print-ready worksheet with answer key
+npx tsx tools/pat-cli.ts standalone -n 50 --print --answer-key --page-numbers -o worksheet.html
 ```
 
 ---
@@ -402,14 +461,17 @@ PAT Generator Benchmark
 
 Interactive web page with:
 
-- Question cards with SVG placeholder diagrams
-- Clickable answer options (A/B/C/D)
+- Question cards with inline SVG diagrams (real rendered diagrams per category)
+- Clickable answer options (A/B/C/D) with correct/incorrect feedback
 - Show/hide answer toggle per question
 - Filter by category and difficulty
 - "Show All Answers" button
+- Optional answer key page (`--answer-key`)
+- Optional page rules with page numbers (`--page-numbers`)
 - Responsive design (mobile-friendly)
 - Dark mode support (modern template)
-- Print-optimized CSS (`--print`)
+- Print-optimized layout (`--print` / `print` template)
+- Every card carries `data-seed`, `data-category`, `data-difficulty` attributes
 
 ### JSON Output
 
@@ -442,11 +504,11 @@ Machine-readable data format:
       "id": "keyholes-000042",
       "category": "keyholes",
       "difficulty": "medium",
-      "seed": 42,
+      "seed": 4242000,
       "correctIndex": 2,
       "timeTarget": 45,
       "options": ["A", "B", "C", "D"],
-      "metadata": { ... },
+      "metadata": { "...problem shape...": "..." },
       "explanation": {
         "summary": "Identify which keyhole silhouette matches...",
         "correct": "Option C correctly shows...",
@@ -457,6 +519,14 @@ Machine-readable data format:
   ]
 }
 ```
+
+Notes:
+
+- `id` format: `{category}-{6-digit per-category index}` (e.g. `keyholes-000042`).
+- `timeTarget`: `30` easy, `45` medium, `60` hard seconds.
+- `options` is always `["A", "B", "C", "D"]`; the actual option content lives in `metadata`
+  (problem shapes differ per category — `choices`, `options`, `angles`, `foldProblem`, etc.).
+- `explanation` is present unless `--no-explanations` was passed.
 
 ---
 
@@ -514,6 +584,13 @@ npx tsx tools/pat-cli.ts generate \
 open ./print/index.html  # Then print from browser
 ```
 
+### Offline Practice File (Shareable)
+
+```bash
+# Single self-contained file — email it, put it on a USB stick, open on any machine
+npx tsx tools/pat-cli.ts standalone -n 60 -o pat-practice.html
+```
+
 ### Targeted Practice (Specific Categories)
 
 ```bash
@@ -525,20 +602,17 @@ npx tsx tools/pat-cli.ts generate \
   -o ./targeted/
 ```
 
-### Database Import Pipeline
+### Automated Quality Gate (CI)
 
 ```bash
 # 1. Generate JSON
-npx tsx tools/pat-cli.ts generate -n 500 -f json -o questions.json
+npx tsx tools/pat-cli.ts generate -n 500 -f json -o ./output/
 
-# 2. Validate
-npx tsx tools/pat-cli.ts validate -i questions.json
+# 2. Validate — fails the build on any issue
+npx tsx tools/pat-cli.ts validate -i ./output/questions.json
 
 # 3. Check stats
-npx tsx tools/pat-cli.ts stats -i questions.json --breakdown
-
-# 4. Import to database (custom script)
-node import-to-db.js questions.json
+npx tsx tools/pat-cli.ts stats -i ./output/questions.json --breakdown
 ```
 
 ### Review Session with Filters
@@ -567,6 +641,15 @@ npx tsx tools/pat-cli.ts generate -s 42 -n 100 -f both -o ./set-b/
 
 ## Technical Details
 
+### Shared Generation Engine
+
+The CLI uses the **same generator code as the production web app**:
+
+- Source of truth: `server/lib/pat-generation/` (mulberry32 PRNG + 6 category generators).
+- The web app's browser generators (`src/components/pat-generators/logic/`) mirror the
+  server logic so answers can be re-derived on either side.
+- `tools/pat-types.ts` holds the CLI's shared types (categories, difficulties, options).
+
 ### Deterministic Generation
 
 All questions use a seeded PRNG (mulberry32):
@@ -579,25 +662,26 @@ All questions use a seeded PRNG (mulberry32):
 ### Question ID Format
 
 ```
-{category}-{6-digit index}
+{category}-{6-digit per-category index}
 ```
 
 Example: `keyholes-000042`, `tfe-000003`, `hole_punching-000199`
 
 ### Performance
 
-Typical speed (varies by hardware):
+Measured on a modern MacBook (Apple Silicon), 1000 iterations per category, `medium`
+difficulty — all six categories generate in well under 1 ms per question:
 
-| Category | Speed | Notes |
-|----------|-------|-------|
-| `angle_ranking` | ~120K ops/sec | Fastest — simple angle math |
-| `hole_punching` | ~50K ops/sec | Fast — grid operations |
-| `tfe` | ~28K ops/sec | Moderate — 3-view generation |
-| `keyholes` | ~22K ops/sec | Moderate — silhouette rendering |
-| `cube_counting` | ~12K ops/sec | Slower — 3D cube enumeration |
-| `pattern_folding` | ~10K ops/sec | Slowest — 2D net generation |
+| Category | Speed (approx.) |
+|----------|-----------------|
+| `pattern_folding` | ~200K+ ops/sec |
+| `hole_punching` | ~150K ops/sec |
+| `keyholes` | ~60K ops/sec |
+| `angle_ranking` | ~60K ops/sec |
+| `tfe` | ~50K ops/sec |
+| `cube_counting` | ~25K ops/sec |
 
-For 1000 questions per category, expect ~2-5 seconds total.
+For 1000 questions per category, expect ~1-3 seconds total including HTML rendering.
 
 ---
 
@@ -622,10 +706,10 @@ npx tsx tools/pat-cli.ts generate -n 5000 --quiet
 
 ### Validation Errors
 
-Get detailed report to identify issues:
+Validation errors are always printed in detail with the failing question id:
 
 ```bash
-npx tsx tools/pat-cli.ts validate -i questions.json --report
+npx tsx tools/pat-cli.ts validate -i questions.json
 ```
 
 ### Memory Issues (Very Large Batches)
@@ -656,19 +740,19 @@ npx tsx tools/pat-cli.ts generate -n 10
 A: No. The CLI works entirely offline. All questions are generated mathematically.
 
 **Q: Are questions unique?**
-A: Each seed produces a unique question. Different seeds = different questions. Same seed = same question.
+A: Each (seed, category, difficulty) triple produces one question. Different seeds = different questions. Same seed = same question.
 
 **Q: Can I customize question content?**
-A: You can control category, difficulty, and count. The generation algorithms are fixed in `server/lib/pat-generation/`.
+A: You can control category, difficulty, distribution, and count. The generation algorithms are fixed in `server/lib/pat-generation/`.
 
 **Q: How do I add new categories?**
-A: Create a new generator in `server/lib/pat-generation/`, add it to the index, and update the CLI types in `tools/pat-types.ts`.
+A: Create a generator in `server/lib/pat-generation/`, mirror it in `src/components/pat-generators/logic/`, and update the CLI types in `tools/pat-types.ts`. Both server and client sides must stay in sync.
 
-**Q: Can I import questions to the web app?**
-A: Yes. Export as JSON (`-f json`), then use the database import scripts or API.
+**Q: Can I import CLI questions into the web app?**
+A: No import is needed — the web app generates questions from the same seeds on the fly. There is no PAT question bank in the database. The CLI shares the server's generation engine, so a question generated with `-s 42` is identical to what the app derives from seed 42.
 
 **Q: What's the difference between `generate` and `convert`?**
 A: `generate` creates new questions from seeds. `convert` takes existing JSON data and renders it as HTML (with filtering/customization).
 
 **Q: Why use seeds instead of storing questions?**
-A: Deterministic generation means unlimited questions with zero storage. The same seed regenerates the exact same question on any device.
+A: Deterministic generation means unlimited questions with zero storage. The same seed regenerates the exact same question on any device — the app, the CLI, and the standalone page all agree.

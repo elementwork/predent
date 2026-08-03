@@ -5,7 +5,6 @@ import {
   tasks,
   notifications,
   communityPosts,
-  patQuestions,
   datQuestions,
   type User,
 } from "@db/schema";
@@ -82,32 +81,6 @@ export async function seedCommunityPost(userId: number, overrides = {}) {
     })
     .returning();
   return post;
-}
-
-export async function seedPatQuestion(overrides = {}) {
-  const db = getDb();
-  const [question] = await db
-    .insert(patQuestions)
-    .values({
-      publicId: `test-${Math.random().toString(36).slice(2)}`,
-      category: "keyholes",
-      difficulty: "beginner",
-      source: "curated",
-      questionData: {
-        prompt: "Test prompt",
-        diagram: "",
-        options: ["A", "B", "C", "D"],
-      },
-      correctAnswer: 0,
-      explanationL1: "L1",
-      explanationL2: "L2",
-      explanationL3: "L3",
-      concepts: ["concept"],
-      timeTarget: 30,
-      ...overrides,
-    })
-    .returning();
-  return question;
 }
 
 export async function seedDatQuestion(overrides = {}) {

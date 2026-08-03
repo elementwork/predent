@@ -3,12 +3,11 @@ import { adminRouter } from "./admin-router";
 import {
   createTestUser,
   mockContext,
-  seedPatQuestion,
   seedDatQuestion,
 } from "./test-helpers";
 import { getDb } from "./queries/connection";
-import { patQuestions, datQuestions, adminActions } from "@db/schema";
-import { and, eq } from "drizzle-orm";
+import { datQuestions } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
@@ -22,7 +21,7 @@ describe.skipIf(!hasDb)("adminRouter.stats", () => {
     const stats = await caller.stats();
 
     expect(stats).toHaveProperty("users");
-    expect(stats).toHaveProperty("patQuestions");
+    expect(stats.patQuestions).toBe(360);
     expect(stats).toHaveProperty("datQuestions");
   });
 
@@ -68,15 +67,12 @@ describe.skipIf(!hasDb)("adminRouter.updateUserRole", () => {
 });
 
 describe.skipIf(!hasDb)("adminRouter.listQuestions", () => {
-  it("lists PAT questions", async () => {
+  it("returns empty PAT list (generated on the fly)", async () => {
     const admin = await createTestUser({ role: "admin" });
-    await seedPatQuestion();
-
     const caller = createCaller(admin);
     const rows = await caller.listQuestions({ type: "pat" });
 
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows[0].type).toBe("pat");
+    expect(rows).toEqual([]);
   });
 
   it("lists DAT questions", async () => {
@@ -92,37 +88,16 @@ describe.skipIf(!hasDb)("adminRouter.listQuestions", () => {
 });
 
 describe.skipIf(!hasDb)("adminRouter.deleteQuestion", () => {
-  it("soft-deletes a PAT question and logs the action", async () => {
+  it("rejects PAT question deletion", async () => {
     const admin = await createTestUser({ role: "admin" });
-    const question = await seedPatQuestion();
     const caller = createCaller(admin);
 
-    await caller.deleteQuestion({ type: "pat", id: question.id });
-
-    const db = getDb();
-    const rows = await db
-      .select()
-      .from(patQuestions)
-      .where(eq(patQuestions.id, question.id));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].deletedAt).not.toBeNull();
-
-    const [log] = await db
-      .select()
-      .from(adminActions)
-      .where(
-        and(
-          eq(adminActions.targetId, question.id),
-          eq(adminActions.action, "delete_pat")
-        )
-      )
-      .limit(1);
-    expect(log).toBeDefined();
-    expect(log.action).toBe("delete_pat");
-    expect(log.adminId).toBe(admin.id);
+    await expect(
+      caller.deleteQuestion({ type: "pat", id: 1 })
+    ).rejects.toThrow("generated on the fly");
   });
 
-  it("soft-deletes a DAT question and hides it from list", async () => {
+  it("soft-deletes a DAT question and logs the action", async () => {
     const admin = await createTestUser({ role: "admin" });
     const question = await seedDatQuestion();
     const caller = createCaller(admin);

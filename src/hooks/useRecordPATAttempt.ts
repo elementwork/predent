@@ -41,7 +41,7 @@ export function useRecordPATAttempt() {
   const recordAttempt = (
     category: string,
     difficulty: string,
-    questionIdOrSeed: string | number,
+    seed: number,
     userAnswer: number,
     sessionId: string
   ) => {
@@ -49,29 +49,14 @@ export function useRecordPATAttempt() {
     const mappedDifficulty = DIFFICULTY_MAP[difficulty];
     if (!mappedCategory || !mappedDifficulty) return;
 
-    const payload: {
-      category: typeof mappedCategory;
-      difficulty: typeof mappedDifficulty;
-      userAnswer: number;
-      timeSpent: number;
-      sessionId: string;
-      questionId?: string;
-      seed?: number;
-    } = {
+    record.mutate({
       category: mappedCategory,
       difficulty: mappedDifficulty,
+      seed,
       userAnswer,
       timeSpent: Math.round((Date.now() - startRef.current) / 1000),
       sessionId,
-    };
-
-    if (typeof questionIdOrSeed === "number") {
-      payload.seed = questionIdOrSeed;
-    } else {
-      payload.questionId = questionIdOrSeed;
-    }
-
-    record.mutate(payload);
+    });
   };
 
   return { start, recordAttempt };

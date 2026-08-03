@@ -236,13 +236,13 @@ Extended applicant profile used for personalization and the competitiveness calc
 #### 4.1 PAT Question Bank
 
 **What it is**
-A database of 360 Perceptual Ability Test questions covering all 6 Canadian DAT PAT categories, plus infinite on-the-fly generated questions.
+360 Perceptual Ability Test questions (60 per category) covering all 6 Canadian DAT PAT categories, generated on the fly from numeric seeds — no stored question bank.
 
 **How it is implemented**
-- DB: `patQuestions` table with `publicId`, `category`, `difficulty`, `questionData`, `correctAnswer`, `explanationL1/L2/L3`, `concepts`, `timeTarget`, `deletedAt`.
-- Seed: `db/seed.ts` generates 360 deterministic questions (60 per category) with 4 difficulties.
-- Backend: `server/pat-router.ts` serves questions without exposing the correct answer to the client.
-- **On-the-fly:** Questions are now primarily generated via seeded PRNG (see §4.5). The 360 DB questions serve as examples/onboarding. Practice sessions use generated questions.
+- Generation: all questions are produced deterministically from an integer seed via the mulberry32 PRNG (`src/lib/prng.ts` client, `server/lib/pat-generation/` server).
+- Counts: static per-category totals live in `contracts/pat-stats.ts` (`PAT_QUESTION_COUNTS`, 60 × 6 = 360).
+- Backend: `server/pat-router.ts` re-derives the correct answer from the seed to grade attempts — the answer never travels to the client.
+- **On-the-fly:** Practice, generators, and flashcards all derive questions from seeds (see §4.5). There is no `pat_questions` table.
 
 **Categories**
 1. Keyholes
@@ -258,8 +258,8 @@ A database of 360 Perceptual Ability Test questions covering all 6 Canadian DAT 
 - Submit answers and read explanations.
 
 **Developer perspective**
-- Extend `db/seed.ts` or insert rows via SQL/admin UI.
-- `pat.getQuestions` intentionally strips `correctAnswer`; grading is server-side via `pat.recordAttempt`.
+- Extend the generator logic in `src/components/pat-generators/logic/` (client) and `server/lib/pat-generation/` (server) — both must stay in sync.
+- `pat.recordAttempt` re-derives the correct answer from the seed; grading is server-side.
 
 #### 4.2 PAT Practice Modes
 
@@ -363,15 +363,15 @@ Seeded PRNG-based question generation that produces infinite unique PAT question
 Three levels of explanation for each PAT question.
 
 **How it is implemented**
-- `patQuestions.explanationL1` (available to all)
-- `patQuestions.explanationL2` and `explanationL3` (locked for Premium users)
+- `generateExplanation(...)` from `server/lib/pat-explanations/` — tier-aware explanation generation for every seed-based PAT question.
+- L1 details available to all; L2/L3 depth depends on the user's tier.
 
 **User perspective**
 - Free users see the L1 explanation after answering.
 - Premium users unlock deeper explanations.
 
 **Developer perspective**
-- Explanations are returned by `pat.verifyAnswer` and `pat.recordAttempt` based on the user's tier.
+- Explanations are returned by `pat.recordAttempt` (seed → re-derived question → tier-aware explanation).
 
 ---
 
@@ -424,7 +424,7 @@ Preview of Biology, Chemistry, and PAT concept flashcard decks.
 - Browse available decks on the DAT Academy hub.
 
 **Developer perspective**
-- Full flashcard study mode is a placeholder / preview; the underlying content lives in `datQuestions` and `patQuestions` concepts.
+- Full flashcard study mode is a placeholder / preview; the underlying content lives in `datQuestions` and seed-based PAT generation (flashcards store `category` + `difficulty` + `seed`).
 
 ---
 
@@ -833,7 +833,7 @@ Admin queue for reported community posts and comments.
 #### 14.3 Database
 
 - PostgreSQL on Supabase.
-- 14 tables: `users`, `profiles`, `tasks`, `patQuestions`, `patAttempts`, `datQuestions`, `datAttempts`, `schoolStats`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `stripeWebhookEvents`, `pushSubscriptions`, `adminActions`.
+- 17 tables: `users`, `profiles`, `tasks`, `patAttempts`, `datQuestions`, `datAttempts`, `schoolStats`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `pushSubscriptions`, `stripeWebhookEvents`, `adminActions`, `interviewQuestions`, `savedQuestions`, `flashcardReviews` (no `pat_questions` — PAT is seed-generated).
 - Drizzle relations defined in `db/relations.ts`.
 
 #### 14.4 DevOps
@@ -903,7 +903,7 @@ This section captures potential next features, gaps, and risks. Items are not co
 ### Nice-to-Haves (Medium-to-High Impact / Higher Effort)
 
 6. **Spaced Repetition / Flashcards**
-   - Full SRS flashcard mode using existing `datQuestions` and `patQuestions.concepts`.
+   - Full SRS flashcard mode using existing `datQuestions` and seed-based PAT generation (flashcard reviews store `category` + `difficulty` + `seed`).
    - Track mastery and schedule reviews.
 
 7. **Mock DAT Exam**
@@ -1041,7 +1041,7 @@ This section captures potential next features, gaps, and risks. Items are not co
 | Auth | `src/pages/Login.tsx` | `server/auth/`, `server/auth-router.ts` | `users` |
 | About / Contact | `src/pages/AboutPage.tsx`, `src/pages/ContactPage.tsx` | — | — |
 | Dashboard / Profile | `src/pages/DashboardPage.tsx` | `server/profile-router.ts` | `users`, `profiles` |
-| PAT Academy | `src/pages/PAT*.tsx`, `src/components/pat-generators/` | `server/pat-router.ts` | `patQuestions`, `patAttempts` |
+| PAT Academy | `src/pages/PAT*.tsx`, `src/components/pat-generators/` | `server/pat-router.ts` | `patAttempts`, `contracts/pat-stats.ts` |
 | DAT Academy | `src/pages/DAT*.tsx` | `server/dat-router.ts` | `datQuestions`, `datAttempts` |
 | School Hub | `src/pages/School*.tsx` | `server/tools-router.ts` | `schoolStats`, `contracts/schools.ts` |
 | Interview | `src/pages/InterviewPrepPage.tsx` | `server/interview-router.ts` | `interviewQuestions` |

@@ -4,7 +4,6 @@ import {
   profiles,
   tasks,
   patAttempts,
-  patQuestions,
   datAttempts,
   datQuestions,
   communityPosts,
@@ -49,18 +48,10 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
-export const patQuestionsRelations = relations(patQuestions, ({ many }) => ({
-  attempts: many(patAttempts),
-}));
-
 export const patAttemptsRelations = relations(patAttempts, ({ one }) => ({
   user: one(users, {
     fields: [patAttempts.userId],
     references: [users.id],
-  }),
-  question: one(patQuestions, {
-    fields: [patAttempts.questionId],
-    references: [patQuestions.id],
   }),
 }));
 

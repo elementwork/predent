@@ -5,8 +5,9 @@ import { runConvert } from "./pat-commands/convert.js";
 import { runValidate } from "./pat-commands/validate.js";
 import { runStats } from "./pat-commands/stats.js";
 import { runBenchmark } from "./pat-commands/benchmark.js";
+import { runStandalone } from "./pat-commands/standalone.js";
 
-const COMMANDS = ["generate", "convert", "validate", "stats", "benchmark"] as const;
+const COMMANDS = ["generate", "convert", "validate", "stats", "benchmark", "standalone"] as const;
 
 function printUsage() {
   console.log(`
@@ -18,6 +19,7 @@ Usage:
 Commands:
   generate    Generate PAT questions (HTML/JSON)
   convert     Convert JSON to HTML
+  standalone  Build a self-contained offline practice HTML file
   validate    Validate questions for correctness
   stats       Show statistics about questions
   benchmark   Test generator performance
@@ -25,6 +27,7 @@ Commands:
 Examples:
   npx tsx tools/pat-cli.ts generate -n 100
   npx tsx tools/pat-cli.ts convert -i questions.json -o review.html
+  npx tsx tools/pat-cli.ts standalone -n 60 -o pat-practice.html
   npx tsx tools/pat-cli.ts validate -i questions.json
   npx tsx tools/pat-cli.ts stats -i questions.json
   npx tsx tools/pat-cli.ts benchmark -n 1000
@@ -64,6 +67,9 @@ async function main() {
         break;
       case "benchmark":
         await runBenchmark(args.slice(1));
+        break;
+      case "standalone":
+        await runStandalone(args.slice(1));
         break;
     }
   } catch (error) {
