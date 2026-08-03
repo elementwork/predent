@@ -40,6 +40,9 @@ build/
 coverage/
 .nyc_output/
 
+# PAT CLI generated output
+test-output/
+
 # Playwright
 test-results/
 playwright-report/
