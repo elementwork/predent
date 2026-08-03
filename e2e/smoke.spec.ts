@@ -7,10 +7,10 @@ test.describe("Landing page", () => {
       page.getByRole("heading", { name: /Canadian DAT Prep/i })
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /Get Started Free/i })
+      page.locator("#main-content").getByRole("link", { name: /Get Started Free/i })
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /Explore Schools/i })
+      page.getByRole("link", { name: /Explore Schools/i }).first()
     ).toBeVisible();
   });
 
@@ -25,7 +25,10 @@ test.describe("Landing page", () => {
 
   test("navigates to login", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: /Get Started Free/i }).click();
+    await page
+      .locator("#main-content")
+      .getByRole("link", { name: /Get Started Free/i })
+      .click();
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -52,8 +55,12 @@ test.describe("Public pages", () => {
     await expect(
       page.getByRole("heading", { name: /Canadian Dental Schools/i })
     ).toBeVisible();
-    await expect(page.getByText("University of Toronto")).toBeVisible();
-    await expect(page.getByText("University of British Columbia")).toBeVisible();
+    await expect(
+      page.locator("main").getByText("University of Toronto")
+    ).toBeVisible();
+    await expect(
+      page.locator("main").getByText("University of British Columbia")
+    ).toBeVisible();
   });
 
   test("PAT academy loads", async ({ page }) => {
@@ -87,7 +94,7 @@ test.describe("Public pages", () => {
   test("pricing page loads", async ({ page }) => {
     await page.goto("/pricing");
     await expect(
-      page.getByRole("heading", { name: /Premium/i })
+      page.getByRole("heading", { name: "Premium", exact: true })
     ).toBeVisible();
   });
 
@@ -137,6 +144,6 @@ test.describe("API health", () => {
     const response = await request.get("/api/trpc/ping");
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(body.result?.data?.ok).toBe(true);
+    expect(body.result?.data?.json?.ok).toBe(true);
   });
 });
