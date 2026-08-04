@@ -37,11 +37,13 @@ export function validateQuestion(question: GeneratedQuestion): string[] {
   if (!question.difficulty) errors.push("Missing difficulty");
   if (typeof question.seed !== "number") errors.push("Missing or invalid seed");
   if (typeof question.correctIndex !== "number") errors.push("Missing or invalid correctIndex");
-  if (question.correctIndex < 0 || question.correctIndex > 3) {
-    errors.push(`Invalid correctIndex: ${question.correctIndex} (must be 0-3)`);
+
+  const optionCount = getOptionCountFor(question.category);
+  if (question.correctIndex < 0 || question.correctIndex >= optionCount) {
+    errors.push(`Invalid correctIndex: ${question.correctIndex} (must be 0-${optionCount - 1})`);
   }
-  if (!Array.isArray(question.options) || question.options.length !== 4) {
-    errors.push(`Invalid options array: expected 4 items, got ${question.options?.length ?? 0}`);
+  if (!Array.isArray(question.options) || question.options.length !== optionCount) {
+    errors.push(`Invalid options array: expected ${optionCount} items, got ${question.options?.length ?? 0}`);
   }
 
   // Verify determinism
@@ -63,6 +65,17 @@ export function validateQuestion(question: GeneratedQuestion): string[] {
   }
 
   return errors;
+}
+
+export function getOptionCountFor(category: QuestionCategory): number {
+  switch (category) {
+    case "keyholes":
+    case "hole_punching":
+    case "cube_counting":
+      return 5;
+    default:
+      return 4;
+  }
 }
 
 async function validateFile(inputPath: string): Promise<ValidationResult> {

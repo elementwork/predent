@@ -1,6 +1,6 @@
 # PreDent Canada — Complete File Tree
 
-> Generated: 2026-07-31T17:40:00-04:00 | Every non-gitignored file with purpose
+> Generated: 2026-08-03T22:40:00-04:00 | Every non-gitignored file with purpose
 
 ---
 
@@ -81,9 +81,8 @@ contracts/
 
 ```
 db/
-├── schema.ts                     # Drizzle PostgreSQL schema (18 tables)
+├── schema.ts                     # Drizzle PostgreSQL schema (17 tables)
 ├── relations.ts                  # Drizzle relations (FK definitions)
-├── seed.ts                       # Seeds 360 PAT questions
 ├── seed-dat.ts                   # Seeds 15 DAT questions (original, kept for reference)
 ├── seed-dat-full.ts              # Seeds 500 DAT questions (200 bio + 200 chem + 100 RC)
 ├── seed-interview.ts             # Seeds 24 interview questions (14 panel + 10 MMI)
@@ -448,9 +447,27 @@ e2e/
 
 ```
 tools/
-├── PAT_Generator.py              # Python prototype for PAT question generation (10K questions)
-└── PAT_Generator.md              # Usage guide for the PAT Generator script
+├── pat-cli.ts                     # PAT CLI entry (generate/render/convert/validate/stats/benchmark/standalone)
+├── pat-cli.md                     # PAT CLI user guide (templates, formats, validation rules)
+├── pat-types.ts                   # PAT question types (mirror server generation contracts)
+├── pat-commands/                  # CLI subcommand implementations
+│   ├── generate.ts                # Question generation (HTML/JSON/both, split, answer keys)
+│   ├── convert.ts                 # JSON ↔ HTML conversion
+│   ├── validate.ts                # Question validation (option counts, determinism, bounds)
+│   ├── stats.ts                   # Generated-question statistics
+│   └── benchmark.ts               # Generator performance benchmarking
+├── pat-renderers/                 # HTML/SVG renderers for questions
+│   ├── html-renderer.ts           # HTML templates (modern/classic/minimal/print) + print CSS
+│   ├── question-card.ts           # Question card data (prompts, option counts)
+│   └── svg-renderer.ts            # B&W technical SVG renderers (all 6 categories)
+├── pat-explanations/              # Tiered explanation generation (brief/detailed/full)
+│   └── index.ts                   # generateExplanation per category
+├── pat-utils/                     # Shared helpers for CLI
+├── pat-standalone/                # esbuild-bundled standalone browser build
+│   └── entry.ts                   # window.PAT_ENGINE + inline practice cards
 ```
+
+> Note: the legacy `PAT_Generator.py` prototype was replaced by the TypeScript `tools/` toolset.
 
 ---
 

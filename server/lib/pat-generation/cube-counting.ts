@@ -4,23 +4,25 @@ import type { CubeCoord } from "./keyholes";
 export interface CubeCountingProblem {
   cubes: CubeCoord[];
   painted: Record<number, number>;
+  /** Number of painted faces the stem asks about. */
+  targetN: number;
   answer: number;
   choices: number[];
 }
+
+export const CUBE_COUNTING_OPTION_COUNT = 5;
 
 function generateCubes(
   random: PRNG,
   difficulty: "easy" | "medium" | "hard"
 ): CubeCoord[] {
   const size = difficulty === "easy" ? 3 : difficulty === "medium" ? 4 : 5;
+  const maxHeight =
+    difficulty === "easy" ? 2 : difficulty === "medium" ? 3 : 4;
   const cubes: CubeCoord[] = [];
   for (let x = 0; x < size; x++) {
     for (let y = 0; y < size; y++) {
-      const height =
-        Math.floor(
-          random() *
-            (difficulty === "easy" ? 2 : difficulty === "medium" ? 3 : 4)
-        ) + 1;
+      const height = Math.floor(random() * maxHeight) + 1;
       for (let z = 0; z < height; z++) {
         cubes.push({ x, y, z });
       }
@@ -60,18 +62,38 @@ export function generateCubeCountingProblem(
 ): CubeCountingProblem {
   const cubes = generateCubes(random, difficulty);
   const painted = countPaintedFaces(cubes);
-  const options = [0, 1, 2, 3, 4, 5].filter(n => painted[n]! > 0);
-  const answer = options.reduce(
-    (best, n) => (painted[n]! > painted[best]! ? n : best),
-    options[0] ?? 1
-  );
-  const all = [0, 1, 2, 3, 4, 5].filter(n => n !== answer);
-  const distractors = all.slice(0, 3);
-  const choices = [...distractors, answer];
-  const seed = cubes.reduce((acc, c) => acc + c.x + c.y + c.z, 1);
+
+  // The stem asks for a count that is actually present (never zero).
+  const valid = [2, 3, 1, 4].filter(n => (painted[n] ?? 0) > 0);
+  const targetN = valid[Math.floor(random() * valid.length)] ?? 1;
+  const answer = painted[targetN]!;
+
+  const candidates = new Set<number>();
+  candidates.add(answer);
+  for (const offset of [1, -1, 2, -2]) {
+    if (answer + offset >= 1) candidates.add(answer + offset);
+  }
+  // Add counts of neighbouring N values (never zero), then pad with small integers.
+  for (const n of [targetN - 1, targetN + 1, targetN - 2, targetN + 2]) {
+    if (n >= 1 && n <= 5 && (painted[n] ?? 0) > 0) {
+      candidates.add(painted[n]!);
+    }
+  }
+  let next = 1;
+  while (candidates.size < CUBE_COUNTING_OPTION_COUNT) {
+    if (next !== answer && next >= 1) candidates.add(next);
+    next++;
+  }
+
+  // Exactly five choices, always including the correct answer.
+  const others = [...candidates].filter(c => c !== answer).slice(0, CUBE_COUNTING_OPTION_COUNT - 1);
+  const choices = [...others, answer];
+
+  // Deterministic shuffle with the PRNG.
   for (let i = choices.length - 1; i > 0; i--) {
-    const j = (seed * (i + 1)) % (i + 1);
+    const j = Math.floor(random() * (i + 1));
     [choices[i], choices[j]] = [choices[j]!, choices[i]!];
   }
-  return { cubes, painted, answer, choices };
+
+  return { cubes, painted, targetN, answer, choices };
 }

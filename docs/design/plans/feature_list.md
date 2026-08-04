@@ -1,6 +1,6 @@
 # PreDent Canada — Feature Inventory & Roadmap
 
-> Last updated: 2026-07-31T17:30:00-04:00
+> Last updated: 2026-08-03T22:40:00-04:00
 
 This document is a comprehensive inventory of everything currently implemented in the PreDent Canada platform, plus a brainstorm of future features, gaps, and risks. It is intended for product, engineering, and agent audiences.
 
@@ -339,13 +339,13 @@ Seeded PRNG-based question generation that produces infinite unique PAT question
 - **Server logic:** `server/lib/pat-generation/` — mirrors client logic for answer re-derivation.
 - **Generators (client):** All 6 generator components accept `{ config: { seed, difficulty }, onAnswer }` props. In controlled mode (practice), they render a specific question from the seed. In free mode (generator page), they use `Math.random()`.
 - **Practice page:** `src/pages/PATPracticePage.tsx` — `QuestionRenderer` switch dispatches to the correct generator based on category. Attempts recorded via `useRecordPATAttempt` hook which sends `{ seed, category, difficulty, userAnswer, isCorrect, timeSpent }`.
-- **Server:** `server/pat-router.ts` — `recordAttempt` accepts `questionId` (DB) OR `seed` (generated) mode. `getQuota` returns remaining questions and stats. `apiToGenDifficulty` maps `"beginner"→"easy"`, `"intermediate"→"medium"`, `"advanced"/"elite"→"hard"`.
+- **Server:** `server/pat-router.ts` — `recordAttempt` is seed-only (stores `questionId: String(input.seed)`) and accepts `userAnswer` `0..4` for 5-choice categories. `getQuota` returns remaining questions and stats. `apiToGenDifficulty` maps `"beginner"→"easy"`, `"intermediate"→"medium"`, `"advanced"/"elite"→"hard"`.
 - **Quota:** `contracts/tiers.ts` — `TIER_QUOTAS` defines lifetime limits: free=20, premium=360, premium_plus=1080. `users.patQuestionsGenerated` tracks usage. Quota auto-increments on each generated question attempt.
 - **Academy page:** `src/pages/PATAcademyPage.tsx` — shows real stats, quota progress bar, tier badge, upgrade CTA.
-- **Hooks:** `src/hooks/useRecordPATAttempt.ts` — accepts both string `questionId` (DB questions) and number `seed` (generated questions).
+- **Hooks:** `src/hooks/useRecordPATAttempt.ts` — seed-only recording.
 
 **User perspective**
-- Free users can try 20 generated questions per category.
+- Free users can try 20 generated questions total (lifetime).
 - Premium users get 360 total across all categories.
 - Premium Plus users get 1080 total.
 - Quota is displayed on PAT Academy with a progress bar.
@@ -355,7 +355,7 @@ Seeded PRNG-based question generation that produces infinite unique PAT question
 - Server re-derives the answer from the seed to prevent client-side answer leaking.
 - `useRecordPATAttempt` hook handles both DB and generated question types.
 - Difficulty mapping is handled by `genToApi`/`difficultyToGen` on the client and `apiToGenDifficulty` on the server.
-- 150 seeded test cases per category in the test suite verify generation determinism.
+- Determinism and format invariants are verified by `server/pat-generation.test.ts` (16 tests incl. option counts 5/4/4/5/5/4, cube-counting never-zero answers, TFE dashed hidden edges, half-fold hole punching, permutation angle answers).
 
 #### 4.6 Tiered Explanations
 

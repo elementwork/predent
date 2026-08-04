@@ -14,20 +14,31 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+export function getOptionCount(question: GeneratedQuestion): number {
+  switch (question.category) {
+    case "keyholes":
+    case "hole_punching":
+    case "cube_counting":
+      return 5;
+    default:
+      return 4;
+  }
+}
+
 export function getPrompt(question: GeneratedQuestion): string {
   const meta = question.metadata as Record<string, unknown>;
   switch (question.category) {
     case "keyholes":
       return "Which keyhole matches this object?";
     case "tfe":
-      return `Which is the ${String(meta.missingView ?? "missing")} view?`;
+      return `Which is the ${String(meta.missingView ?? "missing").toUpperCase()} view?`;
     case "angle_ranking":
       return "Rank the angles from smallest to largest.";
     case "hole_punching":
       return "Which option shows the unfolded paper?";
     case "cube_counting": {
-      const answer = Number(meta.answer ?? "?");
-      return `How many cubes are painted on exactly ${Number.isNaN(answer) ? "?" : answer} sides?`;
+      const n = Number(meta.targetN ?? "?");
+      return `How many cubes are painted on exactly ${Number.isNaN(n) ? "?" : n} side(s)?`;
     }
     case "pattern_folding":
       return "Which cube does this net fold into?";
@@ -54,8 +65,8 @@ export function renderQuestionCard(
     ? ""
     : renderExplanation(question, explanationStyle);
 
-  const optionsHtml = [0, 1, 2, 3]
-    .map((i) => {
+  const optionsHtml = Array.from({ length: getOptionCount(question) })
+    .map((_, i) => {
       const letter = String.fromCharCode(65 + i);
       const isCorrect = i === question.correctIndex;
       return `<button class="option-btn" data-index="${i}" data-correct="${isCorrect}"${opts.showAnswers && isCorrect ? " data-revealed=\"true\"" : ""} onclick="selectOption(this)">

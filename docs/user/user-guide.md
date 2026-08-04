@@ -2,6 +2,8 @@
 
 Welcome to PreDent Canada, your all-in-one platform for Canadian dental school admissions.
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
@@ -60,7 +62,7 @@ Use the sun/moon icon in the navbar to toggle between light and dark themes.
 6. Click **Start Practice**.
 7. For each question:
    - Review the prompt and diagram.
-   - Select an answer (keyboard shortcuts: `1-4` to select, arrows to navigate, space/enter to submit).
+   - Select an answer, then submit (keyboard shortcuts: `←`/`→` to navigate, `Space` to flag, `Enter` to submit/next, `Escape` to pause).
    - Read the L1 explanation after submitting.
    - L2 and L3 explanations are Premium-only.
    - Flag questions to review later.
@@ -81,7 +83,7 @@ Go to **PAT Academy → Analytics** to see:
 
 ### Generators
 
-Interactive, procedurally generated PAT questions rendered as SVG diagrams:
+Interactive, procedurally generated PAT questions rendered as B&W technical SVG diagrams in the authentic recent-DAT format (Keyholes 5 choices, TFE 4 with dashed hidden lines, Angle Ranking 4 permutation choices, Hole Punching 5, Cube Counting 5, Pattern Folding 4):
 
 - **Angle Ranking** (free for all users)
 - **Keyholes**, **Top-Front-End**, **Hole Punching**, **Cube Counting**, **Pattern Folding** (Premium)

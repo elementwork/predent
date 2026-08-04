@@ -2,6 +2,8 @@
 
 This guide is for developers who will extend, maintain, or deploy PreDent Canada.
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 ## Table of Contents
 
 1. [Project Structure](#project-structure)
@@ -105,7 +107,7 @@ npm run dev
 
 - `server/app.ts` creates the Hono app and registers tRPC, OAuth, Stripe webhooks, and the cron endpoint.
 - `server/boot.ts` serves static files and starts the Node production server.
-- `server/router.ts` composes 12 routers: `auth`, `profile`, `task`, `pat`, `tools`, `interview`, `payment`, `dat`, `admin`, `community`, `notification`, plus a `ping` endpoint.
+- `server/router.ts` composes 13 routers: `auth`, `profile`, `task`, `pat`, `tools`, `interview`, `payment`, `dat`, `admin`, `community`, `notification`, `saved`, `flash`, plus a `ping` endpoint.
 - `server/middleware.ts` defines `publicQuery`, `authedQuery`, `authedMutation`, `adminQuery`, and `createRouter`.
 - `server/queries/connection.ts` creates a singleton `postgres` Drizzle client.
 
@@ -124,7 +126,7 @@ OAuth is handled by `server/auth/auth.ts` and provider-specific code in `server/
 
 - `db/schema.ts` defines 17 tables using Drizzle PostgreSQL core: `users`, `profiles`, `tasks`, `patAttempts`, `datQuestions`, `datAttempts`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `pushSubscriptions`, `schoolStats`, `stripeWebhookEvents`, `adminActions`, `interviewQuestions`, `savedQuestions`, `flashcardReviews`.
 - `db/relations.ts` defines all foreign-key relationships.
-- PAT questions are never stored in the DB — generated on the fly from numeric seeds (see `contracts/pat-stats.ts`, `server/lib/pat-generation/`, `src/lib/prng.ts`).
+- PAT questions are never stored in the DB — generated on the fly from numeric seeds (see `contracts/pat-stats.ts`, `server/lib/pat-generation/`, `src/lib/prng.ts`). Generators follow the authentic recent-DAT (ADA) format — see `docs/design/pat-research.md` and the PAT format section of `AGENTS.md` (choice counts 5/4/4/5/5/4, dashed hidden TFE lines, half-fold hole punching, etc.).
 - `db/seed-dat.ts` seeds 15 DAT questions; `db/seed-dat-full.ts` seeds 500; `db/seed-interview.ts` seeds 24 interview questions.
 - Migrations are generated with `npm run db:generate` and applied with `npm run db:migrate`.
 
@@ -318,7 +320,7 @@ For pages that should always be dark/light regardless of toggle, apply the `dark
 - **~~DAT Analytics~~** *(done — getAnalytics endpoint with trend, heatmap, strengths, weaknesses)*
 - **~~Study Schedule Generator~~** *(done — DynamicScheduleGenerator with test date, hours/week, comfort levels)*
 - **~~Shared Provinces~~** *(done — DashboardPage uses contracts/schools.ts provinces)*
-- **~~On-the-Fly PAT Generation~~** *(done — seeded PRNG, 6 generators, quota system, 134 tests)*
+- **~~On-the-Fly PAT Generation~~** *(done — seeded PRNG, 6 generators, quota system, 140 tests)*
 - **~~PAT Generators~~** *(done — all 6 categories with DB persistence + on-the-fly generation)*
 - **~~E2E Tests~~** *(done — Playwright smoke tests)*
 - **~~Production Error Tracking~~** *(done — Sentry integrated)*

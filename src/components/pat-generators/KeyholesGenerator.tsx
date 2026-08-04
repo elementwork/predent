@@ -1,75 +1,17 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { ArrowRight, RefreshCw, Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { IsoCubeStack, GridSvg } from "./shared/IsoCube";
-import { useRecordPATAttempt } from "@/hooks/useRecordPATAttempt";
-import { nanoid } from "nanoid";
-import {
-  generateKeyholesProblem,
-  type KeyholesProblem,
-} from "./logic/keyholes";
-import { createPRNG } from "@/lib/prng";
-import type { Difficulty as Diff } from "./logic";
-import type { GeneratorConfig } from "./logic";
-
-export interface KeyholesGeneratorProps {
-  config?: GeneratorConfig;
-  onAnswer?: (result: {
-    isCorrect: boolean;
-    timeSpent: number;
-    answerIndex: number;
-  }) => void;
-}
+import { TechIsoStack, TechSilhouette } from "./shared/tech";
+import { usePatGenerator, type PatGeneratorProps } from "./shared/usePatGenerator";
+import { GeneratorToolbar, ResultBanner } from "./shared/PatGeneratorUI";
+import { generateKeyholesProblem } from "./logic/keyholes";
 
 export default function KeyholesGenerator({
   config,
   onAnswer,
-}: KeyholesGeneratorProps) {
-  const controlled = !!config;
-  const [difficulty, setDifficulty] = useState<Diff>(
-    config?.difficulty ?? "easy"
-  );
-  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000000) + 1);
-  const [problem, setProblem] = useState<KeyholesProblem>(() =>
-    config
-      ? generateKeyholesProblem(createPRNG(config.seed), config.difficulty)
-      : generateKeyholesProblem(createPRNG(seed), "easy")
-  );
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
-  const sessionIdRef = useRef(nanoid());
-  const startRef = useRef(0);
-  useEffect(() => { startRef.current = Date.now(); }, []);
-  const { start, recordAttempt } = useRecordPATAttempt();
+}: PatGeneratorProps) {
+  const { controlled, difficulty, setDifficulty, problem, selectedIndex, result, regenerate, checkAnswer } =
+    usePatGenerator("keyholes", generateKeyholesProblem, config, onAnswer);
 
   const { cubes, options, correctIndex } = problem;
-
-  const regenerate = useCallback(() => {
-    if (controlled) {
-      setProblem(generateKeyholesProblem(createPRNG(Date.now()), difficulty));
-    } else {
-      const nextSeed = Math.floor(Math.random() * 1000000) + 1;
-      setSeed(nextSeed);
-      setProblem(generateKeyholesProblem(createPRNG(nextSeed), difficulty));
-    }
-    setSelectedIndex(null);
-    setResult(null);
-    startRef.current = Date.now();
-    start();
-  }, [controlled, difficulty, start]);
-
-  const checkAnswer = useCallback((index: number) => {
-    if (result) return;
-    setSelectedIndex(index);
-    const isCorrect = index === correctIndex;
-    setResult(isCorrect ? "correct" : "incorrect");
-    if (controlled && onAnswer) {
-      const timeSpent = Math.round((Date.now() - startRef.current) / 1000);
-      onAnswer({ isCorrect, timeSpent, answerIndex: index });
-    } else {
-      recordAttempt("keyholes", difficulty, seed, index, sessionIdRef.current);
-    }
-  }, [result, correctIndex, controlled, onAnswer, difficulty, seed, recordAttempt, sessionIdRef]);
+  const letters = "ABCDEFGHIJ";
 
   return (
     <div className="bg-[var(--page-surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm">
@@ -80,54 +22,41 @@ export default function KeyholesGenerator({
               Keyholes Generator
             </h3>
             <p className="text-xs text-[var(--text-tertiary)]">
-              Pick the keyhole this object would pass through.
+              Pick the aperture the object can pass straight through.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {(["easy", "medium", "hard"] as Diff[]).map(d => (
-              <button
-                key={d}
-                onClick={() => {
-                  setDifficulty(d);
-                  regenerate();
-                }}
-                className={`px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors ${
-                  difficulty === d
-                    ? "bg-[#2563EB] text-white"
-                    : "bg-[var(--page-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]"
-                }`}
-              >
-                {d}
-              </button>
-            ))}
-            <button
-              onClick={regenerate}
-              className="p-1.5 rounded bg-[var(--page-muted)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-color)] transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
+          <GeneratorToolbar
+            difficulty={difficulty}
+            onDifficulty={d => {
+              setDifficulty(d);
+              regenerate();
+            }}
+            onRegenerate={regenerate}
+          />
         </div>
       )}
 
       <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
-        <IsoCubeStack cubes={cubes} size={180} cubeSize={26} />
+        <TechIsoStack cubes={cubes} size={170} cubeSize={26} className="shrink-0" />
         <div className="flex-1">
           <p className="text-[var(--text-primary)] text-lg font-medium mb-2">
             Which keyhole matches this object?
           </p>
           <p className="text-xs text-[var(--text-tertiary)]">
-            Imagine pushing the object straight through the paper from this
-            viewing direction.
+            The object rotates through the aperture along the{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {problem.correctAxis}
+            </span>{" "}
+            axis. Match the silhouette exactly.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         {options.map((grid, i) => (
           <button
             key={i}
-            onClick={() => checkAnswer(i)}
+            onClick={() => checkAnswer(i, correctIndex)}
             disabled={!!result}
             className="text-left"
           >
@@ -145,40 +74,17 @@ export default function KeyholesGenerator({
                 }`,
               }}
             >
-              <GridSvg grid={grid} filledColor="#14B8A6" />
+              <TechSilhouette grid={grid} size={96} />
             </div>
             <p className="text-center text-xs text-[var(--text-tertiary)] mt-1">
-              {String.fromCharCode(65 + i)}
+              {letters[i]}
             </p>
           </button>
         ))}
       </div>
 
       {result && (
-        <div
-          className={`p-3 rounded-lg text-sm ${result === "correct" ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]"}`}
-        >
-          {result === "correct" ? (
-            <span className="flex items-center gap-1.5">
-              <Check className="w-4 h-4" /> Correct! That silhouette matches the
-              object.
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <X className="w-4 h-4" /> Incorrect. Option{" "}
-              {String.fromCharCode(65 + correctIndex)} is the correct keyhole.
-            </span>
-          )}
-        </div>
-      )}
-
-      {!controlled && (
-        <Button
-          onClick={regenerate}
-          className="mt-4 bg-[#14B8A6] hover:bg-[#0D9488] text-white"
-        >
-          Next Question <ArrowRight className="w-4 h-4 ml-1" />
-        </Button>
+        <ResultBanner result={result} correctLabel={`option ${letters[correctIndex]}`} />
       )}
     </div>
   );

@@ -237,7 +237,13 @@ const BASE_CSS = `
 
   .stem-angles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 
+  .stem-flex { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0.35rem; }
+
+  .stem-note { font-size: 0.7rem; color: var(--text-tertiary); }
+
   .diagram-svg { max-width: 100%; height: auto; }
+
+  .option-perm { font-family: ui-monospace, monospace; font-weight: 700; letter-spacing: 0.12em; }
 
   .question-options { display: flex; flex-direction: column; gap: 0.5rem; }
 

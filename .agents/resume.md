@@ -1,16 +1,17 @@
 # Session Resume — PreDent Canada
 
-> Last updated: 2026-07-31T17:30:00-04:00
+> Last updated: 2026-08-03T22:40:00-04:00
 
 Use this file to quickly get up to speed when continuing work on PreDent Canada.
 
 ## Project State
 
 - **Stack:** React 19 + Vite 7 + TypeScript, Tailwind CSS, shadcn/ui, Hono + tRPC + Drizzle ORM, PostgreSQL (Supabase).
-- **Database:** PostgreSQL on Supabase, accessed via `postgres` driver, seeded with 360 PAT questions + 500 DAT questions + 24 interview questions.
-- **Build:** All checks pass (`npm run check`, `npm run lint`, `npm test`, `npm run build`).
+- **Database:** PostgreSQL on Supabase, accessed via `postgres` driver. DAT (500) + interview (24) questions are seeded; PAT questions are never stored — generated on the fly from numeric seeds.
+- **Build:** All checks pass (`npm run check`, `npm run lint`, `npm test` = 140 tests, `npm run build`).
+- **Recent work:** Authentic recent-DAT (ADA) PAT format rewrite — all 6 generators, B&W technical renderers (app + CLI + flashcards), option-count-aware validation, 16 new generator tests (commit `9646430`). See `docs/design/pat-research.md`.
 - **Deployment:** Dockerfile (Node 24), docker-compose.yml, and GitHub Actions CI workflow are in place.
-- **18 DB tables** including: users, profiles, tasks, patQuestions, patAttempts, datQuestions, datAttempts, communityPosts, communityComments, communityReports, notifications, pushSubscriptions, schoolStats, stripeWebhookEvents, adminActions, interviewQuestions, savedQuestions, flashcardReviews.
+- **17 DB tables:** users, profiles, tasks, patAttempts, datQuestions, datAttempts, communityPosts, communityComments, communityReports, notifications, pushSubscriptions, schoolStats, stripeWebhookEvents, adminActions, interviewQuestions, savedQuestions, flashcardReviews.
 
 ## Environment
 
@@ -30,13 +31,14 @@ Run locally:
 ```bash
 npm install
 npm run db:migrate
-npm run db:seed
+npm run db:seed:dat:full
+npm run db:seed:interview
 npm run dev
 ```
 
 ## Completed Work
 
-1. **PAT Question Bank & Practice Engine** — real DB-backed questions, attempt tracking, analytics.
+1. **PAT Question Bank & Practice Engine** — real DB-backed questions, attempt tracking, analytics *(replaced by seed-based generation, see #29).*
 2. **Performance Analytics** — accuracy, predicted score (weighted algorithm), trends, heatmap, recommendations.
 3. **Competitiveness Calculator** — 10-school weighted scoring model.
 4. **Interview Prep** — DB-backed question bank (24 questions) + practice simulator.
@@ -44,7 +46,7 @@ npm run dev
 6. **PAT Generators** — all 6 categories implemented as interactive SVG prototypes.
 7. **PWA** — manifest, icons, service worker.
 8. **SEO** — sitemap, robots, page titles.
-9. **DevOps** — Docker, CI, test suite (134 tests).
+9. **DevOps** — Docker, CI, test suite (140 tests).
 10. **Light Theme Toggle** — theme provider, CSS variables, toggle in navbar.
 11. **Dental School Hub** — school detail pages, comparison tool, centralized `contracts/schools.ts` data.
 12. **Community Hub** — community landing page, comments, likes, reports, edit dialog.
@@ -71,6 +73,8 @@ npm run dev
 33. **P2 Features** — global search (Cmd+K command palette), saved/bookmarked questions (DAT), flashcards with SRS (SM-2 algorithm), mock DAT exam (timed 100-question exam with score report), personalized study dashboard (recommendations from performance data).
 34. **Quick Wins** — improved predicted score algorithm (weighted: accuracy, recency, difficulty, consistency), proper error logging in community router, removed dead sendgrid provider, removed unused `kimi` from provider enum.
 35. **Dockerfile** — updated to Node 24 (required by engines field).
+36. **PAT CLI Toolset + Question Bank Removal** — `tools/pat-cli.ts` (generate/render/convert/validate/stats/benchmark/standalone), HTML renderer templates, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`); seed-based flashcards, saved-questions PAT branch; `db/seed.ts` removed.
+37. **Authentic PAT Format Rewrite** — ADA-aligned generators: keyholes 5 options, TFE 4 with dashed hidden edges, angle ranking permutation answers, hole punching 4×4 half-folds, cube counting never-zero answers, pattern folding visible-face marks; B&W technical renderers shared by app + CLI; `server/pat-router.ts` accepts answers 0–4; new `server/pat-generation.test.ts` (16 tests); artifacts `test-output/pat-360/` + `pat-standalone.html` (gitignored). Research in `docs/design/pat-research.md`.
 
 ## Key Files
 
@@ -84,18 +88,21 @@ npm run dev
 - `src/pages/FlashcardsPage.tsx` — SRS flashcard review (SM-2 algorithm).
 - `src/pages/MockExamPage.tsx` — timed DAT mock exam with score report.
 - `src/hooks/useRecordPATAttempt.ts` — dual-mode attempt recording.
-- `server/router.ts` — tRPC router composition (14 sub-routers).
-- `server/pat-router.ts` — PAT practice, analytics, attempts, quota.
+- `server/router.ts` — tRPC router composition (13 sub-routers).
+- `server/pat-router.ts` — PAT practice, analytics, attempts, quota, on-the-fly generation (answers `0..4`).
 - `server/dat-router.ts` — DAT practice, analytics, attempts.
 - `server/flashcard-router.ts` — Flashcard SRS (SM-2, due cards, reviews).
 - `server/saved-router.ts` — Saved/bookmarked questions.
-- `server/lib/pat-generation/` — server-side generation logic.
+- `server/lib/pat-generation/` — server-side generation logic (source of truth).
+- `src/components/pat-generators/logic/` — client mirrors of the 6 generators.
+- `src/components/pat-generators/shared/` — B&W tech components (`tech.tsx`), `usePatGenerator.ts` hook, `PatGeneratorUI.tsx`, `PatFlashcardRenderer.tsx`.
+- `tools/pat-cli.ts` / `tools/pat-cli.md` — PAT CLI toolset + user guide; `tools/pat-renderers/`, `tools/pat-commands/`, `tools/pat-explanations/`.
 - `server/lib/score-prediction.ts` — weighted score prediction algorithm.
 - `contracts/tiers.ts` — tier quota definitions.
-- `db/schema.ts` — database schema (18 tables).
-- `db/seed.ts` — seed data (360 PAT questions).
+- `db/schema.ts` — database schema (17 tables).
 - `db/seed-dat-full.ts` — seed data (500 DAT questions).
 - `db/seed-interview.ts` — seed data (24 interview questions).
+- `docs/design/pat-research.md` — authentic DAT PAT format research (choice counts, conventions).
 - `docs/design/plans/file-tree.md` — complete file tree with explanations.
 - `docs/design/plans/comprehensive-todo.md` — all outstanding work.
 - `docs/dev/devlog.md` — detailed milestone log.
@@ -131,7 +138,6 @@ npm run lint             # ESLint
 npm test                 # Vitest
 npm run db:generate      # Generate Drizzle migration
 npm run db:migrate       # Apply migrations
-npm run db:seed          # Seed PAT questions
 npm run db:seed:dat:full # Seed 500 DAT questions
 npm run db:seed:interview # Seed 24 interview questions
 npm run docker:build     # Build Docker image

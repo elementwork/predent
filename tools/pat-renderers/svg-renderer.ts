@@ -6,8 +6,29 @@ interface CubeCoord {
   z: number;
 }
 
-const EMPTY_CELL = "#f1f5f9";
-const BORDER = "#e2e8f0";
+interface TFEEdge {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  hidden: boolean;
+}
+
+interface TFEView {
+  cols: number;
+  rows: number;
+  edges: TFEEdge[];
+}
+
+interface FoldStep {
+  axis: "h" | "v" | "d";
+  line: number;
+}
+
+const INK = "#111111";
+const PAPER = "#ffffff";
+const GRAY_FILL = "#c8c8c8";
+const DASH = "5 3";
 
 function escapeAttr(value: unknown): string {
   return String(value)
@@ -17,312 +38,425 @@ function escapeAttr(value: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function renderCubeStack(
-  cubes: CubeCoord[],
-  size: number,
-  cubeSize: number,
-  spacing: number,
-  color: string
-): string {
-  const sorted = [...cubes].sort(
-    (a, b) => a.z - b.z || a.y - b.y || a.x - b.x
-  );
-  const iso = (x: number, y: number, z: number) => ({
-    px: (x - y) * (cubeSize + spacing) * 0.72,
-    py:
-      -(x + y) * (cubeSize + spacing) * 0.36 -
-      z * (cubeSize + spacing) * 0.72,
-  });
+function svgWrap(inner: string, width: number, height: number, cls = "diagram-svg"): string {
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" class="${cls}">${inner}</svg>`;
+}
 
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
+/* ─── Isometric cube stack (black-on-white technical style) ─── */
+
+function isoPoints(x: number, y: number, z: number, s: number): {
+  top: string;
+  left: string;
+  right: string;
+  cx: number;
+  cy: number;
+} {
+  const px = (x - y) * s * 0.9;
+  const py = -(x + y) * s * 0.45 - z * s * 0.9;
+  return {
+    cx: px,
+    cy: py,
+    top: `${px},${py - s * 0.45} ${px + s * 0.72},${py - s * 0.72} ${px + s * 1.44},${py - s * 0.45} ${px + s * 0.72},${py - s * 0.18}`,
+    left: `${px},${py - s * 0.45} ${px + s * 0.72},${py - s * 0.18} ${px + s * 0.72},${py + s * 0.72} ${px},${py + s * 0.45}`,
+    right: `${px + s * 0.72},${py - s * 0.18} ${px + s * 1.44},${py - s * 0.45} ${px + s * 1.44},${py + s * 0.45} ${px + s * 0.72},${py + s * 0.72}`,
+  };
+}
+
+interface IsoRenderOpts {
+  cubeSize?: number;
+  pad?: number;
+  /** When set, cubes with exactly this many exposed faces are shaded. */
+  paintFaces?: boolean;
+}
+
+function renderCubeStack(cubes: CubeCoord[], size: number, opts: IsoRenderOpts = {}): string {
+  const s = opts.cubeSize ?? 24;
+  const pad = opts.pad ?? 18;
+  const set = new Set(cubes.map(c => `${c.x},${c.y},${c.z}`));
+  const exposed = (c: CubeCoord): number => {
+    let n = 0;
+    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+      if (!set.has(`${c.x + dx},${c.y + dy},${c.z + dz}`)) n++;
+    }
+    return n;
+  };
+  const sorted = [...cubes].sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const c of sorted) {
-    const { px, py } = iso(c.x, c.y, c.z);
-    minX = Math.min(minX, px - cubeSize * 0.2);
-    maxX = Math.max(maxX, px + cubeSize * 1.4);
-    minY = Math.min(minY, py - cubeSize * 1.2);
-    maxY = Math.max(maxY, py + cubeSize * 0.8);
+    const p = isoPoints(c.x, c.y, c.z, s);
+    minX = Math.min(minX, p.cx - s * 0.72);
+    maxX = Math.max(maxX, p.cx + s * 1.44);
+    minY = Math.min(minY, p.cy - s * 1.0);
+    maxY = Math.max(maxY, p.cy + s * 0.8);
   }
   const offX = size / 2 - (minX + maxX) / 2;
   const offY = size / 2 - (minY + maxY) / 2;
 
-  const faces = sorted
-    .map((c) => {
-      const { px, py } = iso(c.x, c.y, c.z);
-      const s = cubeSize;
-      return `<g stroke="${color}" stroke-width="1" stroke-linejoin="round">
-        <polygon points="${px},${py - s * 0.5} ${px + s * 0.72},${py - s * 0.86} ${px + s * 1.44},${py - s * 0.5} ${px + s * 0.72},${py - s * 0.14}" fill="${color}" fill-opacity="0.35"/>
-        <polygon points="${px},${py - s * 0.5} ${px + s * 0.72},${py - s * 0.14} ${px + s * 0.72},${py + s * 0.86} ${px},${py + s * 0.5}" fill="${color}" fill-opacity="0.28"/>
-        <polygon points="${px + s * 0.72},${py - s * 0.14} ${px + s * 1.44},${py - s * 0.5} ${px + s * 1.44},${py + s * 0.5} ${px + s * 0.72},${py + s * 0.86}" fill="${color}" fill-opacity="0.22"/>
-      </g>`;
+  const inner = sorted
+    .map(c => {
+      const p = isoPoints(c.x, c.y, c.z, s);
+      const shade = opts.paintFaces
+        ? `<polygon points="${p.top}" fill="${GRAY_FILL}" stroke="${INK}" stroke-width="1.1"/>
+           <polygon points="${p.left}" fill="${GRAY_FILL}" stroke="${INK}" stroke-width="1.1"/>
+           <polygon points="${p.right}" fill="${GRAY_FILL}" stroke="${INK}" stroke-width="1.1"/>`
+        : `<polygon points="${p.top}" fill="${PAPER}" stroke="${INK}" stroke-width="1.1"/>
+           <polygon points="${p.left}" fill="${PAPER}" stroke="${INK}" stroke-width="1.1"/>
+           <polygon points="${p.right}" fill="${PAPER}" stroke="${INK}" stroke-width="1.1"/>`;
+      void exposed(c);
+      return shade;
     })
     .join("");
 
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    <g transform="translate(${offX}, ${offY})">${faces}</g>
-  </svg>`;
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1.2"/>
+     <g transform="translate(${offX}, ${offY})">${inner}</g>`,
+    size + pad * 2,
+    size + pad * 2
+  );
 }
 
-function renderGrid(
-  grid: boolean[][],
-  size: number,
-  filledColor: string
-): string {
+/* ─── Silhouette grid (black-on-white) ─── */
+
+function renderSilhouette(grid: boolean[][], size: number): string {
   if (!Array.isArray(grid) || grid.length === 0) {
-    return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg"><rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/></svg>`;
+    return svgWrap(`<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1.2"/>`, size, size);
   }
-  const dim = grid.length;
-  const cell = (size - 16) / dim;
+  const rows = grid.length;
+  const cols = grid[0]?.length ?? rows;
+  const pad = 6;
+  const cell = (size - pad * 2) / Math.max(rows, cols);
+  const offX = (size - cell * cols) / 2;
+  const offY = (size - cell * rows) / 2;
+
   const cells = grid
-    .map((row, y) =>
+    .map((row, r) =>
       row
-        .map((filled, x) => {
-          const fill = filled ? filledColor : EMPTY_CELL;
-          return `<rect x="${8 + x * cell}" y="${8 + y * cell}" width="${cell - 2}" height="${cell - 2}" rx="${cell * 0.12}" fill="${fill}" stroke="${BORDER}" stroke-width="1"/>`;
+        .map((filled, c) => {
+          const x = offX + c * cell;
+          const y = offY + r * cell;
+          return `<rect x="${x}" y="${y}" width="${cell - 1}" height="${cell - 1}" fill="${filled ? INK : PAPER}" stroke="${INK}" stroke-width="0.8"/>`;
         })
         .join("")
     )
     .join("");
 
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    ${cells}
-  </svg>`;
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1.2"/>
+     ${cells}`,
+    size,
+    size
+  );
 }
 
-function renderAngleDiagram(angle: number, size: number): string {
+/* ─── TFE view (solid + dashed edges) ─── */
+
+function renderTFEView(view: TFEView, size: number): string {
+  const pad = 10;
+  const cell = (size - pad * 2) / Math.max(view.cols, view.rows);
+  const offX = (size - cell * view.cols) / 2;
+  const offY = (size - cell * view.rows) / 2;
+  const lines = view.edges
+    .map(e => {
+      const dash = e.hidden ? ` stroke-dasharray="${DASH}"` : "";
+      return `<line x1="${offX + e.x1 * cell}" y1="${offY + e.y1 * cell}" x2="${offX + e.x2 * cell}" y2="${offY + e.y2 * cell}" stroke="${INK}" stroke-width="1.6"${dash}/>`;
+    })
+    .join("");
+  return svgWrap(
+    `<rect x="${pad - 4}" y="${pad - 4}" width="${size - pad * 2 + 8}" height="${size - pad * 2 + 8}" fill="${PAPER}" stroke="${INK}" stroke-width="1" opacity="0.35"/>
+     ${lines}`,
+    size,
+    size
+  );
+}
+
+/* ─── Angle diagram ─── */
+
+function renderAngleDiagram(angle: number, label: number, size: number): string {
   const center = size / 2;
-  const radius = size * 0.38;
+  const radius = size * 0.36;
   const rad = (angle * Math.PI) / 180;
   const x2 = center + radius * Math.cos(rad);
   const y2 = center - radius * Math.sin(rad);
-  const arcR = radius * 0.28;
-  const largeArc = angle > 180 ? 1 : 0;
-  const arcEndX = center + arcR * Math.cos(rad);
-  const arcEndY = center - arcR * Math.sin(rad);
-
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    <line x1="${center}" y1="${center}" x2="${center + radius}" y2="${center}" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
-    <line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
-    <path d="M ${center + arcR} ${center} A ${arcR} ${arcR} 0 ${largeArc} 0 ${arcEndX} ${arcEndY}" fill="rgba(245, 158, 11, 0.15)" stroke="#F59E0B" stroke-width="2"/>
-  </svg>`;
+  const arcR = radius * 0.3;
+  const sweep = angle <= 180 ? 0 : 1;
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     <line x1="${center}" y1="${center}" x2="${center + radius}" y2="${center}" stroke="${INK}" stroke-width="2"/>
+     <line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="2"/>
+     <path d="M ${center + arcR} ${center} A ${arcR} ${arcR} 0 0 ${sweep} ${center + arcR * Math.cos(rad)} ${center - arcR * Math.sin(rad)}" fill="none" stroke="${INK}" stroke-width="1.4"/>
+     <text x="${center}" y="${size - 8}" text-anchor="middle" font-size="14" font-weight="bold" fill="${INK}">${label}</text>`,
+    size,
+    size
+  );
 }
 
-function renderFoldedPaper(
-  fold: string,
-  punch: { x: number; y: number },
-  size: number
-): string {
-  const margin = 14;
-  const paper = size - margin * 2;
-  const foldLine =
-    fold === "horizontal"
-      ? `M ${margin} ${margin + paper / 2} L ${margin + paper} ${margin + paper / 2}`
-      : fold === "vertical"
-        ? `M ${margin + paper / 2} ${margin} L ${margin + paper / 2} ${margin + paper}`
-        : `M ${margin} ${margin + paper} L ${margin + paper} ${margin}`;
-  const px = margin + punch.x * paper;
-  const py = margin + punch.y * paper;
+/* ─── Hole punching: folded paper stem ─── */
 
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    <rect x="${margin}" y="${margin}" width="${paper}" height="${paper}" fill="#ffffff" stroke="#475569" stroke-width="1"/>
-    <path d="${foldLine}" stroke="#D97706" stroke-width="1.5" stroke-dasharray="5 3" fill="none"/>
-    <circle cx="${px + 1}" cy="${py + 1}" r="5" fill="rgba(0,0,0,0.15)"/>
-    <circle cx="${px}" cy="${py}" r="5" fill="#EF4444"/>
-  </svg>`;
+function renderFoldedPaper(steps: FoldStep[], punch: { x: number; y: number }, size: number): string {
+  const pad = 24;
+  const paper = size - pad * 2;
+  const GRID = 4;
+  const cell = paper / GRID;
+
+  // Fold lines: rendered in the original 4x4 grid coordinates.
+  const foldPaths: string[] = [];
+  for (const f of steps) {
+    if (f.axis === "h") {
+      const y = pad + (GRID - f.line) * cell;
+      foldPaths.push(`<line x1="${pad}" y1="${y}" x2="${pad + paper}" y2="${y}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="${DASH}"/>`);
+    } else if (f.axis === "v") {
+      const x = pad + f.line * cell;
+      foldPaths.push(`<line x1="${x}" y1="${pad}" x2="${x}" y2="${pad + paper}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="${DASH}"/>`);
+    } else {
+      const main = f.line === 0;
+      foldPaths.push(
+        main
+          ? `<line x1="${pad}" y1="${pad + paper}" x2="${pad + paper}" y2="${pad}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="${DASH}"/>`
+          : `<line x1="${pad}" y1="${pad}" x2="${pad + paper}" y2="${pad + paper}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="${DASH}"/>`
+      );
+    }
+  }
+
+  const px = pad + punch.x * cell;
+  const py = pad + (GRID - 1 - punch.y) * cell;
+
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     <rect x="${pad}" y="${pad}" width="${paper}" height="${paper}" fill="${PAPER}" stroke="${INK}" stroke-width="1.4"/>
+     ${foldPaths.join("")}
+     <circle cx="${px}" cy="${py}" r="${cell * 0.16}" fill="${PAPER}" stroke="${INK}" stroke-width="1.6"/>`,
+    size,
+    size
+  );
 }
 
-function renderUnfoldedPaper(
-  holes: { x: number; y: number }[],
-  size: number
-): string {
-  const margin = 10;
-  const paper = size - margin * 2;
+/* ─── Hole punching: unfolded grid option ─── */
+
+function renderHoleGrid(holes: { x: number; y: number }[], size: number): string {
+  const GRID = 4;
+  const pad = 8;
+  const cell = (size - pad * 2) / GRID;
   const dots = (holes ?? [])
-    .map((h) => {
-      const px = margin + h.x * paper;
-      const py = margin + h.y * paper;
-      return `<circle cx="${px}" cy="${py}" r="5" fill="#EF4444"/>`;
+    .map(h => {
+      const cx = pad + (h.x + 0.5) * cell;
+      const cy = pad + (GRID - 1 - h.y + 0.5) * cell;
+      return `<circle cx="${cx}" cy="${cy}" r="${cell * 0.14}" fill="${INK}" stroke="${INK}"/>`;
     })
     .join("");
-
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    <rect x="${margin}" y="${margin}" width="${paper}" height="${paper}" fill="#ffffff" stroke="#475569" stroke-width="1"/>
-    ${dots}
-  </svg>`;
+  const lines: string[] = [];
+  for (let i = 1; i < GRID; i++) {
+    const x = pad + i * cell;
+    const y = pad + i * cell;
+    lines.push(
+      `<line x1="${x}" y1="${pad}" x2="${x}" y2="${pad + cell * GRID}" stroke="${INK}" stroke-width="0.6"/>`,
+      `<line x1="${pad}" y1="${y}" x2="${pad + cell * GRID}" y2="${y}" stroke="${INK}" stroke-width="0.6"/>`
+    );
+  }
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     <rect x="${pad}" y="${pad}" width="${cell * GRID}" height="${cell * GRID}" fill="${PAPER}" stroke="${INK}" stroke-width="1.4"/>
+     ${lines.join("")}${dots}`,
+    size,
+    size
+  );
 }
 
-function renderNet(symbols: string[]): string {
-  const cell = 38;
-  const positions = [
-    { x: 1, y: 1 },
-    { x: 1, y: 0 },
-    { x: 1, y: 2 },
-    { x: 0, y: 1 },
-    { x: 2, y: 1 },
-    { x: 1, y: 3 },
-  ];
-  const cells = positions
-    .map((p, i) => {
-      const symbol = symbols[i] ?? "";
-      return `<rect x="${12 + p.x * cell}" y="${12 + p.y * cell}" width="${cell - 3}" height="${cell - 3}" rx="4" fill="#ffffff" stroke="#8B5CF6" stroke-width="1.5"/>
-        <text x="${12 + p.x * cell + cell / 2 - 1}" y="${12 + p.y * cell + cell / 2 + 7}" fill="#8B5CF6" font-size="20" text-anchor="middle">${escapeAttr(symbol)}</text>`;
-    })
-    .join("");
+/* ─── Pattern folding ─── */
 
-  return `<svg width="160" height="210" viewBox="0 0 160 210" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    ${cells}
-  </svg>`;
+const NET_POSITIONS: [number, number][] = [
+  [1, 1], // front
+  [1, 0], // top
+  [1, 2], // bottom
+  [0, 1], // left
+  [2, 1], // right
+  [1, 3], // back
+];
+
+function renderNet(net: string[], size = 170): string {
+  const cell = 36;
+  const w = size;
+  const h = size + 20;
+  const x0 = (w - 3 * cell) / 2;
+  const y0 = (h - 4 * cell) / 2;
+  const cells = NET_POSITIONS.map(([gx, gy], i) => {
+    const x = x0 + gx * cell;
+    const y = y0 + gy * cell;
+    const symbol = net[i] ?? "";
+    const shaded = symbol === "#";
+    const fill = shaded ? GRAY_FILL : PAPER;
+    const text = shaded
+      ? ""
+      : symbol
+        ? `<text x="${x + cell / 2}" y="${y + cell / 2 + 6}" text-anchor="middle" font-size="20" fill="${INK}">${escapeAttr(symbol)}</text>`
+        : "";
+    return `<rect x="${x}" y="${y}" width="${cell - 3}" height="${cell - 3}" fill="${fill}" stroke="${INK}" stroke-width="1.3"/>
+      ${text}`;
+  }).join("");
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     ${cells}`,
+    w,
+    h
+  );
 }
 
-function renderCube3D(symbols: string[]): string {
-  const size = 26;
-  const cx = 70;
-  const cy = 80;
-  const faces = [
-    { x: cx - size, y: cy, s: symbols[0] ?? "" },
-    { x: cx - size, y: cy - size * 0.5, s: symbols[1] ?? "" },
-    { x: cx, y: cy - size * 0.5, s: symbols[4] ?? "" },
-  ]
-    .map((f) => {
-      return `<polygon points="${f.x},${f.y} ${f.x + size},${f.y - size * 0.5} ${f.x + size * 2},${f.y} ${f.x + size},${f.y + size * 0.5}" fill="#ffffff" stroke="#8B5CF6" stroke-width="1.2"/>
-        <text x="${f.x + size}" y="${f.y + 5}" fill="#8B5CF6" font-size="16" text-anchor="middle">${escapeAttr(f.s)}</text>`;
-    })
-    .join("");
-
-  return `<svg width="150" height="130" viewBox="0 0 150 130" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    ${faces}
-  </svg>`;
+function renderFoldedCube(markString: string, size = 120): string {
+  const s = size * 0.34;
+  const cx = size / 2;
+  const cy = size / 2 + size * 0.06;
+  const marks = markString.split("|");
+  const top = marks[0] ?? "";
+  const left = marks[1] ?? "";
+  const right = marks[2] ?? "";
+  const p = (dx: number, dy: number) => `${cx + dx},${cy + dy}`;
+  const faceTop = `${p(0, -s * 0.45)} ${p(s * 0.72, -s * 0.72)} ${p(s * 1.44, -s * 0.45)} ${p(s * 0.72, -s * 0.18)}`;
+  const faceLeft = `${p(0, -s * 0.45)} ${p(s * 0.72, -s * 0.18)} ${p(s * 0.72, s * 0.72)} ${p(0, s * 0.45)}`;
+  const faceRight = `${p(s * 0.72, -s * 0.18)} ${p(s * 1.44, -s * 0.45)} ${p(s * 1.44, s * 0.45)} ${p(s * 0.72, s * 0.72)}`;
+  const label = (mark: string, cxm: number, cym: number) =>
+    mark
+      ? `<text x="${cxm}" y="${cym}" text-anchor="middle" font-size="18" fill="${INK}">${escapeAttr(mark)}</text>`
+      : "";
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     <polygon points="${faceTop}" fill="${top === "#" ? GRAY_FILL : PAPER}" stroke="${INK}" stroke-width="1.4"/>
+     <polygon points="${faceLeft}" fill="${left === "#" ? GRAY_FILL : PAPER}" stroke="${INK}" stroke-width="1.4"/>
+     <polygon points="${faceRight}" fill="${right === "#" ? GRAY_FILL : PAPER}" stroke="${INK}" stroke-width="1.4"/>
+     ${label(top, cx + s * 0.72, cy - s * 0.45)}
+     ${label(left, cx + s * 0.36, cy + s * 0.36)}
+     ${label(right, cx + s * 1.08, cy + s * 0.36)}`,
+    size,
+    size
+  );
 }
 
-function getMetadata(question: GeneratedQuestion): Record<string, unknown> {
-  return (question.metadata ?? {}) as Record<string, unknown>;
+/* ─── Public API ─── */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function getMeta(question: GeneratedQuestion): Record<string, any> {
+  return (question.metadata ?? {}) as Record<string, any>;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function renderStemSVG(question: GeneratedQuestion): string {
-  const meta = getMetadata(question);
+  const meta = getMeta(question);
 
   switch (question.category) {
     case "keyholes": {
       const cubes = (meta.cubes ?? []) as CubeCoord[];
-      return renderCubeStack(cubes, 180, 26, 2, "#2563EB");
+      return `<div class="stem-flex">
+        ${renderCubeStack(cubes, 150, { cubeSize: 26 })}
+        <div class="stem-note">Aperture: ${escapeAttr(meta.correctAxis ?? "?")}-axis view</div>
+      </div>`;
     }
     case "tfe": {
-      const shape = meta.shape as { cubes: CubeCoord[] } | undefined;
-      const cubes = shape?.cubes ?? [];
-      const givenViews = (meta.givenViews ?? []) as string[];
-      const views = (shape ?? {}) as Record<string, boolean[][]>;
-      const viewSvg = givenViews
-        .map((view) => {
-          const label = view.charAt(0).toUpperCase() + view.slice(1);
-          const grid = views[view] ?? [];
-          return `<div class="view-grid">
-            ${renderGrid(grid, 80, "#6366F1")}
-            <span>${label}</span>
-          </div>`;
-        })
+      const cubes = (meta.cubes ?? []) as CubeCoord[];
+      const missing = String(meta.missingView ?? "?");
+      const views = (meta.views ?? {}) as Record<string, TFEView>;
+      const given = ["top", "front", "end"]
+        .filter(v => v !== missing)
+        .map(v => `<div class="view-grid"><span>${v}</span>${renderTFEView(views[v] ?? { cols: 2, rows: 2, edges: [] }, 96)}</div>`)
         .join("");
       return `<div class="stem-tfe">
-        ${renderCubeStack(cubes, 150, 22, 2, "#2563EB")}
-        <div class="stem-views">${viewSvg}</div>
+        <div class="stem-flex">
+          ${renderCubeStack(cubes, 140, { cubeSize: 24 })}
+          <div class="stem-views">${given}</div>
+        </div>
       </div>`;
     }
     case "angle_ranking": {
       const angles = (meta.angles ?? []) as number[];
-      const diagram = angles.map((a) => renderAngleDiagram(a, 120)).join("");
+      const diagram = angles
+        .map((a, i) => renderAngleDiagram(a, i + 1, 118))
+        .join("");
       return `<div class="stem-angles">${diagram}</div>`;
     }
     case "hole_punching": {
-      const foldProblem = meta.foldProblem as {
-        fold: string;
-        punch: { x: number; y: number };
-      };
-      const fold = foldProblem?.fold ?? "horizontal";
-      const punch = foldProblem?.punch ?? { x: 0.5, y: 0.5 };
-      return renderFoldedPaper(fold, punch, 180);
+      const steps = (meta.foldSteps ?? []) as FoldStep[];
+      const punch = (meta.punch ?? { x: 0, y: 0 }) as { x: number; y: number };
+      return renderFoldedPaper(steps, punch, 190);
     }
     case "cube_counting": {
       const cubes = (meta.cubes ?? []) as CubeCoord[];
-      return renderCubeStack(cubes, 220, 26, 2, "#2563EB");
+      const targetN = Number(meta.targetN ?? "?");
+      return `<div class="stem-flex">
+        ${renderCubeStack(cubes, 190, { cubeSize: 26, paintFaces: true })}
+        <div class="stem-note">${escapeAttr(Number.isNaN(targetN) ? "?" : String(targetN))} sides painted</div>
+      </div>`;
     }
     case "pattern_folding": {
-      const symbols = (meta.symbols ?? []) as string[];
-      return renderNet(symbols);
+      const net = (meta.net ?? []) as string[];
+      return renderNet(net);
     }
     default:
       return renderFallback(question);
   }
 }
 
-export function renderOptionSVG(
-  question: GeneratedQuestion,
-  index: number
-): string {
-  const meta = getMetadata(question);
+export function renderOptionSVG(question: GeneratedQuestion, index: number): string {
+  const meta = getMeta(question);
 
   switch (question.category) {
     case "keyholes": {
       const options = (meta.options ?? []) as boolean[][][];
-      return renderGrid(options[index] ?? [], 90, "#14B8A6");
+      return renderSilhouette(options[index] ?? [], 96);
     }
     case "tfe": {
-      const options = (meta.options ?? []) as boolean[][][];
-      return renderGrid(options[index] ?? [], 90, "#6366F1");
-    }
-    case "angle_ranking": {
-      const angles = (meta.angles ?? []) as number[];
-      return renderAngleDiagram(angles[index] ?? 90, 120);
+      const options = (meta.options ?? []) as TFEView[];
+      return renderTFEView(options[index] ?? { cols: 2, rows: 2, edges: [] }, 96);
     }
     case "hole_punching": {
       const options = (meta.options ?? []) as { x: number; y: number }[][];
-      return renderUnfoldedPaper(options[index] ?? [], 110);
+      return renderHoleGrid(options[index] ?? [], 110);
     }
     case "pattern_folding": {
-      const options = (meta.options ?? []) as string[][];
-      return renderCube3D(options[index] ?? []);
+      const options = (meta.options ?? []) as string[];
+      return renderFoldedCube(options[index] ?? "", 120);
     }
     default:
       return renderFallback(question);
   }
 }
 
-export function renderOptionContent(
-  question: GeneratedQuestion,
-  index: number
-): string {
-  if (question.category === "cube_counting") {
-    const meta = getMetadata(question);
-    const choices = (meta.choices ?? ["A", "B", "C", "D"]) as number[];
-    return `<span class="option-number">${choices[index] ?? index + 1}</span>`;
+export function renderOptionContent(question: GeneratedQuestion, index: number): string {
+  const meta = getMeta(question);
+  switch (question.category) {
+    case "angle_ranking": {
+      const options = (meta.options ?? []) as string[];
+      return `<span class="option-perm">${escapeAttr(options[index] ?? "?")}</span>`;
+    }
+    case "cube_counting": {
+      const choices = (meta.choices ?? [1, 2, 3, 4, 5]) as number[];
+      return `<span class="option-number">${choices[index] ?? index + 1}</span>`;
+    }
+    default:
+      return renderOptionSVG(question, index);
   }
-  return renderOptionSVG(question, index);
 }
 
-export function renderAnswerText(
-  question: GeneratedQuestion,
-  index: number
-): string {
+export function renderAnswerText(question: GeneratedQuestion, index: number): string {
   const letter = String.fromCharCode(65 + index);
-  if (question.category === "cube_counting") {
-    const meta = getMetadata(question);
-    const choices = (meta.choices ?? ["1", "2", "3", "4"]) as number[];
-    return `${letter} (${choices[index] ?? "?"})`;
+  const meta = getMeta(question);
+  switch (question.category) {
+    case "angle_ranking": {
+      const options = (meta.options ?? []) as string[];
+      return `${letter} (${options[index] ?? "?"})`;
+    }
+    case "cube_counting": {
+      const choices = (meta.choices ?? []) as number[];
+      return `${letter} (${choices[index] ?? "?"})`;
+    }
+    default:
+      return letter;
   }
-  return letter;
 }
 
 function renderFallback(question: GeneratedQuestion): string {
-  return `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="diagram-svg">
-    <rect width="100%" height="100%" fill="${EMPTY_CELL}" rx="8"/>
-    <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#64748b" font-size="14">${escapeAttr(question.category.replace(/_/g, " "))}</text>
-    <text x="50%" y="65%" text-anchor="middle" fill="#94a3b8" font-size="10">Seed: ${question.seed}</text>
-  </svg>`;
+  return svgWrap(
+    `<rect width="100%" height="100%" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>
+     <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="${INK}" font-size="13">${escapeAttr(question.category.replace(/_/g, " "))}</text>
+     <text x="50%" y="62%" text-anchor="middle" fill="${INK}" font-size="9">Seed: ${question.seed}</text>`,
+    200,
+    200
+  );
 }

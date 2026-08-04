@@ -4,9 +4,11 @@ A practice and planning platform for Canadian pre-dental students. DAT prep, sch
 
 **Live:** [predent.vercel.app](https://predent.vercel.app)
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 ## Features
 
-- **PAT Academy** — On-the-fly question generation (seeded PRNG, infinite questions), 6 category practice modules (Quick, Category Drill, Timed, Mixed, Exam), procedural SVG generators, progress analytics, predicted score, tiered explanations, tiered quota system
+- **PAT Academy** — On-the-fly question generation (seeded PRNG, infinite questions), 6 category practice modules (Quick, Category Drill, Timed, Mixed, Exam), authentic recent-DAT format (5/4/4/5/5/4 answer choices, dashed hidden TFE lines, half-fold hole punching, never-zero cube counts), B&W technical SVG renderers, progress analytics, predicted score, tiered explanations, tiered quota system
 - **DAT Academy** — Biology, Chemistry, Reading Comprehension question banks with study schedule generator and flashcard previews
 - **School Hub** — Detailed profiles for all 10 Canadian dental schools with admission stats, 5-year trends, and side-by-side comparison
 - **Competitiveness Calculator** — Enter GPA, DAT scores, province, and ECs to see Safety/Competitive/Reach ratings at each school
@@ -23,7 +25,7 @@ A practice and planning platform for Canadian pre-dental students. DAT prep, sch
 |-------|-----------|
 | Frontend | React 19, Vite 7, TypeScript, Tailwind CSS, shadcn/ui (~50 components), Framer Motion, Recharts |
 | Backend | Hono, tRPC v11, Drizzle ORM |
-| Database | PostgreSQL (Supabase via `postgres` driver), 18 tables |
+| Database | PostgreSQL (Supabase via `postgres` driver), 17 tables |
 | Auth | 8 OAuth providers (Google, Apple, Microsoft, LinkedIn, Facebook, X, Discord, Instagram) via `arctic`, JWT sessions (`jose`) |
 | Payments | Stripe (subscriptions + one-time) |
 | Email | Resend / SendGrid / console |
@@ -95,7 +97,7 @@ The app runs at `http://localhost:3000`.
 │   ├── notification-router.ts # In-app + push + email notifications
 │   ├── saved-router.ts     # Saved/bookmarked questions (PAT + DAT)
 │   ├── flashcard-router.ts # Flashcard SRS (SM-2 algorithm, due cards, reviews)
-│   ├── router.ts           # Root router composition (14 sub-routers)
+│   ├── router.ts           # Root router composition (13 sub-routers)
 │   ├── app.ts              # Hono app setup
 │   ├── boot.ts             # Production server entry
 │   ├── context.ts          # tRPC context creation
@@ -112,7 +114,7 @@ The app runs at `http://localhost:3000`.
 │   └── main.tsx            # Entry point
 ├── contracts/              # Shared types, constants, school data
 ├── db/                     # Drizzle schema, relations, migrations, seeds
-│   ├── schema.ts           # 18 tables
+│   ├── schema.ts           # 17 tables
 │   ├── relations.ts        # Foreign-key relationships
 │   ├── seed-dat-full.ts    # DAT question seeder (500 questions)
 │   ├── seed-interview.ts   # Interview question seeder (24 questions)

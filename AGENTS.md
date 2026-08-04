@@ -2,6 +2,8 @@
 
 This file is a concise, factual reference for AI coding agents working on this project. It describes the technology stack, project layout, build/runtime behavior, conventions, and security model as they actually exist in the codebase.
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 ---
 
 ## 1. Project overview
@@ -310,6 +312,13 @@ Seed scripts:
 - `npm run db:seed:interview` — Seeds 24 interview questions
 
 PAT questions are never stored in the database — all practice/analytics/flashcard questions are generated on the fly from a numeric seed using the mulberry32 PRNG (`src/lib/prng.ts` client, `server/lib/pat-generation/prng.ts` server). The server re-derives the correct answer from the seed to grade attempts. Static counts live in `contracts/pat-stats.ts`.
+
+PAT generators follow the authentic recent DAT (ADA) format, documented in `docs/design/pat-research.md`:
+
+- **Choice counts:** keyholes = 5, TFE = 4, angle ranking = 4, hole punching = 5, cube counting = 5, pattern folding = 4. `server/pat-router.ts` `recordAttempt` accepts `userAnswer` in `0..4`.
+- **Per-category model:** `keyholes.ts` (silhouette `boolean[][]` options, `correctAxis`), `tfe.ts` (`TFEView{cols,rows,edges:{hidden}}` per view — dashed = hidden line), `angle-ranking.ts` (permutation-string options like `"2-1-4-3"`), `hole-punching.ts` (4×4 grid, **half-folds only** `foldSteps` + `punch` + `correctHoles`), `cube-counting.ts` (`targetN`/`answer`/`choices`; painted = exposed faces), `pattern-folding.ts` (`net` string[6] face marks, options = `"top|left|right"`).
+- **B&W renderers:** shared components in `src/components/pat-generators/shared/tech.tsx` (React) and `tools/pat-renderers/svg-renderer.ts` (CLI strings). All six interactive generators live in `src/components/pat-generators/*.tsx` and share state logic via `shared/usePatGenerator.ts` + `shared/PatGeneratorUI.tsx`.
+- The CLI (`tools/pat-cli.ts`) and standalone bundle render only from these generators. Test artifacts `test-output/pat-360/` and `pat-standalone.html` are gitignored and regenerated via `tools/pat-cli.ts generate`/`standalone`.
 
 ---
 

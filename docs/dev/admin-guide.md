@@ -2,6 +2,8 @@
 
 This guide covers how to set up, deploy, and operate the PreDent Canada platform. It is intended for administrators, DevOps engineers, and content managers.
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 > **New to PreDent?** Start with the [Step-by-Step Setup Guide](./setup-guide.md) for a complete walkthrough from zero to production.
 
 ## Table of Contents

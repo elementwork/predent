@@ -1,6 +1,6 @@
 # PreDent Canada — Comprehensive Todo & Missing Features Plan
 
-> Generated: 2026-07-31T17:30:00-04:00 | Updated from codebase audit
+> Generated: 2026-08-03T22:40:00-04:00 | Updated from codebase audit
 
 This document is the single source of truth for all outstanding work. Items are grouped by priority and categorized as **Bug**, **Gap**, **Missing Feature**, or **Enhancement**.
 
@@ -74,7 +74,7 @@ These items are actively broken or show users false information.
 
 ### 15. On-the-Fly PAT Generation — ✅ DONE
 - **Type:** Missing Feature
-- **Status:** All 5 phases complete. PRNG + 6 generators, server-side generation, seeded attempts, quota system, 134 tests passing.
+- **Status:** All 5 phases complete. PRNG + 6 generators, server-side generation, seeded attempts, quota system, 140 tests passing.
 
 ---
 

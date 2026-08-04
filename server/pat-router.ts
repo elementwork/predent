@@ -38,7 +38,7 @@ export const patRouter = createRouter({
         category: categoryEnum,
         difficulty: difficultyEnum,
         seed: z.number().int(),
-        userAnswer: z.number().int().min(-1).max(3),
+        userAnswer: z.number().int().min(-1).max(4),
         timeSpent: z.number().int(),
         sessionId: z.string(),
       })

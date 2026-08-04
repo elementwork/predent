@@ -2,6 +2,8 @@
 
 A command-line tool for generating, validating, and exporting DAT PAT (Perceptual Ability Test) practice questions. Works entirely offline using deterministic algorithms — no database or network required.
 
+> Last updated: 2026-08-03T22:40:00-04:00
+
 ## Requirements
 
 - **Node.js 24+** (project engine requirement)
@@ -282,8 +284,8 @@ npx tsx tools/pat-cli.ts validate -i questions.json
 | Check | Description |
 |-------|-------------|
 | Required fields | `id`, `category`, `difficulty`, `seed`, `correctIndex` present |
-| Correct index | Value is between 0 and 3 |
-| Options array | Exactly 4 options |
+| Correct index | Value within the category's option range (0–4 for keyholes/hole_punching/cube_counting, 0–3 otherwise) |
+| Options array | Matches the category's option count (5 for keyholes/hole_punching/cube_counting, 4 otherwise) |
 | Determinism | Re-deriving the answer from the seed matches `correctIndex` |
 | No errors | Question regenerates without throwing |
 

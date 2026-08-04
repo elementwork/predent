@@ -2,8 +2,11 @@
 
 > **Version:** 1.0  
 > **Date:** 2026-06-20  
+> **Last updated:** 2026-08-03T22:40:00-04:00 (see implementation-status note below)
 > **Optimized For:** Kimi K2.6 Website Agent (Text-to-Website, Multi-Page, Full-Stack, One-Click Publish)  
 > **Source PRD:** PreDent_Canada_PRD.md
+
+> **Implementation status note (2026-08-03):** PAT questions are generated on the fly from numeric seeds (no `pat_questions` bank — the `patQuestions` table was removed in migration `0007_handy_nomad`); the backend is Hono + tRPC on PostgreSQL/Supabase. See `docs/design/pat-research.md` and `AGENTS.md` for the current architecture.
 
 ---
 

@@ -2186,5 +2186,7 @@ That's it — **~12 runtime dependencies** vs. the 30+ services in the original 
 ---
 
 _Document Version: 1.0_
-_Last Updated: 2026-06-17_
+_Last Updated: 2026-08-03T22:40:00-04:00_
 _Total Pages: 100+ equivalent_
+
+> **Implementation status note (2026-08-03):** The PAT question bank described in this PRD is **not** implemented as stored questions — PAT questions are generated on the fly from numeric seeds using the mulberry32 PRNG (see `docs/design/pat-research.md`, `server/lib/pat-generation/`, `tools/pat-cli.md`). The database is PostgreSQL (Supabase), not SQLite, with 17 tables.

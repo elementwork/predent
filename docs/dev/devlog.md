@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-08-03T00:00:00-04:00
+> Last updated: 2026-08-03T22:40:00-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -47,12 +47,14 @@ PreDent Canada is a full-stack web platform for Canadian dental school applicant
 | `7437705` | Security   | Audit-02 remediation — session invalidation, rate limiting, admin soft-delete + audit log, Drizzle relations, auth status codes, env cleanup, Stripe reuse, notification links, mobile theme toggle. |
 | (pending) | Docs       | Documentation reorganization — moved user/dev/admin guides under `docs/`, moved resume to `.agents/`, moved design docs under `docs/design/`, added index files, updated README/AGENTS.md. |
 | (pending) | Feature    | Comprehensive documentation update + P1 features — updated feature_list, dev-guide, user-guide; merged READMEs; implemented onboarding flow, Sentry error tracking, Playwright E2E tests, landing page testimonials removal, study streak computation (PAT+DAT), flashcard/DA module real DB counts, community sidebar cleanup, study reminder wiring, PWA theme color, CI migration check. |
-| (pending) | Feature    | PAT CLI toolset + remove PAT question bank — `tools/pat-cli.ts` (generate/render/convert/validate/standalone), HTML renderer with modern/classic/minimal/print templates, split/per-file output, answer keys, validation of all 18 category×difficulty combos, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`), static counts in `contracts/pat-stats.ts`, seed-based flashcards (SM-2 reviews store category+difficulty+seed), seed-based `recordAttempt`, saved-questions PAT branch, fixed angle_ranking rejection-sampler infinite loop and pattern_folding NaN-seed option shuffle; `db/seed.ts` removed. |
+| `2222a6a` | Feature    | PAT CLI toolset + remove PAT question bank — `tools/pat-cli.ts` (generate/render/convert/validate/standalone), HTML renderer with modern/classic/minimal/print templates, split/per-file output, answer keys, validation of all 18 category×difficulty combos, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`), static counts in `contracts/pat-stats.ts`, seed-based flashcards (SM-2 reviews store category+difficulty+seed), seed-based `recordAttempt`, saved-questions PAT branch, fixed angle_ranking rejection-sampler infinite loop and pattern_folding NaN-seed option shuffle; `db/seed.ts` removed. |
 | (pending) | Feature    | On-the-fly PAT question generation — seeded PRNG (mulberry32), 6 generator logic modules (client + server), `recordAttempt` with seed-based answer re-derivation, `getQuota` endpoint, `patQuestionsGenerated` column, tier quota system (free=20, premium=360, plus=1080), PAT Academy quota display with progress bar, difficulty mapping fix (API→generation). |
 | `f9755ba` | Release    | Squashed release — all on-the-fly generation phases complete, 134 tests passing, docs updated. |
 | `be42e66` | Feature    | P2 quick wins — community post edit dialog, interview questions moved to DB, DAT analytics endpoints, study schedule generator, shared provinces array. |
 | `607038b` | Feature    | DAT question bank expansion — 500 questions (200 Bio, 200 Chem, 100 RC) with seed script. |
 | `130924e` | Feature    | P2 features + quick wins — global search (Cmd+K), saved questions (DAT), flashcards with SRS (SM-2), mock DAT exam, personalized dashboard, improved score algorithm, error logging, removed sendgrid/kimi. |
+| `2704853` | Docs       | Documentation refresh to match current codebase (timestamps, 17 tables, 13 sub-routers, seed-only PAT, 140 tests, authentic format) + regenerate 360-question PAT set with answers and full explanations. |
+| `9646430` | Feature    | Authentic PAT format rewrite — ADA-aligned 6-category generators (5-choice keyholes/hole_punching/cube_counting, permutation AR, dashed-line TFE), black-on-white technical renderers (app + CLI), hole-punching half-fold fix, option-count-aware validation, 16 new generator tests. |
 
 ---
 
@@ -569,7 +571,50 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 
 ---
 
-### 34. PAT CLI Toolset & PAT Question Bank Removal
+### 35. Authentic PAT Format Rewrite (ADA-Aligned Generators + B&W Renderers)
+
+Reworked all 6 PAT generators and every renderer (live app + CLI) to match the authentic, recent DAT PAT structure and black-on-white technical line-drawing style. Research documented in `docs/design/pat-research.md` (ADA 2026 Candidate Guide + Erudition + Kaplan + Bootcamp + Varsity + OpenExamPrep).
+
+**Structural alignment (per subtest):**
+- Keyholes: 3D object + **5** flat aperture silhouettes; object may be rotated before a straight pass-through; aperture matches exactly in shape/size (5-choice).
+- TFE: Top (upper-left) / Front (lower-left) / End (right) third-angle projection with **solid visible + dashed hidden edges**; one view missing, 4 choices.
+- Angle Ranking: four angles labelled 1–4; answer = permutation string ordering smallest → largest (e.g. "2-1-4-3"), 4 choices.
+- Hole Punching: 4×4 grid, paper always **folded in half** (authentic convention), punch shown as an open circle, unfold = black filled dots, 5 choices.
+- Cube Counting: "How many cubes have exactly N painted sides?" — painted = exposed faces (shaded in the drawing), hidden support cubes implied, **5 numeric choices** (never zero).
+- Pattern Folding: cross cube net + isometric folded cube; options encode the visible top|left|right faces; hidden-face marks can appear on the net; 4 choices.
+
+**Data model changes (server `server/lib/pat-generation/` + mirrored client `src/components/pat-generators/logic/`):**
+- `keyholes.ts` — `correctAxis`, `correctSilhouette`, `options: boolean[][][]` (5); bump/notch/flip/rotate distractor mutations + polyomino filler guarantee exactly 5 unique options on every seed.
+- `tfe.ts` — `TFEView {cols, rows, edges: {hidden}}` per view; solid/dashed edge rules for top/front/end; distractors via mirror, hidden↔solid toggles, and silhouette bump/notch; flat objects no longer collapse to empty views (occupancy tracked separately from depth).
+- `angle-ranking.ts` — permutation-string options; `getCorrectAnswer` returns the sorted-permutation index.
+- `hole-punching.ts` — `foldSteps` (h/v/d half-folds), `punch`, `correctHoles`; diagonal fold restricted to square regions as the final fold; unfold math `2*line-1-y` stays on-grid.
+- `cube-counting.ts` — `targetN`, `answer`, `choices` (5, no zero distractor); self-consistent: painted = exposed faces, so the drawn shading matches the counts.
+- `pattern-folding.ts` — `net` (6-face cross, indices front/top/bottom/left/right/back), options as "top|left|right" mark strings; distinct marks across visible faces (fixed duplicate-collision bug).
+
+**Renderers:**
+- `tools/pat-renderers/svg-renderer.ts` — full rewrite: black-on-white technical drawings (#111 ink on #fff), isometric stacks, silhouette grids, dashed hidden TFE lines, folded-paper stems with dashed fold lines + open-circle punch, 4×4 hole grids, nets, folded cubes.
+- `tools/pat-renderers/question-card.ts` — category-aware option counts (5 for keyholes/hole_punching/cube_counting, 4 otherwise); prompts updated (CC stem uses `targetN`, TFE prompt shows missing view name).
+- `src/components/pat-generators/shared/tech.tsx` — new shared B&W component set (TechIsoStack, TechSilhouette, TechTFEView, TechAngle, TechFoldedPaper, TechHoleGrid, TechNet, TechFoldedCube).
+- `src/components/pat-generators/shared/usePatGenerator.ts` + `PatGeneratorUI.tsx` — shared generator state hook + toolbar/banner split out of the old duplicated per-generator logic.
+- All 6 React generators rewritten on the new models + B&W components (5-option layouts for KH/HP/CC).
+- `PatFlashcardRenderer.tsx` — rewritten for the new models (5-option grids where applicable).
+
+**Consumers / plumbing:**
+- `server/pat-router.ts` — `recordAttempt` userAnswer bound widened `min(-1).max(3)` → `min(-1).max(4)` (5-choice categories).
+- `tools/pat-commands/generate.ts` / `validate.ts` — option-count-aware options arrays and validation (correctIndex 0–4 for 5-choice categories).
+
+**Bug fixes found during verification:**
+- TFE flat objects rendered as empty views (depth 0 treated as unoccupied) → occupancy tracked separately.
+- Keyholes/TFE could generate < 5/4 unique options on dense silhouettes → mutation growth + fillers.
+- Pattern folding duplicate marks produced duplicate permutation strings → distinct-mark picking.
+- Cube counting included 0 as a distractor → choices now ≥ 1.
+- Hole punching non-half folds produced mirror positions off the sheet → half-folds only, with odd-dimension cases filtered (physically correct).
+
+**Tests:** new `server/pat-generation.test.ts` (16 tests: option counts per category, determinism, per-category invariants, getCorrectAnswer correctness). `npm test` 140 tests / 16 files ✓.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓ (0 errors, 2 pre-existing warnings), `npm test` ✓ (140), `npm run test:e2e` ✓ (65), `npm run build` ✓, CLI `generate --validate` ✓, artifacts regenerated: `test-output/pat-360/` (360 questions, 1620 options) + `pat-standalone.html` (4.2 MB bundle).
+
+---
 
 Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of the `patQuestions` database bank in favor of pure seed-based generation everywhere.
 
@@ -652,7 +697,20 @@ Implemented fixes based on audit-report.md analysis:
 
 ---
 
-## How to Update This Log
+### 36. Documentation Refresh + 360-Question PAT Set Regeneration
+
+Full documentation sweep to match the current codebase after the authentic PAT format rewrite:
+
+- All 15 project `.md` files refreshed with current facts and timestamps (date + time): corrected 17 tables (was 18), 13 sub-routers (was 14/12), seed-only PAT generation (no `pat_questions` bank), 140 tests (was 134), authentic 5/4/4/5/5/4 option counts, B&W technical renderers, actual keyboard shortcuts.
+- `.agents/resume.md` rewritten (dropped `db/seed.ts` and `patQuestions` references); PRD + AI Development Plan gained implementation-status notes; devlog commit table rows filled with real hashes (`2222a6a`, `9646430`).
+- Regenerated the full 360-question set with answers and full-depth explanations:
+  - `test-output/pat-360/` — `index.html` (4.4 MB) + `questions.json` (2 MB); 60 per category × 6; all 360 questions carry `explanation` (summary/correct/distractors/concepts/tips), correct answers, answer key; `--validate` PASSED; B&W SVG confirmed (`#111111` ink, `#ffffff` paper, `#c8c8c8` fills).
+  - `pat-standalone.html` (4.2 MB) — standalone offline practice bundle with answers pre-shown.
+  - Both artifacts are gitignored; regenerated via `tools/pat-cli.ts generate -n 60 -s 101 -f both --explanation-depth full --show-answers --answer-key --validate` and `standalone -n 60 -s 101 --show-answers`.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓ (0 errors, 2 pre-existing warnings), `npm test` ✓ (140 tests / 16 files).
+
+---
 
 After each significant feature or milestone:
 

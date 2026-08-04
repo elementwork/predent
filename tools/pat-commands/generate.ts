@@ -5,7 +5,7 @@ import { generateProblem, getCorrectAnswer } from "../../server/lib/pat-generati
 import type { QuestionCategory, Difficulty, CLIOptions, GeneratedQuestion, GenerationResult } from "../pat-types.js";
 import { ALL_CATEGORIES } from "../pat-types.js";
 import { generateExplanation } from "../pat-explanations/index.js";
-import { validateQuestion } from "./validate.js";
+import { validateQuestion, getOptionCountFor } from "./validate.js";
 import { renderHTMLFiles } from "../pat-renderers/html-renderer.js";
 import { renderJSON } from "../pat-renderers/json-renderer.js";
 
@@ -71,12 +71,12 @@ export async function generateQuestions(options: CLIOptions): Promise<Generation
       const p = problem as Record<string, unknown>;
       let questionOptions: string[];
       if (Array.isArray(p.choices)) {
-        questionOptions = p.choices as string[];
-      } else if (Array.isArray(p.options)) {
-        // For pattern_folding, options is string[][]
-        questionOptions = ["A", "B", "C", "D"];
+        questionOptions = (p.choices as unknown[]).map(c => String(c));
       } else {
-        questionOptions = ["A", "B", "C", "D"];
+        questionOptions = Array.from(
+          { length: getOptionCountFor(category) },
+          (_, j) => String.fromCharCode(65 + j)
+        );
       }
 
       const question: GeneratedQuestion = {
