@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-08-03T22:40:00-04:00
+> Last updated: 2026-08-07T12:49:43-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -55,6 +55,7 @@ PreDent Canada is a full-stack web platform for Canadian dental school applicant
 | `130924e` | Feature    | P2 features + quick wins — global search (Cmd+K), saved questions (DAT), flashcards with SRS (SM-2), mock DAT exam, personalized dashboard, improved score algorithm, error logging, removed sendgrid/kimi. |
 | `2704853` | Docs       | Documentation refresh to match current codebase (timestamps, 17 tables, 13 sub-routers, seed-only PAT, 140 tests, authentic format) + regenerate 360-question PAT set with answers and full explanations. |
 | `9646430` | Feature    | Authentic PAT format rewrite — ADA-aligned 6-category generators (5-choice keyholes/hole_punching/cube_counting, permutation AR, dashed-line TFE), black-on-white technical renderers (app + CLI), hole-punching half-fold fix, option-count-aware validation, 16 new generator tests. |
+| (pending) | Audit      | Repository-wide technical due diligence report — scored architecture, code quality, security, performance, database, API, testing, DevOps, observability, UI/UX, documentation, and dependency posture; documented 26 evidence-backed findings and a prioritized remediation roadmap in `docs/design/technical-due-diligence-audit-2026-08-07.md`. |
 
 ---
 
