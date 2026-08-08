@@ -3,6 +3,8 @@ import { env } from "../lib/env";
 import type { SessionPayload } from "./types";
 
 const JWT_ALG = "HS256";
+const JWT_ISSUER = "predent-canada";
+const JWT_AUDIENCE = "predent-web";
 
 export async function signSessionToken(
   payload: SessionPayload
@@ -11,7 +13,10 @@ export async function signSessionToken(
   return new jose.SignJWT(payload)
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
-    .setExpirationTime("1 year")
+    .setIssuer(JWT_ISSUER)
+    .setAudience(JWT_AUDIENCE)
+    .setJti(crypto.randomUUID())
+    .setExpirationTime("30 days")
     .sign(secret);
 }
 
@@ -26,9 +31,13 @@ export async function verifySessionToken(
     const secret = new TextEncoder().encode(env.appSecret);
     const { payload } = await jose.jwtVerify(token, secret, {
       algorithms: [JWT_ALG],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      maxTokenAge: "30 days",
+      clockTolerance: 5,
     });
     const { unionId, provider, tokenVersion } = payload;
-    if (!unionId || !provider || tokenVersion === undefined) {
+    if (!unionId || !provider || tokenVersion === undefined || !payload.jti) {
       console.warn("[session] JWT payload missing required fields.");
       return null;
     }

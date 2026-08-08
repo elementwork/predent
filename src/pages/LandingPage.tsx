@@ -222,7 +222,7 @@ function HeroSection() {
                   Study Streak
                 </p>
                 <div className="flex items-center gap-1">
-                  <p className="text-2xl font-bold text-[#10B981]">12</p>
+                  <p className="text-2xl font-bold text-[#047857]">12</p>
                   <span className="text-sm text-[var(--text-primary)]">
                     days
                   </span>
@@ -1020,7 +1020,10 @@ function PricingSection() {
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
                 Score higher on the DAT or get your money back. See{" "}
-                <Link to="/legal/guarantee" className="underline hover:text-[#2563EB]">
+                <Link
+                  to="/legal/guarantee"
+                  className="underline hover:text-[#2563EB]"
+                >
                   guarantee terms
                 </Link>{" "}
                 for details.
@@ -1110,8 +1113,8 @@ function CTASection() {
             Ready to Start Your Dental School Journey?
           </h2>
           <p className="text-lg text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto">
-            Join pre-dental students using PreDent Canada to prepare
-            smarter, track their progress, and get accepted into dental school.
+            Join pre-dental students using PreDent Canada to prepare smarter,
+            track their progress, and get accepted into dental school.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
@@ -1141,13 +1144,6 @@ export default function LandingPage() {
   usePageTitle("Canadian DAT Prep & Dental School Admissions");
   return (
     <>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--page-surface)] focus:border focus:border-[var(--border-color)] focus:rounded-lg focus:text-sm focus:font-semibold"
-      >
-        Skip to main content
-      </a>
-      <main id="main-content">
       <HeroSection />
       <ValuePropSection />
       <HowItWorksSection />
@@ -1173,7 +1169,6 @@ export default function LandingPage() {
       <PricingSection />
       <FAQSection />
       <CTASection />
-      </main>
     </>
   );
 }

@@ -24,30 +24,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { events } from "@/lib/analytics";
-
-const chartConfig = {
-  gpa: {
-    label: "Avg GPA",
-    color: "#2563EB",
-  },
-  datAa: {
-    label: "DAT AA",
-    color: "#10B981",
-  },
-  datPat: {
-    label: "DAT PAT",
-    color: "#F59E0B",
-  },
-};
+import DeferredSchoolTrendChart from "@/components/schools/DeferredSchoolTrendChart";
 
 function normalizeTrendValue(schoolId: string, value?: number) {
   if (value === undefined || value === null) return null;
@@ -302,8 +280,8 @@ export default function SchoolDetailPage() {
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-3.5 h-3.5 text-[var(--text-tertiary)]" /> Not
-                          required
+                          <XCircle className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />{" "}
+                          Not required
                         </>
                       )}
                     </dd>
@@ -392,51 +370,7 @@ export default function SchoolDetailPage() {
               </CardHeader>
               <CardContent>
                 {trendData.length > 0 ? (
-                  <ChartContainer
-                    config={chartConfig}
-                    className="min-h-[300px]"
-                  >
-                    <LineChart data={trendData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border-color)"
-                      />
-                      <XAxis
-                        dataKey="year"
-                        stroke="var(--text-tertiary)"
-                        fontSize={12}
-                      />
-                      <YAxis
-                        stroke="var(--text-tertiary)"
-                        fontSize={12}
-                        domain={[0, "auto"]}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="gpa"
-                        stroke={chartConfig.gpa.color}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="datAa"
-                        stroke={chartConfig.datAa.color}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="datPat"
-                        stroke={chartConfig.datPat.color}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                    </LineChart>
-                  </ChartContainer>
+                  <DeferredSchoolTrendChart data={trendData} />
                 ) : (
                   <p className="text-[var(--text-secondary)] text-sm">
                     Trend data not available.

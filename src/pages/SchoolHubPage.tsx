@@ -131,7 +131,10 @@ export default function SchoolHubPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge variant="secondary" className="shrink-0 text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 bg-[#DCFCE7] text-xs text-[#14532D]"
+                      >
                         {school.program}
                       </Badge>
                     </div>
@@ -166,7 +169,7 @@ export default function SchoolHubPage() {
                           {school.interview}
                         </Badge>
                       </div>
-                      <span className="flex items-center gap-1 text-sm font-medium text-[#2563EB]">
+                      <span className="flex items-center gap-1 text-sm font-medium text-[#1D4ED8]">
                         View Details
                         <ChevronRight className="w-4 h-4" />
                       </span>

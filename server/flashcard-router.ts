@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, desc, sql, isNull, lte, count } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -158,14 +159,15 @@ export const flashcardRouter = createRouter({
             );
           const used = new Set(usedRows.map(u => u.seed));
           const usedInBatch = new Set<number>();
-          const baseSeed = ((userId * 7919 + 17) % 1000000) || 1;
+          const baseSeed = (userId * 7919 + 17) % 1000000 || 1;
 
           let candidate = 0;
           while (results.length < input.limit && candidate < PAT_TOTAL_SLOTS) {
             const catIndex = candidate % patCategories.length;
             const slotIndex = Math.floor(candidate / patCategories.length);
             const category = patCategories[catIndex]!;
-            const difficulty = patDifficulties[slotIndex % patDifficulties.length]!;
+            const difficulty =
+              patDifficulties[slotIndex % patDifficulties.length]!;
             const seed = baseSeed + slotIndex * 1000 + catIndex * 100000;
 
             if (!used.has(seed) && !usedInBatch.has(seed)) {
@@ -320,7 +322,10 @@ export const flashcardRouter = createRouter({
 
       if (input.source === "pat") {
         if (!input.category || !input.difficulty) {
-          throw new Error("category and difficulty are required for PAT flashcards");
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "category and difficulty are required for PAT flashcards",
+          });
         }
         // Validate that the seed actually generates a solvable question
         getCorrectAnswer(input.category as PatCategory, {
@@ -340,7 +345,10 @@ export const flashcardRouter = createRouter({
           .limit(1);
 
         if (!question) {
-          throw new Error("Question not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Question not found",
+          });
         }
       }
 

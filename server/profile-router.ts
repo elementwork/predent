@@ -2,7 +2,8 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { profiles } from "@db/schema";
+import { profiles, users } from "@db/schema";
+import { isValidTimeZone } from "./lib/time";
 
 export const profileRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
@@ -10,7 +11,7 @@ export const profileRouter = createRouter({
     const profile = await db.query.profiles.findFirst({
       where: eq(profiles.userId, ctx.user.id),
     });
-    return profile ?? null;
+    return profile ? { ...profile, timezone: ctx.user.timezone } : null;
   }),
 
   upsert: authedQuery
@@ -26,29 +27,34 @@ export const profileRouter = createRouter({
         degreeStatus: z.enum(["in_progress", "completed"]).optional(),
         undergradSchool: z.string().max(255).optional(),
         targetSchools: z.array(z.string().max(100)).max(20).optional(),
+        timezone: z.string().min(1).max(100).refine(isValidTimeZone).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const existing = await db.query.profiles.findFirst({
-        where: eq(profiles.userId, ctx.user.id),
-      });
-
-      if (existing) {
-        await db
-          .update(profiles)
-          .set({
-            ...input,
-            updatedAt: new Date(),
-          })
-          .where(eq(profiles.id, existing.id));
-        return { success: true, action: "updated" };
-      } else {
-        await db.insert(profiles).values({
-          userId: ctx.user.id,
-          ...input,
+      const { timezone, ...profileInput } = input;
+      return db.transaction(async tx => {
+        const existing = await tx.query.profiles.findFirst({
+          where: eq(profiles.userId, ctx.user.id),
         });
-        return { success: true, action: "created" };
-      }
+        if (timezone) {
+          await tx
+            .update(users)
+            .set({ timezone })
+            .where(eq(users.id, ctx.user.id));
+        }
+        if (existing) {
+          await tx
+            .update(profiles)
+            .set({ ...profileInput, updatedAt: new Date() })
+            .where(eq(profiles.id, existing.id));
+          return { success: true, action: "updated" as const };
+        }
+        await tx.insert(profiles).values({
+          userId: ctx.user.id,
+          ...profileInput,
+        });
+        return { success: true, action: "created" as const };
+      });
     }),
 });

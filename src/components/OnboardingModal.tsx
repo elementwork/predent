@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Brain,
-  BookOpen,
-  School,
-  Target,
-  ChevronRight,
-} from "lucide-react";
+import { Brain, BookOpen, School, Target, ChevronRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/providers/trpc";
+import { getBrowserTimeZone } from "@/lib/time";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -100,14 +95,18 @@ export default function OnboardingModal() {
     onSuccess: () => {
       setStep(2);
     },
-    onError: (err) => toast.error(err.message),
+    onError: err => toast.error(err.message),
   });
 
   const hasCompletedOnboarding =
     !!localStorage.getItem(ONBOARDING_KEY) ||
     (profileQuery.isSuccess && !!profileQuery.data?.firstName);
   const showModal =
-    !dismissed && isAuthenticated && !!user && !hasCompletedOnboarding && profileQuery.isSuccess;
+    !dismissed &&
+    isAuthenticated &&
+    !!user &&
+    !hasCompletedOnboarding &&
+    profileQuery.isSuccess;
 
   const handleProfileSubmit = () => {
     if (!profile.firstName.trim()) return;
@@ -116,6 +115,7 @@ export default function OnboardingModal() {
       lastName: profile.lastName || undefined,
       province: profile.province || undefined,
       targetYear: profile.targetYear,
+      timezone: getBrowserTimeZone(),
     });
   };
 
@@ -132,7 +132,12 @@ export default function OnboardingModal() {
   if (!isAuthenticated) return null;
 
   return (
-    <Dialog open={showModal} onOpenChange={(v) => { if (!v) handleDismiss(); }}>
+    <Dialog
+      open={showModal}
+      onOpenChange={v => {
+        if (!v) handleDismiss();
+      }}
+    >
       <DialogContent className="bg-[var(--page-surface)] border-[var(--border-color)] text-[var(--text-primary)] max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-xl">{steps[step].title}</DialogTitle>
@@ -157,7 +162,7 @@ export default function OnboardingModal() {
         {step === 0 && (
           <div className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-3">
-              {startOptions.map((opt) => (
+              {startOptions.map(opt => (
                 <div
                   key={opt.id}
                   className="p-3 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)] flex items-center gap-3"
@@ -166,7 +171,10 @@ export default function OnboardingModal() {
                     className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
                     style={{ backgroundColor: `${opt.color}15` }}
                   >
-                    <opt.icon className="w-4 h-4" style={{ color: opt.color }} />
+                    <opt.icon
+                      className="w-4 h-4"
+                      style={{ color: opt.color }}
+                    />
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-[var(--text-primary)]">
@@ -208,7 +216,7 @@ export default function OnboardingModal() {
                 </label>
                 <Input
                   value={profile.firstName}
-                  onChange={(e) =>
+                  onChange={e =>
                     setProfile({ ...profile, firstName: e.target.value })
                   }
                   placeholder="Your first name"
@@ -221,7 +229,7 @@ export default function OnboardingModal() {
                 </label>
                 <Input
                   value={profile.lastName}
-                  onChange={(e) =>
+                  onChange={e =>
                     setProfile({ ...profile, lastName: e.target.value })
                   }
                   placeholder="Your last name"
@@ -235,19 +243,31 @@ export default function OnboardingModal() {
               </label>
               <Select
                 value={profile.province}
-                onValueChange={(v) => setProfile({ ...profile, province: v })}
+                onValueChange={v => setProfile({ ...profile, province: v })}
               >
                 <SelectTrigger className="bg-[var(--page-muted)] border-[var(--border-color)]">
                   <SelectValue placeholder="Select province" />
                 </SelectTrigger>
                 <SelectContent className="bg-[var(--page-surface)] border-[var(--border-color)]">
-                  {["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"].map(
-                    (p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    )
-                  )}
+                  {[
+                    "AB",
+                    "BC",
+                    "MB",
+                    "NB",
+                    "NL",
+                    "NS",
+                    "NT",
+                    "NU",
+                    "ON",
+                    "PE",
+                    "QC",
+                    "SK",
+                    "YT",
+                  ].map(p => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -257,7 +277,7 @@ export default function OnboardingModal() {
               </label>
               <Select
                 value={String(profile.targetYear)}
-                onValueChange={(v) =>
+                onValueChange={v =>
                   setProfile({ ...profile, targetYear: parseInt(v) })
                 }
               >
@@ -265,7 +285,7 @@ export default function OnboardingModal() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[var(--page-surface)] border-[var(--border-color)]">
-                  {[0, 1, 2].map((offset) => (
+                  {[0, 1, 2].map(offset => (
                     <SelectItem
                       key={offset}
                       value={String(new Date().getFullYear() + offset)}
@@ -289,7 +309,7 @@ export default function OnboardingModal() {
         {/* Step 2: Pick a start */}
         {step === 2 && (
           <div className="space-y-3 mt-4">
-            {startOptions.map((opt) => (
+            {startOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => handleStartOption(opt.href)}

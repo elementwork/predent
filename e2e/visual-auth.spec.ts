@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("predent_telemetry_consent", "denied");
+  });
+});
+
 // Helper to mock authenticated user via route interception
 async function mockAuthenticatedUser(
   page: import("@playwright/test").Page,
@@ -11,14 +17,18 @@ async function mockAuthenticatedUser(
     role: "user" | "admin";
   }
 ) {
-  await page.route("**/api/trpc/auth.me**", async (route) => {
+  await page.route("**/api/trpc/auth.me**", async route => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         result: {
           data: {
-            json: user,
+            json: {
+              ...user,
+              premiumUntil:
+                user.tier === "free" ? null : "2099-01-01T00:00:00.000Z",
+            },
           },
         },
       }),
@@ -91,7 +101,9 @@ test.describe("Visual Regression - Unauthenticated State", () => {
     });
   });
 
-  test("PAT practice - unauthenticated shows login prompt", async ({ page }) => {
+  test("PAT practice - unauthenticated shows login prompt", async ({
+    page,
+  }) => {
     await page.goto("/pat-academy/practice");
     await page.waitForLoadState("networkidle");
     await expect(page).toHaveScreenshot("pat-practice-unauth.png", {
@@ -100,7 +112,9 @@ test.describe("Visual Regression - Unauthenticated State", () => {
     });
   });
 
-  test("DAT practice - unauthenticated shows login prompt", async ({ page }) => {
+  test("DAT practice - unauthenticated shows login prompt", async ({
+    page,
+  }) => {
     await page.goto("/dat-academy/practice");
     await page.waitForLoadState("networkidle");
     await expect(page).toHaveScreenshot("dat-practice-unauth.png", {

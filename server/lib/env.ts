@@ -1,4 +1,4 @@
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== "test") {
   try {
     const dotenv = await import("dotenv");
     dotenv.config();
@@ -33,7 +33,9 @@ export const env = {
       secret.length > 0 &&
       secret.length < 32
     ) {
-      throw new Error("APP_SECRET must be at least 32 characters in production");
+      throw new Error(
+        "APP_SECRET must be at least 32 characters in production"
+      );
     }
     return secret;
   },
@@ -126,5 +128,23 @@ export const env = {
   },
   get cronSecret() {
     return process.env.CRON_SECRET ?? "";
+  },
+  get metricsSecret() {
+    return process.env.METRICS_SECRET ?? "";
+  },
+  get upstashRedisRestUrl() {
+    return process.env.UPSTASH_REDIS_REST_URL ?? "";
+  },
+  get upstashRedisRestToken() {
+    return process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
+  },
+  get allowInMemoryRateLimit() {
+    return process.env.RATE_LIMIT_ALLOW_IN_MEMORY === "true";
+  },
+  get trustProxy() {
+    return process.env.TRUST_PROXY === "true";
+  },
+  get trustCloudflareProxy() {
+    return process.env.TRUST_CLOUDFLARE_PROXY === "true";
   },
 };

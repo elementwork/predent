@@ -559,7 +559,6 @@ export default function CommunityHubPage() {
   usePageTitle("Community Hub");
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("all");
-  const [offset, setOffset] = useState(0);
   const [expandedPostId, setExpandedPostId] = useState<number | null>(null);
   const [likedPostIds, setLikedPostIds] = useState<Set<number>>(new Set());
   const [reportTarget, setReportTarget] = useState<{
@@ -579,13 +578,15 @@ export default function CommunityHubPage() {
     province?: string | null;
   } | null>(null);
 
-  const typeFilter = activeTab === "all" ? undefined : (activeTab as "result" | "question" | "discussion");
+  const typeFilter =
+    activeTab === "all"
+      ? undefined
+      : (activeTab as "result" | "question" | "discussion");
 
-  const postsQuery = trpc.community.listPosts.useQuery({
-    type: typeFilter,
-    limit: 10,
-    offset,
-  });
+  const postsQuery = trpc.community.listPostsPage.useInfiniteQuery(
+    { type: typeFilter, limit: 10 },
+    { getNextPageParam: lastPage => lastPage.nextCursor ?? undefined }
+  );
 
   const countQuery = trpc.community.getPostCount.useQuery({});
   const likePost = trpc.community.likePost.useMutation({
@@ -612,7 +613,7 @@ export default function CommunityHubPage() {
     onError: err => toast.error(err.message),
   });
 
-  const results = postsQuery.data ?? [];
+  const results = postsQuery.data?.pages.flatMap(page => page.items) ?? [];
 
   const tabs = [
     { value: "all", label: "All" },
@@ -665,10 +666,26 @@ export default function CommunityHubPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Total Posts", value: `${countQuery.data ?? 0}`, icon: Trophy },
-            { label: "Results Shared", value: `${countQuery.data ?? 0}`, icon: Trophy },
-            { label: "Schools Covered", value: `${schools.length}`, icon: GraduationCap },
-            { label: "Active Discussions", value: `${countQuery.data ?? 0}`, icon: MessageSquare },
+            {
+              label: "Total Posts",
+              value: `${countQuery.data ?? 0}`,
+              icon: Trophy,
+            },
+            {
+              label: "Results Shared",
+              value: `${countQuery.data ?? 0}`,
+              icon: Trophy,
+            },
+            {
+              label: "Schools Covered",
+              value: `${schools.length}`,
+              icon: GraduationCap,
+            },
+            {
+              label: "Active Discussions",
+              value: `${countQuery.data ?? 0}`,
+              icon: MessageSquare,
+            },
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -714,10 +731,7 @@ export default function CommunityHubPage() {
                           ? "bg-[var(--page-surface)] text-[var(--text-primary)] shadow-sm"
                           : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                       }`}
-                      onClick={() => {
-                        setActiveTab(tab.value);
-                        setOffset(0);
-                      }}
+                      onClick={() => setActiveTab(tab.value)}
                     >
                       {tab.label}
                     </button>
@@ -879,13 +893,16 @@ export default function CommunityHubPage() {
                         <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)]">
                           <button
                             className={`flex items-center gap-1 transition-colors ${
-                              likedPostIds.has(post.id)
+                              likedPostIds.has(post.id) || post.likedByViewer
                                 ? "text-[#2563EB]"
                                 : "hover:text-[#2563EB]"
                             }`}
                             onClick={() => {
                               if (isAuthenticated) {
-                                if (likedPostIds.has(post.id)) {
+                                if (
+                                  likedPostIds.has(post.id) ||
+                                  post.likedByViewer
+                                ) {
                                   toast.info("You already liked this post");
                                   return;
                                 }
@@ -899,9 +916,12 @@ export default function CommunityHubPage() {
                             aria-label="Like post"
                           >
                             <ThumbsUp
-                              className={`w-3.5 h-3.5 ${likedPostIds.has(post.id) ? "fill-current" : ""}`}
+                              className={`w-3.5 h-3.5 ${likedPostIds.has(post.id) || post.likedByViewer ? "fill-current" : ""}`}
                             />{" "}
-                            {post.likes + (likedPostIds.has(post.id) ? 1 : 0)}
+                            {post.likes +
+                              (likedPostIds.has(post.id) && !post.likedByViewer
+                                ? 1
+                                : 0)}
                           </button>
                           <button
                             className="flex items-center gap-1 hover:text-[#2563EB] transition-colors"
@@ -922,14 +942,14 @@ export default function CommunityHubPage() {
                     </div>
                   ))}
 
-                  {results.length >= 10 && (
+                  {postsQuery.hasNextPage && (
                     <Button
                       variant="outline"
                       className="w-full border-[var(--border-color)]"
-                      onClick={() => setOffset(prev => prev + 10)}
-                      disabled={postsQuery.isLoading}
+                      onClick={() => postsQuery.fetchNextPage()}
+                      disabled={postsQuery.isFetchingNextPage}
                     >
-                      {postsQuery.isLoading ? (
+                      {postsQuery.isFetchingNextPage ? (
                         <Loader2 className="w-4 h-4 animate-spin mr-1" />
                       ) : (
                         "View More"
@@ -1002,7 +1022,8 @@ export default function CommunityHubPage() {
                     Share your results
                   </p>
                   <p className="text-xs text-[var(--text-tertiary)]">
-                    Help fellow applicants by posting your admission outcomes with GPA and DAT scores.
+                    Help fellow applicants by posting your admission outcomes
+                    with GPA and DAT scores.
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)]">
@@ -1010,7 +1031,8 @@ export default function CommunityHubPage() {
                     Ask questions
                   </p>
                   <p className="text-xs text-[var(--text-tertiary)]">
-                    Got questions about a specific school? Post them and other students who applied there will be notified.
+                    Got questions about a specific school? Post them and other
+                    students who applied there will be notified.
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)]">
@@ -1018,7 +1040,8 @@ export default function CommunityHubPage() {
                     Be respectful
                   </p>
                   <p className="text-xs text-[var(--text-tertiary)]">
-                    Keep discussions constructive. Report inappropriate content to help maintain a positive community.
+                    Keep discussions constructive. Report inappropriate content
+                    to help maintain a positive community.
                   </p>
                 </div>
               </CardContent>

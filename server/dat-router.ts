@@ -1,10 +1,15 @@
 import { z } from "zod";
-import { eq, and, notInArray, desc, isNull, count } from "drizzle-orm";
-import { createRouter, authedQuery, publicQuery } from "./middleware";
+import { eq, and, notInArray, desc, isNull, count, inArray } from "drizzle-orm";
+import { createRouter, premiumQuery, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { datQuestions, datAttempts } from "@db/schema";
 import { computePredictedScore } from "./lib/score-prediction";
 import { TRPCError } from "@trpc/server";
+import { signExamSession, verifyExamSession } from "./lib/exam-session";
+import {
+  getDatAggregates,
+  percentage,
+} from "./repositories/analytics-repository";
 
 const subjectSchema = z.enum(["biology", "chemistry", "reading"]);
 const difficultySchema = z.enum([
@@ -31,23 +36,68 @@ export const datRouter = createRouter({
     return { total, bySubject };
   }),
 
-  getExamQuestions: publicQuery
+  startExam: premiumQuery
     .input(
       z.object({
-        subject: subjectSchema,
-        limit: z.number().min(1).max(50).default(40),
+        sections: z
+          .array(
+            z.object({
+              subject: subjectSchema,
+              limit: z.number().int().min(1).max(50),
+            })
+          )
+          .min(1)
+          .max(3)
+          .superRefine((sections, context) => {
+            if (
+              new Set(sections.map(section => section.subject)).size !==
+              sections.length
+            ) {
+              context.addIssue({
+                code: "custom",
+                message: "Each exam section may only be requested once.",
+              });
+            }
+            if (
+              sections.reduce((total, section) => total + section.limit, 0) >
+              100
+            ) {
+              context.addIssue({
+                code: "custom",
+                message: "An exam may contain at most 100 questions.",
+              });
+            }
+          }),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const rows = await db
-        .select()
-        .from(datQuestions)
-        .where(and(eq(datQuestions.subject, input.subject), isNull(datQuestions.deletedAt)))
-        .orderBy(datQuestions.id)
-        .limit(input.limit);
+      const rows = (
+        await Promise.all(
+          input.sections.map(section =>
+            db
+              .select()
+              .from(datQuestions)
+              .where(
+                and(
+                  eq(datQuestions.subject, section.subject),
+                  isNull(datQuestions.deletedAt)
+                )
+              )
+              .orderBy(datQuestions.id)
+              .limit(section.limit)
+          )
+        )
+      ).flat();
 
-      return rows.map(q => ({
+      if (rows.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No exam questions are available for the selected sections.",
+        });
+      }
+
+      const questions = rows.map(q => ({
         id: q.id,
         publicId: q.publicId,
         subject: q.subject,
@@ -55,24 +105,118 @@ export const datRouter = createRouter({
         difficulty: q.difficulty,
         questionText: q.questionText,
         options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation,
       }));
+
+      return {
+        questions,
+        examToken: await signExamSession({
+          userId: ctx.user.id,
+          questionIds: questions.map(question => question.id),
+        }),
+      };
     }),
 
-  listQuestions: authedQuery
+  submitExam: premiumQuery
+    .input(
+      z.object({
+        examToken: z.string().min(1).max(16_000),
+        answers: z
+          .array(
+            z.object({
+              questionId: z.number().int().positive(),
+              userAnswer: z.number().int().min(0).max(9),
+            })
+          )
+          .max(100),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const session = await verifyExamSession(input.examToken, ctx.user.id);
+      if (!session) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This exam session is invalid or has expired.",
+        });
+      }
+
+      const answerIds = input.answers.map(answer => answer.questionId);
+      if (new Set(answerIds).size !== answerIds.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Each exam question may only be answered once.",
+        });
+      }
+
+      const allowedIds = new Set(session.questionIds);
+      if (answerIds.some(id => !allowedIds.has(id))) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "An answer references a question outside this exam.",
+        });
+      }
+
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(datQuestions)
+        .where(
+          and(
+            inArray(datQuestions.id, session.questionIds),
+            isNull(datQuestions.deletedAt)
+          )
+        );
+
+      if (rows.length !== session.questionIds.length) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "One or more exam questions are no longer available.",
+        });
+      }
+
+      const questionById = new Map(
+        rows.map(question => [question.id, question])
+      );
+      const answerById = new Map(
+        input.answers.map(answer => [answer.questionId, answer.userAnswer])
+      );
+
+      return {
+        results: session.questionIds.map(questionId => {
+          const question = questionById.get(questionId)!;
+          const userAnswer = answerById.get(questionId) ?? null;
+          return {
+            id: question.id,
+            publicId: question.publicId,
+            subject: question.subject,
+            topic: question.topic,
+            difficulty: question.difficulty,
+            questionText: question.questionText,
+            options: question.options,
+            userAnswer,
+            correctAnswer: question.correctAnswer,
+            explanation: question.explanation,
+            isCorrect: userAnswer === question.correctAnswer,
+          };
+        }),
+      };
+    }),
+
+  listQuestions: premiumQuery
     .input(
       z.object({
         subject: subjectSchema,
         topic: z.string().optional(),
         difficulty: difficultySchema.optional(),
         limit: z.number().min(1).max(50).default(10),
-        excludeIds: z.array(z.number()).default([]),
+        excludeIds: z.array(z.number().int().positive()).max(500).default([]),
       })
     )
     .query(async ({ input }) => {
       const db = getDb();
-      const filters = [eq(datQuestions.subject, input.subject), isNull(datQuestions.deletedAt)];
+      const filters = [
+        eq(datQuestions.subject, input.subject),
+        isNull(datQuestions.deletedAt),
+      ];
       if (input.topic) filters.push(eq(datQuestions.topic, input.topic));
       if (input.difficulty)
         filters.push(eq(datQuestions.difficulty, input.difficulty));
@@ -97,7 +241,7 @@ export const datRouter = createRouter({
       }));
     }),
 
-  recordAttempt: authedQuery
+  recordAttempt: premiumQuery
     .input(
       z.object({
         questionId: z.number(),
@@ -113,7 +257,12 @@ export const datRouter = createRouter({
       const [question] = await db
         .select()
         .from(datQuestions)
-        .where(and(eq(datQuestions.id, input.questionId), isNull(datQuestions.deletedAt)))
+        .where(
+          and(
+            eq(datQuestions.id, input.questionId),
+            isNull(datQuestions.deletedAt)
+          )
+        )
         .limit(1);
       if (!question) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -134,62 +283,53 @@ export const datRouter = createRouter({
       };
     }),
 
-  stats: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+  stats: premiumQuery.query(async ({ ctx }) => {
     const user = ctx.user;
     if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-    // Join with questions to get subject, limit to recent 500
-    const attemptsWithSubject = await db
-      .select({
-        questionId: datAttempts.questionId,
-        isCorrect: datAttempts.isCorrect,
-        subject: datQuestions.subject,
-      })
-      .from(datAttempts)
-      .innerJoin(datQuestions, eq(datAttempts.questionId, datQuestions.id))
-      .where(and(eq(datAttempts.userId, user.id), isNull(datQuestions.deletedAt)))
-      .orderBy(desc(datAttempts.createdAt))
-      .limit(500);
-
-    const bySubject: Record<string, { total: number; correct: number }> = {};
-
-    for (const a of attemptsWithSubject) {
-      if (!bySubject[a.subject]) bySubject[a.subject] = { total: 0, correct: 0 };
-      bySubject[a.subject].total++;
-      if (a.isCorrect) bySubject[a.subject].correct++;
-    }
-
-    const total = attemptsWithSubject.length;
-    const correct = attemptsWithSubject.filter(a => a.isCorrect).length;
+    const aggregates = await getDatAggregates(user.id);
+    const bySubject = Object.fromEntries(
+      aggregates.subjects.map(row => [
+        row.subject,
+        { total: row.total, correct: row.correct },
+      ])
+    );
 
     return {
-      total,
-      correct,
-      accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
+      total: aggregates.overall.total,
+      correct: aggregates.overall.correct,
+      accuracy: percentage(
+        aggregates.overall.correct,
+        aggregates.overall.total
+      ),
       bySubject,
     };
   }),
 
-  getAnalytics: authedQuery.query(async ({ ctx }) => {
+  getAnalytics: premiumQuery.query(async ({ ctx }) => {
     const db = getDb();
     const user = ctx.user;
     if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-    const attemptsWithDetails = await db
-      .select({
-        questionId: datAttempts.questionId,
-        isCorrect: datAttempts.isCorrect,
-        timeSpent: datAttempts.timeSpent,
-        createdAt: datAttempts.createdAt,
-        subject: datQuestions.subject,
-        difficulty: datQuestions.difficulty,
-      })
-      .from(datAttempts)
-      .innerJoin(datQuestions, eq(datAttempts.questionId, datQuestions.id))
-      .where(and(eq(datAttempts.userId, user.id), isNull(datQuestions.deletedAt)))
-      .orderBy(desc(datAttempts.createdAt))
-      .limit(1000);
+    const [attemptsWithDetails, aggregates] = await Promise.all([
+      db
+        .select({
+          questionId: datAttempts.questionId,
+          isCorrect: datAttempts.isCorrect,
+          timeSpent: datAttempts.timeSpent,
+          createdAt: datAttempts.createdAt,
+          subject: datQuestions.subject,
+          difficulty: datQuestions.difficulty,
+        })
+        .from(datAttempts)
+        .innerJoin(datQuestions, eq(datAttempts.questionId, datQuestions.id))
+        .where(
+          and(eq(datAttempts.userId, user.id), isNull(datQuestions.deletedAt))
+        )
+        .orderBy(desc(datAttempts.createdAt))
+        .limit(1000),
+      getDatAggregates(user.id),
+    ]);
 
     if (attemptsWithDetails.length === 0) {
       return {
@@ -206,51 +346,21 @@ export const datRouter = createRouter({
       };
     }
 
-    const totalCorrect = attemptsWithDetails.filter(a => a.isCorrect).length;
-    const overallAccuracy = Math.round(
-      (totalCorrect / attemptsWithDetails.length) * 100
+    const overallAccuracy = percentage(
+      aggregates.overall.correct,
+      aggregates.overall.total
     );
-    const avgTime = Math.round(
-      attemptsWithDetails.reduce((s, a) => s + (a.timeSpent ?? 0), 0) /
-        attemptsWithDetails.length
-    );
+    const avgTime = aggregates.overall.avgTime;
 
     // Predicted DAT score using weighted algorithm (1-30 scale)
     const { score: predictedScore, confidence: predictedConfidence } =
       computePredictedScore(attemptsWithDetails);
 
-    // Subject stats
-    const subjectMap: Record<
-      string,
-      { correct: number; total: number; totalTime: number }
-    > = {};
-    const heatmapMap: Record<
-      string,
-      Record<string, { correct: number; total: number }>
-    > = {};
-
-    attemptsWithDetails.forEach(a => {
-      if (!subjectMap[a.subject]) {
-        subjectMap[a.subject] = { correct: 0, total: 0, totalTime: 0 };
-      }
-      subjectMap[a.subject].total++;
-      if (a.isCorrect) subjectMap[a.subject].correct++;
-      subjectMap[a.subject].totalTime += a.timeSpent ?? 0;
-
-      if (!heatmapMap[a.subject]) heatmapMap[a.subject] = {};
-      const diff = a.difficulty;
-      if (!heatmapMap[a.subject][diff]) {
-        heatmapMap[a.subject][diff] = { correct: 0, total: 0 };
-      }
-      heatmapMap[a.subject][diff].total++;
-      if (a.isCorrect) heatmapMap[a.subject][diff].correct++;
-    });
-
-    const subjectStats = Object.entries(subjectMap).map(([subj, stats]) => ({
-      subject: subj,
-      accuracy: Math.round((stats.correct / stats.total) * 100),
-      avgTime: Math.round(stats.totalTime / stats.total),
-      total: stats.total,
+    const subjectStats = aggregates.subjects.map(row => ({
+      subject: row.subject,
+      accuracy: percentage(row.correct, row.total),
+      avgTime: row.avgTime,
+      total: row.total,
     }));
 
     // Heatmap: accuracy by subject x difficulty
@@ -258,7 +368,16 @@ export const datRouter = createRouter({
       "beginner" | "intermediate" | "advanced" | "elite"
     > = ["beginner", "intermediate", "advanced", "elite"];
 
-    const heatmap = Object.entries(heatmapMap).map(([subj, byDiff]) => {
+    const heatmapMap = new Map<
+      string,
+      Map<string, { correct: number; total: number }>
+    >();
+    for (const item of aggregates.heatmap) {
+      const values = heatmapMap.get(item.subject) ?? new Map();
+      values.set(item.difficulty, item);
+      heatmapMap.set(item.subject, values);
+    }
+    const heatmap = [...heatmapMap].map(([subj, byDiff]) => {
       const row: {
         subject: string;
         beginner: number;
@@ -273,17 +392,20 @@ export const datRouter = createRouter({
         elite: 0,
       };
       for (const d of difficulties) {
-        const s = byDiff[d];
-        row[d] = s ? Math.round((s.correct / s.total) * 100) : 0;
+        const s = byDiff.get(d);
+        row[d] = s ? percentage(s.correct, s.total) : 0;
       }
       return row;
     });
 
     // Trend: last 10 sessions (grouped by day)
-    const dailySessions: Record<string, { correct: number; total: number }> = {};
+    const dailySessions: Record<string, { correct: number; total: number }> =
+      {};
     const sessionOrder: string[] = [];
     attemptsWithDetails.forEach(a => {
-      const day = a.createdAt ? new Date(a.createdAt).toISOString().split("T")[0] : "unknown";
+      const day = a.createdAt
+        ? new Date(a.createdAt).toISOString().split("T")[0]
+        : "unknown";
       if (!dailySessions[day]) {
         dailySessions[day] = { correct: 0, total: 0 };
         sessionOrder.push(day);
@@ -326,7 +448,7 @@ export const datRouter = createRouter({
       avgTime,
       predictedScore,
       predictedConfidence,
-      totalAttempts: attemptsWithDetails.length,
+      totalAttempts: aggregates.overall.total,
       subjectStats,
       trend,
       heatmap,

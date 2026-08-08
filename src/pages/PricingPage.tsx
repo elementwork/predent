@@ -130,7 +130,9 @@ export default function PricingPage() {
     }
     setLoadingPlan(plan);
     checkout.mutate({ plan });
-    events.upgradeClicked(plan === "plus_lifetime" ? "premium_plus" : "premium");
+    events.upgradeClicked(
+      plan === "plus_lifetime" ? "premium_plus" : "premium"
+    );
   };
 
   return (
@@ -148,17 +150,17 @@ export default function PricingPage() {
             DAT Prep Plans: Free, Premium & Premium Plus
           </h1>
           <p className="text-[var(--text-tertiary)] max-w-lg mx-auto mb-6">
-            Start free. Upgrade to unlock unlimited PAT generators, DAT practice,
-            and the school competitiveness calculator.
+            Start free. Upgrade to unlock unlimited PAT generators, DAT
+            practice, and the school competitiveness calculator.
           </p>
 
           {success && (
-            <div className="mb-6 p-4 rounded-lg bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] text-sm">
+            <div className="mb-6 p-4 rounded-lg bg-[#10B981]/10 border border-[#10B981]/30 text-[#047857] text-sm">
               Thanks for your purchase! Your account has been upgraded.
             </div>
           )}
           {canceled && (
-            <div className="mb-6 p-4 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B] text-sm">
+            <div className="mb-6 p-4 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#92400E] text-sm">
               Checkout canceled. You can upgrade anytime.
             </div>
           )}
@@ -176,7 +178,7 @@ export default function PricingPage() {
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${isAnnual ? "bg-[#2563EB] text-white" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}
             >
               Annual
-              <span className="px-1.5 py-0.5 rounded bg-[#10B981] text-white text-[10px] font-bold">
+              <span className="px-1.5 py-0.5 rounded bg-[#047857] text-white text-[10px] font-bold">
                 SAVE 28%
               </span>
             </button>
@@ -190,11 +192,17 @@ export default function PricingPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-5 h-5 text-[#94A3B8]" />
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">Free</h3>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                  Free
+                </h3>
               </div>
               <div className="mb-4">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">$0</span>
-                <span className="text-sm text-[var(--text-tertiary)] ml-1">forever</span>
+                <span className="text-3xl font-bold text-[var(--text-primary)]">
+                  $0
+                </span>
+                <span className="text-sm text-[var(--text-tertiary)] ml-1">
+                  forever
+                </span>
               </div>
               <p className="text-xs text-[var(--text-tertiary)] mb-6">
                 Perfect for exploring and getting started.
@@ -219,7 +227,9 @@ export default function PricingPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-[#F59E0B]" />
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">Premium</h3>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                  Premium
+                </h3>
               </div>
               <div className="mb-4">
                 <span className="text-3xl font-bold text-[var(--text-primary)]">
@@ -261,14 +271,18 @@ export default function PricingPage() {
                 </h3>
               </div>
               <div className="mb-4">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">$149</span>
-                <span className="text-sm text-[var(--text-tertiary)] ml-1">one-time</span>
+                <span className="text-3xl font-bold text-[var(--text-primary)]">
+                  $149
+                </span>
+                <span className="text-sm text-[var(--text-tertiary)] ml-1">
+                  one-time
+                </span>
               </div>
               <p className="text-xs text-[var(--text-tertiary)] mb-6">
                 Lifetime access + personal coaching.
               </p>
               <Button
-                className="w-full h-10 bg-[#F59E0B] hover:bg-[#D97706] text-white font-semibold mb-4"
+                className="w-full h-10 bg-[#92400E] hover:bg-[#78350F] text-white font-semibold mb-4"
                 onClick={() => handleCheckout("plus_lifetime")}
                 disabled={!!loadingPlan}
               >
@@ -301,7 +315,7 @@ export default function PricingPage() {
                     <th className="text-center py-2 px-3 text-xs font-semibold text-[#2563EB] w-24">
                       Premium
                     </th>
-                    <th className="text-center py-2 px-3 text-xs font-semibold text-[#F59E0B] w-24">
+                    <th className="text-center py-2 px-3 text-xs font-semibold text-[#92400E] w-24">
                       Plus
                     </th>
                   </tr>
@@ -348,12 +362,15 @@ export default function PricingPage() {
         <div className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
           <Shield className="w-6 h-6 text-[#10B981]" />
           <div>
-            <p className="text-sm font-semibold text-[#10B981]">
+            <p className="text-sm font-semibold text-[#047857]">
               Higher Score Guarantee
             </p>
-            <p className="text-xs text-[var(--text-tertiary)]">
+            <p className="text-xs text-[#475569]">
               Score higher on the DAT or get your money back. See{" "}
-              <Link to="/legal/guarantee" className="underline hover:text-[#2563EB]">
+              <Link
+                to="/legal/guarantee"
+                className="underline hover:text-[#2563EB]"
+              >
                 guarantee terms
               </Link>{" "}
               for details.

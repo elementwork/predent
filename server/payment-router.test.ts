@@ -75,8 +75,7 @@ describe.skipIf(!hasDb)("paymentRouter", () => {
 
   describe("payment helpers", () => {
     it("maps price ids to plans", async () => {
-      const { getPlanFromPrice, getTierFromPlan } =
-        await import("./payment-router");
+      const { getPlanFromPrice, getTierFromPlan } = await import("./lib/stripe");
       expect(getPlanFromPrice("price_monthly")).toBe("premium_monthly");
       expect(getPlanFromPrice("price_lifetime")).toBe("plus_lifetime");
       expect(getPlanFromPrice("unknown")).toBeNull();

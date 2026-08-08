@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, count, isNull } from "drizzle-orm";
+import { and, eq, desc, count, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -12,6 +12,7 @@ import {
   datAttempts,
   adminActions,
 } from "@db/schema";
+import { reconcileStripeEntitlements } from "./services/stripe-reconciliation-service";
 
 export const adminRouter = createRouter({
   stats: adminQuery.query(async () => {
@@ -81,7 +82,7 @@ export const adminRouter = createRouter({
       }
 
       const [target] = await db
-        .select({ unionId: users.unionId })
+        .select({ provider: users.provider, unionId: users.unionId })
         .from(users)
         .where(eq(users.id, input.userId))
         .limit(1);
@@ -90,7 +91,7 @@ export const adminRouter = createRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 
-      if (target.unionId === env.ownerUnionId) {
+      if (target.provider === "google" && target.unionId === env.ownerUnionId) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Cannot change the owner's role.",
@@ -160,19 +161,32 @@ export const adminRouter = createRouter({
       if (input.type === "pat") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "PAT questions are generated on the fly and cannot be deleted.",
+          message:
+            "PAT questions are generated on the fly and cannot be deleted.",
         });
       }
-      await db
-        .update(datQuestions)
-        .set({ deletedAt: new Date() })
-        .where(eq(datQuestions.id, input.id));
-      await db.insert(adminActions).values({
-        adminId: ctx.user.id,
-        action: "delete_dat",
-        targetType: "dat_question",
-        targetId: input.id,
-        metadata: { deletedAt: new Date().toISOString() },
+      await db.transaction(async tx => {
+        const deletedAt = new Date();
+        const [updated] = await tx
+          .update(datQuestions)
+          .set({ deletedAt })
+          .where(
+            and(eq(datQuestions.id, input.id), isNull(datQuestions.deletedAt))
+          )
+          .returning({ id: datQuestions.id });
+        if (!updated) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Question not found.",
+          });
+        }
+        await tx.insert(adminActions).values({
+          adminId: ctx.user.id,
+          action: "delete_dat",
+          targetType: "dat_question",
+          targetId: input.id,
+          metadata: { deletedAt: deletedAt.toISOString() },
+        });
       });
       return { success: true };
     }),
@@ -188,4 +202,37 @@ export const adminRouter = createRouter({
     const result = await notifyUpcomingTasks();
     return { success: true, ...result };
   }),
+
+  auditStripeEntitlements: adminQuery
+    .input(
+      z.object({
+        afterId: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(100).default(50),
+      })
+    )
+    .query(({ ctx, input }) =>
+      reconcileStripeEntitlements({
+        adminId: ctx.user.id,
+        afterId: input.afterId,
+        limit: input.limit,
+        apply: false,
+      })
+    ),
+
+  reconcileStripeEntitlements: adminQuery
+    .input(
+      z.object({
+        afterId: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(100).default(50),
+        confirmation: z.literal("RECONCILE_STRIPE_ENTITLEMENTS"),
+      })
+    )
+    .mutation(({ ctx, input }) =>
+      reconcileStripeEntitlements({
+        adminId: ctx.user.id,
+        afterId: input.afterId,
+        limit: input.limit,
+        apply: true,
+      })
+    ),
 });

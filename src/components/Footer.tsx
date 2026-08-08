@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { GraduationCap, Mail, MapPin } from "lucide-react";
+import { requestTelemetryConsent } from "@/lib/telemetry-consent";
 
 const schools = [
   { name: "University of Toronto", province: "ON", slug: "uoft" },
@@ -153,7 +154,9 @@ export default function Footer() {
 
           {/* Legal */}
           <div>
-            <h4 className="text-sm font-semibold mb-4 text-[var(--text-primary)]">Legal</h4>
+            <h4 className="text-sm font-semibold mb-4 text-[var(--text-primary)]">
+              Legal
+            </h4>
             <ul className="space-y-2.5">
               <li>
                 <Link
@@ -162,6 +165,15 @@ export default function Footer() {
                 >
                   Privacy Policy
                 </Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={requestTelemetryConsent}
+                  className="text-sm text-[var(--text-secondary)] hover:text-[#2563EB] transition-colors"
+                >
+                  Privacy Choices
+                </button>
               </li>
               <li>
                 <Link

@@ -2,29 +2,17 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware";
-import { env } from "./lib/env";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
-
-function getPlanPrices() {
-  return {
-    premium_monthly: env.stripePricePremiumMonthly,
-    premium_yearly: env.stripePricePremiumYearly,
-    plus_lifetime: env.stripePricePlusLifetime,
-  } as const;
-}
+import { getPlanPrices, getStripe } from "./lib/stripe";
+import { getPublicAppOrigin } from "./lib/origin";
 
 const priceSchema = z.enum([
   "premium_monthly",
   "premium_yearly",
   "plus_lifetime",
 ]);
-
-function getStripe(): Stripe | null {
-  if (!env.stripeSecretKey) return null;
-  return new Stripe(env.stripeSecretKey);
-}
 
 export const paymentRouter = createRouter({
   createCheckoutSession: authedQuery
@@ -132,30 +120,5 @@ export const paymentRouter = createRouter({
 });
 
 function getOrigin() {
-  if (env.publicAppUrl) return env.publicAppUrl;
-  if (env.isProduction) {
-    throw new Error(
-      "PUBLIC_APP_URL is required in production for Stripe redirects"
-    );
-  }
-  return "http://localhost:3000";
+  return getPublicAppOrigin();
 }
-
-export function getPlanFromPrice(
-  priceId: string
-): keyof ReturnType<typeof getPlanPrices> | null {
-  for (const [plan, id] of Object.entries(getPlanPrices())) {
-    if (id === priceId) {
-      return plan as keyof ReturnType<typeof getPlanPrices>;
-    }
-  }
-  return null;
-}
-
-export function getTierFromPlan(
-  plan: keyof ReturnType<typeof getPlanPrices>
-): "premium" | "premium_plus" {
-  return plan.startsWith("plus") ? "premium_plus" : "premium";
-}
-
-export { getStripe };

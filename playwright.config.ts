@@ -20,8 +20,11 @@ export default defineConfig({
     timeout: 30_000,
   },
   projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
+    {
+      name: "chromium",
+      use: { browserName: "chromium", channel: "chrome" },
+    },
   ],
   snapshotDir: "./e2e/__snapshots__",
-  updateSnapshots: "missing",
+  updateSnapshots: process.env.CI ? "none" : "missing",
 });

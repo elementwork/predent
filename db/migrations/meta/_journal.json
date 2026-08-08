@@ -57,6 +57,34 @@
       "when": 1785732514015,
       "tag": "0007_handy_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786124090987,
+      "tag": "0008_icy_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786124776708,
+      "tag": "0009_puzzling_centennial",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786130555362,
+      "tag": "0010_bent_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786130617690,
+      "tag": "0011_watery_kree",
+      "breakpoints": true
     }
   ]
 }

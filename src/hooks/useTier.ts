@@ -1,12 +1,16 @@
 import { useMemo } from "react";
 import { useAuth } from "./useAuth";
+import { getEffectiveTier, hasTierAccess, type Tier } from "@contracts/tiers";
 
-export type Tier = "free" | "premium" | "premium_plus";
+export type { Tier } from "@contracts/tiers";
 
 export function useTier() {
   const { user, isAuthenticated } = useAuth();
 
-  const tier: Tier = (user?.tier as Tier) ?? "free";
+  const tier = getEffectiveTier(
+    user?.tier as Tier | undefined,
+    user?.premiumUntil
+  );
 
   return useMemo(
     () => ({
@@ -16,10 +20,7 @@ export function useTier() {
       isPremium: tier === "premium" || tier === "premium_plus",
       isPlus: tier === "premium_plus",
       hasAccess(required: Tier) {
-        if (required === "free") return true;
-        if (required === "premium")
-          return tier === "premium" || tier === "premium_plus";
-        return tier === "premium_plus";
+        return hasTierAccess(tier, required);
       },
     }),
     [tier, isAuthenticated]

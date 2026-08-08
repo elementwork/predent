@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { getBrowserTimeZone } from "@/lib/time";
 import { Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -53,6 +54,7 @@ export default function DashboardPage() {
     await upsertProfile.mutateAsync({
       ...form,
       currentGpa: form.currentGpa || undefined,
+      timezone: getBrowserTimeZone(),
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -70,7 +72,10 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <main key={profile ? "loaded" : "loading"} className="min-h-screen bg-[var(--page-bg)] pt-20">
+    <main
+      key={profile ? "loaded" : "loading"}
+      className="min-h-screen bg-[var(--page-bg)] pt-20"
+    >
       <div className="section-container max-w-7xl mx-auto pb-20">
         <div className="flex items-center gap-3 mb-8">
           <LayoutDashboard className="w-6 h-6 text-[#2563EB]" />
@@ -462,9 +467,14 @@ export default function DashboardPage() {
                         >
                           <div
                             className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                            style={{ backgroundColor: `${colorMap[rec.priority]}15` }}
+                            style={{
+                              backgroundColor: `${colorMap[rec.priority]}15`,
+                            }}
                           >
-                            <Icon className="w-4 h-4" style={{ color: colorMap[rec.priority] }} />
+                            <Icon
+                              className="w-4 h-4"
+                              style={{ color: colorMap[rec.priority] }}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-[var(--text-primary)]">

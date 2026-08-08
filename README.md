@@ -21,16 +21,16 @@ A practice and planning platform for Canadian pre-dental students. DAT prep, sch
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS, shadcn/ui (~50 components), Framer Motion, Recharts |
-| Backend | Hono, tRPC v11, Drizzle ORM |
-| Database | PostgreSQL (Supabase via `postgres` driver), 17 tables |
-| Auth | 8 OAuth providers (Google, Apple, Microsoft, LinkedIn, Facebook, X, Discord, Instagram) via `arctic`, JWT sessions (`jose`) |
-| Payments | Stripe (subscriptions + one-time) |
-| Email | Resend / SendGrid / console |
-| Testing | Vitest |
-| Deploy | Vercel (serverless + cron), Docker, GitHub Actions CI |
+| Layer    | Technology                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS, shadcn/ui (~50 components), Framer Motion, Recharts                             |
+| Backend  | Hono, tRPC v11, Drizzle ORM                                                                                                 |
+| Database | PostgreSQL (Supabase via `postgres` driver), 17 tables                                                                      |
+| Auth     | 8 OAuth providers (Google, Apple, Microsoft, LinkedIn, Facebook, X, Discord, Instagram) via `arctic`, JWT sessions (`jose`) |
+| Payments | Stripe (subscriptions + one-time)                                                                                           |
+| Email    | Resend / SendGrid / console                                                                                                 |
+| Testing  | Vitest                                                                                                                      |
+| Deploy   | Vercel (serverless + cron), Docker, GitHub Actions CI                                                                       |
 
 ## Getting Started
 
@@ -55,23 +55,23 @@ The app runs at `http://localhost:3000`.
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start dev server with HMR |
-| `npm run build` | Build for production (`dist/public/` + `dist/boot.js`) |
-| `npm run start` | Start production server |
-| `npm run check` | TypeScript type-check (`tsc -b`) |
-| `npm run lint` | ESLint |
-| `npm run test` | Run Vitest tests |
-| `npm run format` | Prettier format |
-| `npm run db:push` | Push schema to database |
-| `npm run db:generate` | Generate Drizzle migrations |
-| `npm run db:migrate` | Run migrations |
-| `npm run db:seed:dat:full` | Seed DAT questions (500) |
-| `npm run db:seed:interview` | Seed interview questions (24) |
-| `npm run docker:build` | Build Docker image |
-| `npm run docker:up` | Start Docker container |
-| `npm run docker:down` | Stop Docker container |
+| Command                     | Description                                            |
+| --------------------------- | ------------------------------------------------------ |
+| `npm run dev`               | Start dev server with HMR                              |
+| `npm run build`             | Build for production (`dist/public/` + `dist/boot.js`) |
+| `npm run start`             | Start production server                                |
+| `npm run check`             | TypeScript type-check (`tsc -b`)                       |
+| `npm run lint`              | ESLint                                                 |
+| `npm run test`              | Run Vitest tests                                       |
+| `npm run format`            | Prettier format                                        |
+| `npm run db:push`           | Push schema to database                                |
+| `npm run db:generate`       | Generate Drizzle migrations                            |
+| `npm run db:migrate`        | Run migrations                                         |
+| `npm run db:seed:dat:full`  | Seed DAT questions (500)                               |
+| `npm run db:seed:interview` | Seed interview questions (24)                          |
+| `npm run docker:build`      | Build Docker image                                     |
+| `npm run docker:up`         | Start Docker container                                 |
+| `npm run docker:down`       | Stop Docker container                                  |
 
 ## Project Structure
 
@@ -141,9 +141,15 @@ The app runs at `http://localhost:3000`.
 
 ### Developers & Operators
 
+- [`docs/dev/release-runbook.md`](./docs/dev/release-runbook.md) — Release gates and rollback procedure.
+- [`docs/dev/incident-response.md`](./docs/dev/incident-response.md) — Incident severity, response, and recovery.
+- [`docs/dev/disaster-recovery.md`](./docs/dev/disaster-recovery.md) — Backup validation and database restore.
+- [`docs/dev/dependency-policy.md`](./docs/dev/dependency-policy.md) — Dependency, license, SBOM, and action-pinning policy.
 - [`docs/dev/setup-guide.md`](./docs/dev/setup-guide.md) — **Complete step-by-step production setup** — database, OAuth, email, payments, deployment (Vercel + Cloudflare), all on free tiers.
 - [`docs/dev/dev-guide.md`](./docs/dev/dev-guide.md) — Project structure, stack, architecture, conventions, how to add features, testing, theming.
 - [`docs/dev/admin-guide.md`](./docs/dev/admin-guide.md) — Environment setup, deployment (Docker/Vercel), database management, OAuth configuration, email/notifications, monitoring, backups, troubleshooting.
+- [`docs/dev/observability.md`](./docs/dev/observability.md) — Health checks, metrics, structured logs, SLOs, and alert thresholds.
+- [`docs/dev/api-conventions.md`](./docs/dev/api-conventions.md) — Error envelope, cursor pagination, and procedure authorization matrix.
 - [`docs/dev/devlog.md`](./docs/dev/devlog.md) — Chronological milestone and commit history.
 
 ### Design & Planning
@@ -160,18 +166,25 @@ The app runs at `http://localhost:3000`.
 
 See `.env.example` for all required and optional variables. Key variables:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `APP_SECRET` | Yes | JWT signing secret (min 32 chars) |
-| `DATABASE_URL` | Yes | Supabase PostgreSQL connection string |
-| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `OWNER_UNION_ID` | Yes | OAuth `sub` granted admin role on first login |
-| `STRIPE_SECRET_KEY` | No | Stripe secret key (for payments) |
-| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret |
-| `EMAIL_PROVIDER` | No | `console` (default), `resend`, or `sendgrid` |
-| `RESEND_API_KEY` | No | Resend API key (when using Resend) |
-| `CRON_SECRET` | No | Vercel cron authentication |
+| Variable                     | Required   | Description                                                              |
+| ---------------------------- | ---------- | ------------------------------------------------------------------------ |
+| `APP_SECRET`                 | Yes        | JWT signing secret (min 32 chars)                                        |
+| `DATABASE_URL`               | Yes        | Supabase PostgreSQL connection string                                    |
+| `TEST_DATABASE_URL`          | Tests only | Explicit disposable PostgreSQL database used by integration tests        |
+| `GOOGLE_CLIENT_ID`           | Yes        | Google OAuth client ID                                                   |
+| `GOOGLE_CLIENT_SECRET`       | Yes        | Google OAuth client secret                                               |
+| `OWNER_UNION_ID`             | Yes        | OAuth `sub` granted admin role on first login                            |
+| `STRIPE_SECRET_KEY`          | No         | Stripe secret key (for payments)                                         |
+| `STRIPE_WEBHOOK_SECRET`      | No         | Stripe webhook signing secret                                            |
+| `EMAIL_PROVIDER`             | No         | `console` (default) or `resend`; SendGrid is unsupported                 |
+| `RESEND_API_KEY`             | No         | Resend API key (when using Resend)                                       |
+| `CRON_SECRET`                | No         | Vercel cron authentication                                               |
+| `METRICS_SECRET`             | Production | Bearer token protecting `/api/metrics`                                   |
+| `UPSTASH_REDIS_REST_URL`     | Production | Shared Redis REST endpoint for distributed rate limiting                 |
+| `UPSTASH_REDIS_REST_TOKEN`   | Production | Shared Redis REST bearer token                                           |
+| `RATE_LIMIT_ALLOW_IN_MEMORY` | No         | Explicit single-instance production escape hatch; never enable on Vercel |
+| `TRUST_PROXY`                | No         | Trust sanitized `X-Forwarded-For` on a controlled reverse proxy          |
+| `TRUST_CLOUDFLARE_PROXY`     | No         | Trust `CF-Connecting-IP` when Cloudflare directly fronts the origin      |
 
 All 8 OAuth providers are optional — configure only the ones you want to offer. See [`docs/dev/admin-guide.md`](./docs/dev/admin-guide.md) for per-provider setup instructions.
 

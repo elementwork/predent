@@ -9,6 +9,7 @@ import {
   communityPosts,
   communityComments,
   communityReports,
+  communityReactions,
   notifications,
   pushSubscriptions,
   adminActions,
@@ -27,6 +28,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   communityPosts: many(communityPosts),
   communityComments: many(communityComments),
   communityReports: many(communityReports),
+  communityReactions: many(communityReactions),
   notifications: many(notifications),
   pushSubscriptions: many(pushSubscriptions),
   adminActions: many(adminActions),
@@ -70,44 +72,68 @@ export const datAttemptsRelations = relations(datAttempts, ({ one }) => ({
   }),
 }));
 
-export const communityPostsRelations = relations(communityPosts, ({ one, many }) => ({
-  user: one(users, {
-    fields: [communityPosts.userId],
-    references: [users.id],
-  }),
-  comments: many(communityComments),
-  reports: many(communityReports),
-}));
+export const communityPostsRelations = relations(
+  communityPosts,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [communityPosts.userId],
+      references: [users.id],
+    }),
+    comments: many(communityComments),
+    reports: many(communityReports),
+    reactions: many(communityReactions),
+  })
+);
 
-export const communityCommentsRelations = relations(communityComments, ({ one }) => ({
-  post: one(communityPosts, {
-    fields: [communityComments.postId],
-    references: [communityPosts.id],
-  }),
-  user: one(users, {
-    fields: [communityComments.userId],
-    references: [users.id],
-  }),
-}));
+export const communityReactionsRelations = relations(
+  communityReactions,
+  ({ one }) => ({
+    post: one(communityPosts, {
+      fields: [communityReactions.postId],
+      references: [communityPosts.id],
+    }),
+    user: one(users, {
+      fields: [communityReactions.userId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const communityReportsRelations = relations(communityReports, ({ one }) => ({
-  post: one(communityPosts, {
-    fields: [communityReports.postId],
-    references: [communityPosts.id],
-  }),
-  comment: one(communityComments, {
-    fields: [communityReports.commentId],
-    references: [communityComments.id],
-  }),
-  reporter: one(users, {
-    fields: [communityReports.reporterId],
-    references: [users.id],
-  }),
-  reviewedByUser: one(users, {
-    fields: [communityReports.reviewedBy],
-    references: [users.id],
-  }),
-}));
+export const communityCommentsRelations = relations(
+  communityComments,
+  ({ one }) => ({
+    post: one(communityPosts, {
+      fields: [communityComments.postId],
+      references: [communityPosts.id],
+    }),
+    user: one(users, {
+      fields: [communityComments.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const communityReportsRelations = relations(
+  communityReports,
+  ({ one }) => ({
+    post: one(communityPosts, {
+      fields: [communityReports.postId],
+      references: [communityPosts.id],
+    }),
+    comment: one(communityComments, {
+      fields: [communityReports.commentId],
+      references: [communityComments.id],
+    }),
+    reporter: one(users, {
+      fields: [communityReports.reporterId],
+      references: [users.id],
+    }),
+    reviewedByUser: one(users, {
+      fields: [communityReports.reviewedBy],
+      references: [users.id],
+    }),
+  })
+);
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, {
@@ -116,12 +142,15 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
-export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
-  user: one(users, {
-    fields: [pushSubscriptions.userId],
-    references: [users.id],
-  }),
-}));
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [pushSubscriptions.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const adminActionsRelations = relations(adminActions, ({ one }) => ({
   admin: one(users, {
@@ -137,9 +166,12 @@ export const savedQuestionsRelations = relations(savedQuestions, ({ one }) => ({
   }),
 }));
 
-export const flashcardReviewsRelations = relations(flashcardReviews, ({ one }) => ({
-  user: one(users, {
-    fields: [flashcardReviews.userId],
-    references: [users.id],
-  }),
-}));
+export const flashcardReviewsRelations = relations(
+  flashcardReviews,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [flashcardReviews.userId],
+      references: [users.id],
+    }),
+  })
+);

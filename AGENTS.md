@@ -2,7 +2,7 @@
 
 This file is a concise, factual reference for AI coding agents working on this project. It describes the technology stack, project layout, build/runtime behavior, conventions, and security model as they actually exist in the codebase.
 
-> Last updated: 2026-08-03T22:40:00-04:00
+> Last updated: 2026-08-08
 
 ---
 
@@ -28,18 +28,18 @@ The backend and frontend are built together and served from the same Node proces
 | ----------------------- | ------------------------------------------------------------ | ----------------------------------------------------- |
 | Runtime                 | Node.js 24+                                                  | Required engine                                       |
 | Frontend framework      | React 19.2                                                   | Uses `StrictMode`                                     |
-| Build tool / dev server | Vite 7.2.4                                                   | SPA build, output goes to `dist/public`               |
-| Routing                 | `react-router` / `react-router-dom` v7                       | Uses `BrowserRouter` in `src/main.tsx`                |
+| Build tool / dev server | Vite 7.3.6                                                   | SPA build, output goes to `dist/public`               |
+| Routing                 | `react-router` / `react-router-dom` v7.18.2                  | Uses `BrowserRouter` in `src/main.tsx`                |
 | Styling                 | Tailwind CSS v3.4.19                                         | Config in `tailwind.config.js`, `darkMode: "class"`   |
 | UI components           | shadcn/ui (New York style, non-RSC)                          | ~50 components under `src/components/ui/`             |
 | Icons                   | `lucide-react`                                               |                                                       |
 | Forms / validation      | `react-hook-form` + `zod`                                    | `@hookform/resolvers`                                 |
 | Animations              | `framer-motion`                                              | Used heavily on the landing page                      |
 | State / data fetching   | `@tanstack/react-query` + tRPC React client                  | Single `QueryClient`                                  |
-| Backend framework       | `hono` v4.8.3                                                | Runs on `@hono/node-server`                           |
+| Backend framework       | `hono` v4.13.1                                               | Runs on `@hono/node-server` v2.1.0                    |
 | API protocol            | tRPC v11 (`@trpc/server`, `@trpc/client`)                    | `superjson` transformer                               |
-| Database ORM            | `drizzle-orm` v0.45.1                                        | PostgreSQL dialect via `postgres` (Supabase)          |
-| Database migrations     | `drizzle-kit` v0.31.8                                        | Config in `drizzle.config.ts`                         |
+| Database ORM            | `drizzle-orm` v0.45.2                                        | PostgreSQL dialect via `postgres` (Supabase)          |
+| Database migrations     | `drizzle-kit` v0.31.10                                       | Config in `drizzle.config.ts`                         |
 | Auth                    | Google OAuth 2.0                                             | Session cookie via signed JWT (HS256)                 |
 | Payments                | `stripe` v22                                                 | Checkout sessions + webhooks; configured via env vars |
 | Testing                 | `vitest` v4                                                  | Config in `vitest.config.ts`                          |
@@ -87,7 +87,7 @@ The backend and frontend are built together and served from the same Node proces
 │   │   ├── email/          # Email delivery (console, Resend)
 │   │   ├── tasks/          # Background schedulers (task reminders)
 │   │   ├── score-prediction.ts # Weighted score prediction algorithm
-│   │   ├── rate-limit.ts   # In-memory rate limiter
+│   │   ├── rate-limit.ts   # Shared Redis limiter + explicit local fallback
 │   │   ├── push.ts         # Web Push notifications
 │   │   ├── sentry.ts       # Server-side error tracking
 │   │   ├── cookies.ts      # Session cookie options
@@ -249,7 +249,7 @@ The app supports Google, Apple, Microsoft, LinkedIn, Facebook, X (Twitter), Disc
 1. `src/pages/Login.tsx` links to `/api/oauth/authorize/:provider?redirect=...` for the chosen provider.
 2. `server/auth/auth.ts::createOAuthAuthorizeHandler` generates OAuth state and a PKCE code verifier, stores them in httpOnly cookies, and redirects to the provider.
 3. The provider redirects back to `/api/oauth/callback`. `server/auth/auth.ts::createOAuthCallbackHandler` validates state, exchanges the code (via `server/auth/providers.ts`), and upserts the user.
-4. A session JWT is signed with `APP_SECRET` (HS256, 1-year expiry) and stored in the `predent_sid` cookie. The payload contains `unionId`, `provider`, and `tokenVersion`.
+4. A session JWT is signed with `APP_SECRET` (HS256, 30-day expiry) with issuer, audience, and JTI claims. Production stores it in the `__Host-predent_sid` cookie; development uses `predent_sid`. The payload contains `unionId`, `provider`, and `tokenVersion`.
 5. Subsequent requests include the cookie; `authenticateRequest` verifies the JWT and loads the user.
 
 ### Supported providers
@@ -271,7 +271,8 @@ Add new providers by extending `server/auth/providers.ts` and the `users.provide
 - `sameSite: Lax` on localhost, `None` otherwise
 - `secure: true` outside localhost
 - `path: /`
-- Max age: 1 year
+- JWT expiry: 30 days
+- Production cookie name uses the `__Host-` prefix
 
 ### Roles
 
@@ -293,9 +294,11 @@ Tables (defined in `db/schema.ts`):
 - `datQuestions` — DAT Biology/Chemistry/Reading question bank (soft-delete support)
 - `datAttempts` — DAT question attempts
 - `communityPosts` — User-generated community posts (results, questions, discussions)
+- `communityReactions` — One idempotent post reaction per user/post
 - `communityComments` — Comments on community posts
 - `communityReports` — User reports for posts/comments
 - `notifications` — In-app notifications with optional email delivery
+- `outboxJobs` — Transactional, retryable notification delivery jobs
 - `pushSubscriptions` — Browser push notification subscriptions
 - `schoolStats` — Aggregate admission stats per school/year
 - `stripeWebhookEvents` — Idempotency log for processed Stripe webhook events
@@ -307,6 +310,7 @@ Tables (defined in `db/schema.ts`):
 Drizzle migrations live in `db/migrations/`. Migration SQL files are committed to the repository so they can be applied in CI/CD and production deployments.
 
 Seed scripts:
+
 - `npm run db:seed:dat` — Seeds 15 DAT questions (original)
 - `npm run db:seed:dat:full` — Seeds 500 DAT questions (200 bio + 200 chem + 100 RC)
 - `npm run db:seed:interview` — Seeds 24 interview questions
@@ -370,7 +374,12 @@ Run tests:
 
 ```bash
 npm test
+npm run test:frontend
+npm run test:e2e
 ```
+
+Playwright uses the installed Google Chrome channel; E2E runners must provide
+Google Chrome.
 
 Test files: `server/lib/math.test.ts`, `server/pat-router.test.ts`, `server/interview-router.test.ts`, `server/tools-router.test.ts`.
 
@@ -406,6 +415,13 @@ Some older pages (Dashboard, Login, parts of LandingPage) still use hardcoded co
 - **OAuth state**: cryptographically random state + PKCE code verifier stored in httpOnly cookies during the authorize step.
 - **Admin elevation**: `OWNER_UNION_ID` grants admin on first login; keep it private.
 - **Database URL**: Required for backend and Drizzle Kit commands.
+- **OAuth identity key**: Users are uniquely identified by
+  `(provider, unionId)`; both fields are required for lookup and upsert.
+- **Entitlements**: Paid access is derived from both `tier` and an unexpired
+  `premiumUntil`. Use `premiumQuery`/`premiumPlusQuery` for paid procedures.
+- **Rate limiting**: Production uses shared Redis REST counters and fails closed
+  when they are unavailable. Proxy IP headers are trusted only through the
+  explicit platform/proxy configuration.
 
 ### Required environment variables
 
@@ -413,6 +429,11 @@ Some older pages (Dashboard, Login, parts of LandingPage) still use hardcoded co
 APP_SECRET=              # Used to sign session JWTs
 DATABASE_URL=            # Supabase PostgreSQL connection string
                           # e.g. postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+UPSTASH_REDIS_REST_URL=   # Required in production for shared rate limiting
+UPSTASH_REDIS_REST_TOKEN= # Required in production for shared rate limiting
+RATE_LIMIT_ALLOW_IN_MEMORY=false # Single-instance production escape hatch only
+TRUST_PROXY=false        # Only for a proxy that sanitizes X-Forwarded-For
+TRUST_CLOUDFLARE_PROXY=false # Only when Cloudflare directly fronts the origin
 VITE_GOOGLE_CLIENT_ID=   # Browser-facing Google OAuth client ID
 GOOGLE_CLIENT_ID=        # Google OAuth client ID (backend)
 GOOGLE_CLIENT_SECRET=    # Google OAuth client secret
@@ -459,12 +480,12 @@ PUBLIC_APP_URL=                   # Public origin, e.g. https://predent.ca
 
 # Vercel Cron (required only on Vercel for scheduled reminders)
 CRON_SECRET=              # Random secret Vercel sends in the Authorization header
+METRICS_SECRET=           # Bearer token protecting /api/metrics
 
 # Email / Notifications (required only when sending real emails)
-EMAIL_PROVIDER=           # "console" (default), "resend", or "sendgrid"
+EMAIL_PROVIDER=           # "console" (default) or "resend"; SendGrid is unsupported
 EMAIL_FROM=               # Sender address (e.g. noreply@predent.ca)
 RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
-SENDGRID_API_KEY=         # SG.xxx (required when EMAIL_PROVIDER=sendgrid)
 ```
 
 ---
@@ -491,43 +512,46 @@ SENDGRID_API_KEY=         # SG.xxx (required when EMAIL_PROVIDER=sendgrid)
 
 ## 14. Where to find things
 
-| Concern                   | Location                                                              |
-| ------------------------- | --------------------------------------------------------------------- |
-| Add a new page            | `src/pages/*.tsx` + route in `src/App.tsx`                            |
-| Add a new API route       | Create a router under `server/*-router.ts` and add it to `server/router.ts` |
-| Enforce auth on a route   | Use `authedQuery` or `adminQuery` from `server/middleware.ts`            |
-| Change DB schema          | `db/schema.ts`, then `npm run db:generate`                            |
-| Run a DB query            | Add helper in `server/queries/` or query inline using `getDb()`          |
-| Add a UI component        | `src/components/ui/` (shadcn/ui style)                                |
-| Shared constants / errors | `contracts/constants.ts`, `contracts/errors.ts`                       |
-| Styling variables         | `src/index.css` + `tailwind.config.js`                                |
-| Environment config        | `.env.example`, `server/lib/env.ts`                                      |
-| Theme provider            | `src/providers/theme.tsx`                                             |
-| Page titles               | `src/hooks/usePageTitle.ts`                                           |
-| Email delivery            | `server/lib/email/index.ts`                                              |
-| Task due-date reminders   | `server/lib/tasks/notifications.ts`                                      |
+| Concern                   | Location                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| Add a new page            | `src/pages/*.tsx` + route in `src/App.tsx`                                              |
+| Add a new API route       | Create a router under `server/*-router.ts` and add it to `server/router.ts`             |
+| Enforce auth on a route   | Use `authedQuery` or `adminQuery` from `server/middleware.ts`                           |
+| Change DB schema          | `db/schema.ts`, then `npm run db:generate`                                              |
+| Run a DB query            | Add helper in `server/queries/` or query inline using `getDb()`                         |
+| Add a UI component        | `src/components/ui/` (shadcn/ui style)                                                  |
+| Shared constants / errors | `contracts/constants.ts`, `contracts/errors.ts`                                         |
+| Styling variables         | `src/index.css` + `tailwind.config.js`                                                  |
+| Environment config        | `.env.example`, `server/lib/env.ts`                                                     |
+| Theme provider            | `src/providers/theme.tsx`                                                               |
+| Page titles               | `src/hooks/usePageTitle.ts`                                                             |
+| Email delivery            | `server/lib/email/index.ts`                                                             |
+| Task due-date reminders   | `server/lib/tasks/notifications.ts`                                                     |
+| Outbox worker             | `server/lib/outbox/worker.ts`                                                           |
+| Health, metrics, SLOs     | `docs/dev/observability.md`                                                             |
 | PAT question generation   | `server/lib/pat-generation/` (server) + `src/components/pat-generators/logic/` (client) |
-| Tier quota definitions    | `contracts/tiers.ts`                                                    |
-| User documentation        | `docs/user/`                                                             |
-| Developer / ops docs      | `docs/dev/`                                                              |
-| Agent session resume      | `.agents/resume.md`                                                      |
-| PRD / planning docs       | `docs/design/`                                                           |
+| Tier quota definitions    | `contracts/tiers.ts`                                                                    |
+| User documentation        | `docs/user/`                                                                            |
+| Developer / ops docs      | `docs/dev/`                                                                             |
+| Agent session resume      | `.agents/resume.md`                                                                     |
+| PRD / planning docs       | `docs/design/`                                                                          |
 
 ---
 
 ## 15. Known limitations and TODOs
 
 - Database is hosted on Supabase (PostgreSQL).
-- Community post edit: backend exists, frontend needs edit dialog.
-- Interview questions: hardcoded in router, not in database.
-- DAT analytics: limited to basic accuracy by subject.
-- Study schedule generator: advertised but static page.
-- Dashboard provinces: hardcoded, should use shared constants.
+- Public SEO pages remain a client-rendered SPA rather than per-route SSR or
+  pre-rendered HTML.
+- Restore objectives depend on the production Supabase plan and must be proven
+  through the quarterly drill in `docs/dev/disaster-recovery.md`.
+- PAT generation is intentionally awaiting a separate rewrite; do not couple
+  unrelated remediation to the current generator implementation.
 
 ## 16. Git & Commit Rules
+
 1. **Always update all relevant docs** (including devlog) before any commit.
 2. **Do NOT push to remote** unless the user explicitly approves.
 3. **Always run 'npm run check' and 'npm run lint'** before pushing to remote - both must pass.
 4. **Squash before push**: merge all local commits into one single commit, then push.
 5. **User**: use elementwork <elementworkinc@gmail.com> to commit and push to github
-

@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-08-07T12:49:43-04:00
+> Last updated: 2026-08-07T21:55:00-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -16,46 +16,49 @@ PreDent Canada is a full-stack web platform for Canadian dental school applicant
 
 ## Commit History
 
-| Commit    | Date       | Summary                                                                                                      |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `adefe7a` | Database   | Migrate from SQLite to Supabase (PostgreSQL) — replaced `better-sqlite3` with `postgres` driver, rewrote schema to `pgTable`, updated connection/config/deps/docs. |
-| `410927a` | Initial    | PreDent Website Initial — project scaffold, landing page, and core site structure.                           |
-| `495a742` | Foundation | Auth, login, backend etc. — OAuth authentication, Hono/tRPC backend, user sessions, protected routes.        |
-| `faaff44` | Roadmap v1 | Complete remaining roadmap steps, light theme, docs — PAT academy foundations, theme system, documentation.  |
-| `a7adbf3` | Roadmap v2 | Complete items 1-6 — PAT diagrams, DAT banks, admin dashboard, theme coverage, community hub, notifications. |
-| `b145462` | Ops        | Production email provider and task due-date notifications — Resend/SendGrid email integration, scheduler.    |
-| `aa3f4fb` | Docs       | Postpone production database migration to future release — updated AGENTS.md, devlog.md, resume.md.          |
-| `253003d` | Auth       | Replace Kimi OAuth with Google OAuth — migrated OAuth provider to Google, renamed auth module.               |
-| `b8f1047` | Audit      | Comprehensive code audit — 33 fixes across security, performance, bugs, and SEO.                           |
-| `2ad7f03` | UI/UX      | PAT strategy guide routing fix + theme contrast across all pages.                                           |
-| `squash`  | Release    | Squashed all commits into single release commit.                                                            |
-| (pending) | Fix        | TypeScript build fix — widened union types in DashboardPage, made PracticeQuestion fields optional.          |
-| `c68cf05` | Audit      | R1 audit fixes — server-side grading, answer leak, OAuth security, generators, code splitting.               |
-| `9b1f1b3` | Fix        | PAT guide URL standardization — hyphens instead of underscores.                                             |
-| `d465948` | Fix        | Sitewide link audit — fixed broken placeholder link in AuthLayout.                                          |
-| `ba635d0` | Fix        | Quick wins — M3 unanswered PAT recording, M6 responsive grid, M8 lazy images, L3 parallel counts, L5 cleanup. |
-| `6b4c3ed` | Fix        | Remaining audit — M5 theme sweep, M7 LandingPage perf, L2 admin guards, L4/L6 generator fixes, L7 NotFound, H4. |
-| `536dd7b` | Feature    | PostHog analytics — pageviews, 9 key event types across 9 pages.                                           |
-| `7b1067a` | Feature    | Email notifications expansion — study reminders, community notifications, user preferences.                 |
-| `345654b` | Feature    | Community Hub — comments, reports, moderation, tabbed feed, all post types.                                  |
-| `5145fd3` | Feature    | Web Push notifications — VAPID, service worker, subscribe/unsubscribe, settings toggle.                      |
-| `6560307` | Feature    | Advanced Study Planner — calendar view, filters, scheduling suggestions, task form extraction.               |
-| (pending) | Fix        | Test setup — generated Drizzle migration files, removed migrate() from vitest.setup.ts for faster tests.   |
-| (pending) | Fix        | PAT guides 404 — React Router v7 doesn't support `pat-:category` param syntax, changed to `pat/:category`. |
-| `e9b5c87` | Audit      | Comprehensive QA audit & remediation — fixed dead CTAs, theme consistency, OAuth CSRF state, Stripe webhook idempotency, DB FKs/indexes, query limits, dashboard stats, and input validation. |
-| `1a78a24` | UI/UX      | Theme/header/layout/cards consistency pass — converted hardcoded dark headers, standardized academy headers, clickable school/PAT cards, parent back-links, navbar background drop, uniform page width, theme-aware LandingPage hero/CTA, and updated docs. |
-| `7437705` | Security   | Audit-02 remediation — session invalidation, rate limiting, admin soft-delete + audit log, Drizzle relations, auth status codes, env cleanup, Stripe reuse, notification links, mobile theme toggle. |
-| (pending) | Docs       | Documentation reorganization — moved user/dev/admin guides under `docs/`, moved resume to `.agents/`, moved design docs under `docs/design/`, added index files, updated README/AGENTS.md. |
-| (pending) | Feature    | Comprehensive documentation update + P1 features — updated feature_list, dev-guide, user-guide; merged READMEs; implemented onboarding flow, Sentry error tracking, Playwright E2E tests, landing page testimonials removal, study streak computation (PAT+DAT), flashcard/DA module real DB counts, community sidebar cleanup, study reminder wiring, PWA theme color, CI migration check. |
-| `2222a6a` | Feature    | PAT CLI toolset + remove PAT question bank — `tools/pat-cli.ts` (generate/render/convert/validate/standalone), HTML renderer with modern/classic/minimal/print templates, split/per-file output, answer keys, validation of all 18 category×difficulty combos, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`), static counts in `contracts/pat-stats.ts`, seed-based flashcards (SM-2 reviews store category+difficulty+seed), seed-based `recordAttempt`, saved-questions PAT branch, fixed angle_ranking rejection-sampler infinite loop and pattern_folding NaN-seed option shuffle; `db/seed.ts` removed. |
-| (pending) | Feature    | On-the-fly PAT question generation — seeded PRNG (mulberry32), 6 generator logic modules (client + server), `recordAttempt` with seed-based answer re-derivation, `getQuota` endpoint, `patQuestionsGenerated` column, tier quota system (free=20, premium=360, plus=1080), PAT Academy quota display with progress bar, difficulty mapping fix (API→generation). |
-| `f9755ba` | Release    | Squashed release — all on-the-fly generation phases complete, 134 tests passing, docs updated. |
-| `be42e66` | Feature    | P2 quick wins — community post edit dialog, interview questions moved to DB, DAT analytics endpoints, study schedule generator, shared provinces array. |
-| `607038b` | Feature    | DAT question bank expansion — 500 questions (200 Bio, 200 Chem, 100 RC) with seed script. |
-| `130924e` | Feature    | P2 features + quick wins — global search (Cmd+K), saved questions (DAT), flashcards with SRS (SM-2), mock DAT exam, personalized dashboard, improved score algorithm, error logging, removed sendgrid/kimi. |
-| `2704853` | Docs       | Documentation refresh to match current codebase (timestamps, 17 tables, 13 sub-routers, seed-only PAT, 140 tests, authentic format) + regenerate 360-question PAT set with answers and full explanations. |
-| `9646430` | Feature    | Authentic PAT format rewrite — ADA-aligned 6-category generators (5-choice keyholes/hole_punching/cube_counting, permutation AR, dashed-line TFE), black-on-white technical renderers (app + CLI), hole-punching half-fold fix, option-count-aware validation, 16 new generator tests. |
-| (pending) | Audit      | Repository-wide technical due diligence report — scored architecture, code quality, security, performance, database, API, testing, DevOps, observability, UI/UX, documentation, and dependency posture; documented 26 evidence-backed findings and a prioritized remediation roadmap in `docs/design/technical-due-diligence-audit-2026-08-07.md`. |
+| Commit    | Date         | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `adefe7a` | Database     | Migrate from SQLite to Supabase (PostgreSQL) — replaced `better-sqlite3` with `postgres` driver, rewrote schema to `pgTable`, updated connection/config/deps/docs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `410927a` | Initial      | PreDent Website Initial — project scaffold, landing page, and core site structure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `495a742` | Foundation   | Auth, login, backend etc. — OAuth authentication, Hono/tRPC backend, user sessions, protected routes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `faaff44` | Roadmap v1   | Complete remaining roadmap steps, light theme, docs — PAT academy foundations, theme system, documentation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `a7adbf3` | Roadmap v2   | Complete items 1-6 — PAT diagrams, DAT banks, admin dashboard, theme coverage, community hub, notifications.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `b145462` | Ops          | Production email provider and task due-date notifications — Resend/SendGrid email integration, scheduler.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `aa3f4fb` | Docs         | Postpone production database migration to future release — updated AGENTS.md, devlog.md, resume.md.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `253003d` | Auth         | Replace Kimi OAuth with Google OAuth — migrated OAuth provider to Google, renamed auth module.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `b8f1047` | Audit        | Comprehensive code audit — 33 fixes across security, performance, bugs, and SEO.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `2ad7f03` | UI/UX        | PAT strategy guide routing fix + theme contrast across all pages.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `squash`  | Release      | Squashed all commits into single release commit.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| (pending) | Fix          | TypeScript build fix — widened union types in DashboardPage, made PracticeQuestion fields optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `c68cf05` | Audit        | R1 audit fixes — server-side grading, answer leak, OAuth security, generators, code splitting.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `9b1f1b3` | Fix          | PAT guide URL standardization — hyphens instead of underscores.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `d465948` | Fix          | Sitewide link audit — fixed broken placeholder link in AuthLayout.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `ba635d0` | Fix          | Quick wins — M3 unanswered PAT recording, M6 responsive grid, M8 lazy images, L3 parallel counts, L5 cleanup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `6b4c3ed` | Fix          | Remaining audit — M5 theme sweep, M7 LandingPage perf, L2 admin guards, L4/L6 generator fixes, L7 NotFound, H4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `536dd7b` | Feature      | PostHog analytics — pageviews, 9 key event types across 9 pages.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `7b1067a` | Feature      | Email notifications expansion — study reminders, community notifications, user preferences.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `345654b` | Feature      | Community Hub — comments, reports, moderation, tabbed feed, all post types.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `5145fd3` | Feature      | Web Push notifications — VAPID, service worker, subscribe/unsubscribe, settings toggle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `6560307` | Feature      | Advanced Study Planner — calendar view, filters, scheduling suggestions, task form extraction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| (pending) | Fix          | Test setup — generated Drizzle migration files, removed migrate() from vitest.setup.ts for faster tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| (pending) | Fix          | PAT guides 404 — React Router v7 doesn't support `pat-:category` param syntax, changed to `pat/:category`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `e9b5c87` | Audit        | Comprehensive QA audit & remediation — fixed dead CTAs, theme consistency, OAuth CSRF state, Stripe webhook idempotency, DB FKs/indexes, query limits, dashboard stats, and input validation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `1a78a24` | UI/UX        | Theme/header/layout/cards consistency pass — converted hardcoded dark headers, standardized academy headers, clickable school/PAT cards, parent back-links, navbar background drop, uniform page width, theme-aware LandingPage hero/CTA, and updated docs.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `7437705` | Security     | Audit-02 remediation — session invalidation, rate limiting, admin soft-delete + audit log, Drizzle relations, auth status codes, env cleanup, Stripe reuse, notification links, mobile theme toggle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| (pending) | Docs         | Documentation reorganization — moved user/dev/admin guides under `docs/`, moved resume to `.agents/`, moved design docs under `docs/design/`, added index files, updated README/AGENTS.md.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| (pending) | Feature      | Comprehensive documentation update + P1 features — updated feature_list, dev-guide, user-guide; merged READMEs; implemented onboarding flow, Sentry error tracking, Playwright E2E tests, landing page testimonials removal, study streak computation (PAT+DAT), flashcard/DA module real DB counts, community sidebar cleanup, study reminder wiring, PWA theme color, CI migration check.                                                                                                                                                                                                                                                                                    |
+| `2222a6a` | Feature      | PAT CLI toolset + remove PAT question bank — `tools/pat-cli.ts` (generate/render/convert/validate/standalone), HTML renderer with modern/classic/minimal/print templates, split/per-file output, answer keys, validation of all 18 category×difficulty combos, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`), static counts in `contracts/pat-stats.ts`, seed-based flashcards (SM-2 reviews store category+difficulty+seed), seed-based `recordAttempt`, saved-questions PAT branch, fixed angle_ranking rejection-sampler infinite loop and pattern_folding NaN-seed option shuffle; `db/seed.ts` removed. |
+| (pending) | Feature      | On-the-fly PAT question generation — seeded PRNG (mulberry32), 6 generator logic modules (client + server), `recordAttempt` with seed-based answer re-derivation, `getQuota` endpoint, `patQuestionsGenerated` column, tier quota system (free=20, premium=360, plus=1080), PAT Academy quota display with progress bar, difficulty mapping fix (API→generation).                                                                                                                                                                                                                                                                                                              |
+| `f9755ba` | Release      | Squashed release — all on-the-fly generation phases complete, 134 tests passing, docs updated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `be42e66` | Feature      | P2 quick wins — community post edit dialog, interview questions moved to DB, DAT analytics endpoints, study schedule generator, shared provinces array.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `607038b` | Feature      | DAT question bank expansion — 500 questions (200 Bio, 200 Chem, 100 RC) with seed script.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `130924e` | Feature      | P2 features + quick wins — global search (Cmd+K), saved questions (DAT), flashcards with SRS (SM-2), mock DAT exam, personalized dashboard, improved score algorithm, error logging, removed sendgrid/kimi.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `2704853` | Docs         | Documentation refresh to match current codebase (timestamps, 17 tables, 13 sub-routers, seed-only PAT, 140 tests, authentic format) + regenerate 360-question PAT set with answers and full explanations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `9646430` | Feature      | Authentic PAT format rewrite — ADA-aligned 6-category generators (5-choice keyholes/hole_punching/cube_counting, permutation AR, dashed-line TFE), black-on-white technical renderers (app + CLI), hole-punching half-fold fix, option-count-aware validation, 16 new generator tests.                                                                                                                                                                                                                                                                                                                                                                                         |
+| (pending) | Audit        | Repository-wide technical due diligence report — scored architecture, code quality, security, performance, database, API, testing, DevOps, observability, UI/UX, documentation, and dependency posture; documented 26 evidence-backed findings and a prioritized remediation roadmap in `docs/design/technical-due-diligence-audit-2026-08-07.md`.                                                                                                                                                                                                                                                                                                                             |
+| (pending) | Fix          | Due-diligence quick wins — isolated tests behind `TEST_DATABASE_URL`, repaired frontend Vitest aliases, honored task email opt-outs, hardened telemetry privacy and Stripe plan validation, switched service-worker navigation to network-first, aligned Docker on non-root Node 24, removed unused SDK dependencies, and improved targeted accessibility semantics.                                                                                                                                                                                                                                                                                                           |
+| (pending) | Security     | Due-diligence high-severity remediation — provider-scoped OAuth identities, expiry-aware server entitlements, atomic PAT quotas, signed server-graded mock exams, transactional/order-aware Stripe webhooks, and distributed fail-closed rate limiting.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| (pending) | Architecture | Due-diligence medium-term remediation — transactional outbox worker, repositories/services, reaction model, SQL analytics and measured indexes, cursor pagination/error envelopes, production observability/SLOs, timezone normalization, WCAG automation, and 40% initial-bundle reduction.                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ---
 
@@ -257,6 +260,7 @@ PreDent Canada is a full-stack web platform for Canadian dental school applicant
 Full code audit covering logic, performance, responsiveness, and security. 33 issues found and fixed across 23 files.
 
 **Critical fixes:**
+
 - Switched `HashRouter` → `BrowserRouter` — fixes SEO, clean URLs, PWA, sitemap, service worker offline support
 - Standardized `react-router` / `react-router-dom` imports across all files
 - Rewrote service worker for `BrowserRouter` compatibility (caches `index.html`, skips `/api/`)
@@ -264,6 +268,7 @@ Full code audit covering logic, performance, responsiveness, and security. 33 is
 - Created `ErrorBoundary` component wrapping the entire app
 
 **Security fixes:**
+
 - Sanitized Stripe webhook error responses (no longer leaks internal details)
 - Added `APP_SECRET` minimum length validation (32+ chars in production)
 - Fixed community post like race condition — atomic SQL increment instead of read-then-write
@@ -273,6 +278,7 @@ Full code audit covering logic, performance, responsiveness, and security. 33 is
 - Added `verifyAnswer` endpoint to PAT router — correct answers no longer sent to client with questions
 
 **Performance fixes:**
+
 - Added 500-row limits to PAT analytics and DAT stats queries (were unbounded)
 - Moved `QueryClient` inside React tree with proper staleTime defaults
 - Fixed Dashboard profile form to react to query data arrival via `useEffect`
@@ -280,6 +286,7 @@ Full code audit covering logic, performance, responsiveness, and security. 33 is
 - Fixed database connection lifecycle — old connections closed on URL change
 
 **Bug fixes:**
+
 - Removed dead code (`Home.tsx`, `App.css` — default Vite template files)
 - Fixed inverted theme toggle icon in Navbar (Sun/Moon swapped)
 - Fixed `useAuth` hook to use router `useLocation` instead of `window.location.pathname`
@@ -293,11 +300,13 @@ Full code audit covering logic, performance, responsiveness, and security. 33 is
 ### 25. PAT Strategy Guide Routing & Theme Contrast
 
 **Routing fixes:**
+
 - `PATStrategyPage` now normalizes hyphens to underscores in category param (`angle-ranking` → `angle_ranking`)
 - Added proper "Guide Not Found" page for invalid categories instead of silent fallback
 - All 6 PAT guide links from PATAcademyPage and GuidesIndexPage resolve correctly
 
 **Theme contrast fixes (12 files):**
+
 - Replaced hardcoded light-mode colors with theme CSS variables across all content pages:
   - `bg-[#F8FAFC]` → `bg-[var(--page-bg)]`
   - `text-[#0F172A]` → `text-[var(--text-primary)]`
@@ -315,12 +324,14 @@ Full code audit covering logic, performance, responsiveness, and security. 33 is
 Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes across security, correctness, and performance.
 
 **Security (Critical):**
+
 - DAT answer leak fixed: `listQuestions` changed from `publicQuery` to `authedQuery`; `correctAnswer`/`explanation` stripped from response. Answers now only revealed after recording an attempt.
 - Server-side grading: Both PAT and DAT `recordAttempt` now compute `isCorrect` server-side instead of trusting the client. Eliminates gameable stats.
 - OAuth open redirect: Added `ALLOWED_REDIRECTS` set in `server/auth/auth.ts`; redirect target validated against allow-list before issuing 302.
 - `auth.me` no longer leaks `stripeCustomerId`, `unionId`, or other internal fields — projects only safe user fields.
 
 **PAT Generators (Critical):**
+
 - All 6 generators (HolePunching, CubeCounting, Keyholes, TopFrontEnd, AngleRanking, PatternFolding) now persist attempts to DB via shared `useRecordPATAttempt` hook.
 - Difficulty enum mismatch resolved: generators map `easy/medium/hard` → `beginner/intermediate/advanced/elite` server-side.
 - HolePunching diagonal fold bug fixed: second fold now applied correctly on hard difficulty.
@@ -328,14 +339,17 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 - CubeCounting answer selection fixed: now uses the face-count with most cubes instead of arbitrary modulo.
 
 **Correctness (High/Medium):**
+
 - PAT practice page latent bug: previously recorded all attempts as incorrect because `getQuestions` strips `correctAnswer`. Now uses server-computed `isCorrect`.
 - DAT practice page updated to send `userAnswer` and use server response for feedback.
 - GPA scale validation: `tools-router` now validates GPA max by scale (4.33 for 4.0 scale, 100 for 100 scale) via `.superRefine`.
 
 **Performance (High):**
+
 - Route-level code splitting: all 28 page components converted to `lazy()` imports with `Suspense` wrapper. Main chunk reduced from ~1,530 KB to ~606 KB.
 
 **Cleanup:**
+
 - Deleted orphaned `PlaceholderPage.tsx`.
 
 **Files changed:** `server/dat-router.ts`, `server/pat-router.ts`, `server/auth/auth.ts`, `server/auth-router.ts`, `server/tools-router.ts`, `src/App.tsx`, `src/hooks/useRecordPATAttempt.ts` (new), all 6 PAT generators, `src/pages/DATPracticePage.tsx`, `src/pages/PATPracticePage.tsx`, `src/pages/PlaceholderPage.tsx` (deleted), test files.
@@ -345,11 +359,13 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 ### 28. PAT Guide URL Fix + Sitewide Link Audit
 
 **PAT guide URL standardization:**
+
 - `GuidesIndexPage.tsx`: Changed 4 PAT guide links from underscores to hyphens (`pat-angle_ranking` → `pat-angle-ranking`, etc.) for URL consistency and SEO.
 - `PATAcademyPage.tsx`: Guide links now convert underscores to hyphens via `cat.id.replace(/_/g, "-")`.
 - `PATStrategyPage.tsx` already normalizes hyphens to underscores for the data lookup — no change needed.
 
 **Sitewide link audit:**
+
 - Audited all `<Link to>` and `to:` data across Navbar, Footer, GuidesIndexPage, ToolsIndexPage, DashboardPage, LandingPage, PATAcademyPage, SchoolDetailPage, SchoolHubPage, SchoolComparisonPage, CommunityHubPage, NotFound, and NotificationBell.
 - Found 1 broken link: `AuthLayout.tsx` had placeholder `/some-path` (dead code, not imported anywhere). Fixed to `/dashboard` and `/community`.
 - All school slugs in Footer verified against `contracts/schools.ts` — all match.
@@ -360,12 +376,14 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 ### 26. TypeScript Build Fix (Vercel Deployment)
 
 **DashboardPage.tsx — union type widening:**
+
 - `gpaScale` state narrowed to `"4.0"` via `as const`, blocking valid value `"100"` from select dropdown.
   Changed to `as "4.0" | "100"` in both initial state and `useEffect` profile sync.
 - `degreeStatus` state narrowed to `"in_progress"` via `as const`, blocking valid value `"completed"`.
   Changed to `as "in_progress" | "completed"` in both initial state and `useEffect` profile sync.
 
 **PATPracticePage.tsx — interface alignment with server response:**
+
 - `PracticeQuestion` interface required `correctAnswer`, `explanationL1`, `explanationL2`, `explanationL3` as mandatory,
   but the server's `getQuestions` endpoint intentionally omits them (anti-cheat: prevents answer inspection via network tab).
   Made all four fields optional (`?`).
@@ -376,21 +394,26 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 ### 27. UI/UX Header, Card, and Navigation Consistency
 
 **Theme-aware header sweep:**
+
 - Converted remaining hardcoded dark headers on `SchoolHubPage`, `SchoolDetailPage`, `DATAcademyPage`, `CommunityHubPage`, `ToolsIndexPage`, `GuidesIndexPage`, `ArticleGuidePage`, `StudySchedulesPage`, `DATGuidePage`, `CASPerGuidePage`, `InterviewPrepPage`, `PATCalculatorPage`, `GPACalculatorPage`, `CompetitivenessCalculatorPage`, `SchoolComparisonPage`, and `PATStrategyPage` to use theme CSS variables.
 
 **Academy header standardization:**
+
 - Removed "Back to Home" links from `SchoolHubPage`, `PATAcademyPage`, and `DATAcademyPage`.
 - Replaced them with the icon + title header pattern used by the PAT Academy.
 
 **Clickable cards:**
+
 - Wrapped every school card in `SchoolHubPage` with a link to `/school/:id`.
 - Wrapped PAT category cards in `PATAcademyPage` with links to their respective guide pages while keeping the Practice button as a separate action.
 - Added an explicit "View details" link to each PAT category card for clearer navigation.
 
 **Parent back-links on subpages:**
+
 - Added/verified back-links on deeper pages (`ArticleGuidePage`, `CASPerGuidePage`, `DATGuidePage`, `InterviewPrepPage`, `PATStrategyPage`, `StudySchedulesPage`, `ToolsIndexPage`, `PATCalculatorPage`, `GPACalculatorPage`, `CompetitivenessCalculatorPage`, `SchoolComparisonPage`, `SchoolDetailPage`, and `NotificationSettingsPage`) pointing to their parent sections.
 
 **Docs:**
+
 - Updated [`dev-guide.md`](./dev-guide.md) with page header, back-link, and card click-target conventions.
 
 ---
@@ -398,21 +421,26 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 ### 28. Navbar Background Drop and Page Width Standardization
 
 **Navbar background drop:**
+
 - Updated `src/components/Navbar.tsx` to always render with the scrolled/dark-page theme-aware background (`bg-[var(--page-bg)]/95 backdrop-blur-md shadow-md border-b border-[var(--border-color)]`) on every page.
 - Removed the transparent top-of-page state and the now-unused scroll/dark-page conditional logic.
 
 **Page width consistency:**
+
 - Standardized every page content container in `src/pages/**/*.tsx` to `section-container max-w-7xl mx-auto`.
 - Affected pages include `LandingPage`, `DashboardPage`, `PricingPage`, `SchoolHubPage`, `SchoolDetailPage`, `PATAcademyPage`, `DATAcademyPage`, `DATGuidePage`, `DATPracticePage`, `PATPracticePage`, `PATAnalyticsPage`, `PATGeneratorsPage`, `PATCalculatorPage`, `PATStrategyPage`, `GuidesIndexPage`, `ArticleGuidePage`, `StudySchedulesPage`, `InterviewPrepPage`, `CASPerGuidePage`, `ToolsIndexPage`, `GPACalculatorPage`, `CompetitivenessCalculatorPage`, `SchoolComparisonPage`, `CommunityHubPage`, `NotificationSettingsPage`, `LegalPage`, `AdminDashboardPage`, and `admin/CommunityModerationPage`.
 
 **LandingPage button fix:**
+
 - Added `bg-transparent` to the two outline "Explore Schools" buttons so white text remains visible in light mode.
 
 **LandingPage theme-aware hero/CTA:**
+
 - Replaced the always-dark `gradient-hero` and `gradient-blue` backgrounds on `HeroSection` and `CTASection` with theme-aware gradients (`bg-gradient-to-br from-[var(--page-bg)] to-[var(--page-surface)]` and `from-[var(--page-surface)] to-[var(--page-muted)]`).
 - Converted hero/CTA text, badge, avatar border, and outline buttons to theme CSS variables so they remain readable in both light and dark modes.
 
 **Docs:**
+
 - Updated [`dev-guide.md`](./dev-guide.md) with the navbar background and page-width conventions.
 
 ---
@@ -420,6 +448,7 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 ### 29. Audit-02 Security & Quality Remediation
 
 **Database changes:**
+
 - Added `token_version` column to `users`.
 - Added `deleted_at` columns to `patQuestions` and `datQuestions`.
 - Added `adminActions` audit-log table.
@@ -427,20 +456,24 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 - Generated and applied migration `0002_lucky_deathbird`.
 
 **Session security:**
+
 - Included `tokenVersion` in the JWT payload and verify it against the DB on every request.
 - Increment `tokenVersion` on logout to revoke existing sessions.
 - Changed missing/invalid session response from HTTP 403 to 401.
 
 **Rate limiting:**
+
 - Added in-memory Hono rate-limit middleware at `server/lib/rate-limit.ts`.
 - Applied limits to `/api/oauth/callback`, `/api/trpc/*`, `/api/webhooks/stripe`, and `/api/cron/notify`.
 
 **Admin data protection:**
+
 - Converted admin question deletion to soft-delete (`deletedAt = now()`).
 - Insert an `adminActions` audit row on each deletion.
 - Filter out deleted questions from admin lists, stats, PAT practice, DAT practice, and analytics.
 
 **Backend cleanup:**
+
 - Reused a single Stripe client instance at module level.
 - Made `getOrigin()` throw in production when `PUBLIC_APP_URL` is missing.
 - Used `env.cronSecret` consistently in the cron endpoint.
@@ -451,16 +484,19 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 - Removed duplicate `hono` and `nanoid` entries from `package.json`.
 
 **UI/UX:**
+
 - Added a theme toggle button to the mobile menu.
 - Added a "Manage notifications" link in the notification dropdown and a "Notifications" link in the user dropdown.
 - Lazy-loaded `PATStrategyPage`.
 - Switched `NotFound` subtitle to theme-aware text color.
 
 **Tests:**
+
 - Updated `server/admin-router.test.ts` to verify soft-delete behavior and audit logging.
 - All 81 tests pass.
 
 **Docs:**
+
 - Updated [`dev-guide.md`](./dev-guide.md) with security/backend conventions.
 
 ---
@@ -470,6 +506,7 @@ Addressed 26 findings from a comprehensive code audit (R1). 13 confirmed fixes a
 Reorganized project documentation to separate user-facing and developer/operator docs and reduce root-directory clutter.
 
 **Structure changes:**
+
 - Moved `docs/user-guide.md` → [`docs/user/user-guide.md`](../../docs/user/user-guide.md).
 - Moved `docs/dev-guide.md` → [`docs/dev/dev-guide.md`](./dev-guide.md).
 - Moved `docs/admin-guide.md` → [`docs/dev/admin-guide.md`](./admin-guide.md).
@@ -480,6 +517,7 @@ Reorganized project documentation to separate user-facing and developer/operator
 - Added `docs/README.md`, `docs/user/README.md`, and `docs/dev/README.md` as navigation indexes.
 
 **Content updates:**
+
 - Updated `README.md` and `AGENTS.md` project-structure references.
 - Updated [`dev-guide.md`](./dev-guide.md) project tree, fixed remaining `api/` code-path references, and refreshed the recommended-next-features list.
 - Updated [`admin-guide.md`](./admin-guide.md) backup/restore instructions for PostgreSQL and clarified Docker vs. Vercel notification scheduling.
@@ -494,6 +532,7 @@ Reorganized project documentation to separate user-facing and developer/operator
 Added support for social login beyond Google and hardened the OAuth flow.
 
 **Auth refactor:**
+
 - Installed `arctic` as the OAuth client library.
 - Created `server/auth/providers.ts` with provider-specific authorize URL generation, token exchange, and profile fetching for Google, Apple, Microsoft, LinkedIn, Facebook, X, Discord, and Instagram.
 - Rewrote `server/auth/auth.ts`:
@@ -505,17 +544,21 @@ Added support for social login beyond Google and hardened the OAuth flow.
 - Widened `users.provider` enum in `db/schema.ts` to `["kimi", "google", "x", "instagram", "linkedin", "apple", "discord", "microsoft", "facebook"]`.
 
 **UI:**
+
 - Rewrote `src/pages/Login.tsx` with dedicated buttons for Google, Apple, Microsoft, LinkedIn, Facebook, X, Discord, and Instagram, plus error-message handling from query params.
 - Removed frontend-side OAuth state/redirect cookie logic; the backend now owns the whole authorize flow.
 
 **Configuration:**
+
 - Added env getters for all new providers in `server/lib/env.ts` and `.env.example`.
 
 **Testing:**
+
 - Added `server/auth.test.ts` covering authorize redirects for every provider, invalid-provider handling, missing state, and access-denied behavior.
 - Set dummy OAuth credentials for all providers in `vitest.setup.ts`.
 
 **Docs:**
+
 - Updated `AGENTS.md`, [`dev-guide.md`](./dev-guide.md) auth architecture section, and this log.
 
 **Verification:** `npm run check` ✓, `npm run lint` ✓, `npm test` ✓ (128 tests), `npm run build` ✓
@@ -539,6 +582,7 @@ Updated [`admin-guide.md`](./admin-guide.md) with complete setup instructions fo
 Conducted a full website content audit against clarity, brand voice, SEO, persuasion, accuracy, and content-gap criteria. Created [`docs/design/content-audit.md`](../../docs/design/content-audit.md) to capture findings and remediated P0–P3 issues.
 
 **Copy accuracy fixes:**
+
 - Rewrote landing-page hero H1 and badge to remove unsubstantiated "#1 Platform" and "Operating System" framing.
 - Corrected PAT question counts from "300+/500/5,000+" to **360+** across landing and pricing pages.
 - Removed false feature claims: 3D models, mock exams, AI tutor, Anki export, document vault, Reddit aggregation, and Premium Plus human-review services.
@@ -550,6 +594,7 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 - Expanded `index.html` meta description and removed "#1" from OG/Twitter titles.
 
 **New content/pages:**
+
 - Created [`AboutPage.tsx`](../../src/pages/AboutPage.tsx) at `/about`.
 - Created [`ContactPage.tsx`](../../src/pages/ContactPage.tsx) at `/contact`.
 - Added About/Contact routes in [`App.tsx`](../../src/App.tsx) and footer links in [`Footer.tsx`](../../src/components/Footer.tsx).
@@ -558,6 +603,7 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 - Updated [`LegalPage.tsx`](../../src/pages/LegalPage.tsx) guarantee terms with clear eligibility, requirements, refund process, and exclusions.
 
 **Docs:**
+
 - Created [`docs/design/content-audit.md`](../../docs/design/content-audit.md).
 - Updated [`docs/design/feature_list.md`](../../docs/design/feature_list.md) with About/Contact pages, How It Works section, and sample PAT preview.
 - Updated [`docs/README.md`](../../docs/README.md), [`docs/dev/README.md`](./README.md), and [`docs/user/README.md`](../user/README.md) to reference the new design docs and contact page.
@@ -565,6 +611,7 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 - Updated this log.
 
 **Quality fixes discovered during verification:**
+
 - Fixed admin-router test isolation bug where parallel PAT/DAT deletion tests could match each other's `adminActions` rows by `targetId`. Added `action` filter to the query.
 - Fixed pre-existing lint errors in `server/admin-router.test.ts`, `server/community-router.test.ts`, `src/components/planner/__tests__/TaskForm.test.tsx`, and `src/test-helpers.tsx`.
 
@@ -577,6 +624,7 @@ Conducted a full website content audit against clarity, brand voice, SEO, persua
 Reworked all 6 PAT generators and every renderer (live app + CLI) to match the authentic, recent DAT PAT structure and black-on-white technical line-drawing style. Research documented in `docs/design/pat-research.md` (ADA 2026 Candidate Guide + Erudition + Kaplan + Bootcamp + Varsity + OpenExamPrep).
 
 **Structural alignment (per subtest):**
+
 - Keyholes: 3D object + **5** flat aperture silhouettes; object may be rotated before a straight pass-through; aperture matches exactly in shape/size (5-choice).
 - TFE: Top (upper-left) / Front (lower-left) / End (right) third-angle projection with **solid visible + dashed hidden edges**; one view missing, 4 choices.
 - Angle Ranking: four angles labelled 1–4; answer = permutation string ordering smallest → largest (e.g. "2-1-4-3"), 4 choices.
@@ -585,6 +633,7 @@ Reworked all 6 PAT generators and every renderer (live app + CLI) to match the a
 - Pattern Folding: cross cube net + isometric folded cube; options encode the visible top|left|right faces; hidden-face marks can appear on the net; 4 choices.
 
 **Data model changes (server `server/lib/pat-generation/` + mirrored client `src/components/pat-generators/logic/`):**
+
 - `keyholes.ts` — `correctAxis`, `correctSilhouette`, `options: boolean[][][]` (5); bump/notch/flip/rotate distractor mutations + polyomino filler guarantee exactly 5 unique options on every seed.
 - `tfe.ts` — `TFEView {cols, rows, edges: {hidden}}` per view; solid/dashed edge rules for top/front/end; distractors via mirror, hidden↔solid toggles, and silhouette bump/notch; flat objects no longer collapse to empty views (occupancy tracked separately from depth).
 - `angle-ranking.ts` — permutation-string options; `getCorrectAnswer` returns the sorted-permutation index.
@@ -593,6 +642,7 @@ Reworked all 6 PAT generators and every renderer (live app + CLI) to match the a
 - `pattern-folding.ts` — `net` (6-face cross, indices front/top/bottom/left/right/back), options as "top|left|right" mark strings; distinct marks across visible faces (fixed duplicate-collision bug).
 
 **Renderers:**
+
 - `tools/pat-renderers/svg-renderer.ts` — full rewrite: black-on-white technical drawings (#111 ink on #fff), isometric stacks, silhouette grids, dashed hidden TFE lines, folded-paper stems with dashed fold lines + open-circle punch, 4×4 hole grids, nets, folded cubes.
 - `tools/pat-renderers/question-card.ts` — category-aware option counts (5 for keyholes/hole_punching/cube_counting, 4 otherwise); prompts updated (CC stem uses `targetN`, TFE prompt shows missing view name).
 - `src/components/pat-generators/shared/tech.tsx` — new shared B&W component set (TechIsoStack, TechSilhouette, TechTFEView, TechAngle, TechFoldedPaper, TechHoleGrid, TechNet, TechFoldedCube).
@@ -601,10 +651,12 @@ Reworked all 6 PAT generators and every renderer (live app + CLI) to match the a
 - `PatFlashcardRenderer.tsx` — rewritten for the new models (5-option grids where applicable).
 
 **Consumers / plumbing:**
+
 - `server/pat-router.ts` — `recordAttempt` userAnswer bound widened `min(-1).max(3)` → `min(-1).max(4)` (5-choice categories).
 - `tools/pat-commands/generate.ts` / `validate.ts` — option-count-aware options arrays and validation (correctIndex 0–4 for 5-choice categories).
 
 **Bug fixes found during verification:**
+
 - TFE flat objects rendered as empty views (depth 0 treated as unoccupied) → occupancy tracked separately.
 - Keyholes/TFE could generate < 5/4 unique options on dense silhouettes → mutation growth + fillers.
 - Pattern folding duplicate marks produced duplicate permutation strings → distinct-mark picking.
@@ -620,6 +672,7 @@ Reworked all 6 PAT generators and every renderer (live app + CLI) to match the a
 Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of the `patQuestions` database bank in favor of pure seed-based generation everywhere.
 
 **Part 1 — PAT CLI toolset (`tools/`):**
+
 - `tools/pat-cli.ts` — single CLI entry with five commands:
   - `generate` — deterministic PAT questions from a seed (all 6 categories × 3 difficulties), `--validate` mode runs the validator and exits non-zero on failures, `--answer-key`, `--page-numbers`, `--template` (modern/classic/minimal/print), `--split`/`--per-file` (category-per-file rendering), `--no-explanations`, `-f both`.
   - `render` — renders question cards to HTML templates (modern/classic/minimal/print), `--answer-key` appends a printable answer key, `--page-numbers` adds page rules with `data-page-number` attributes.
@@ -635,6 +688,7 @@ Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of th
   - Server copies in `server/lib/pat-generation/` updated to match.
 
 **Part 2 — Remove the PAT question bank:**
+
 - `db/schema.ts`: deleted `patQuestions` table + types; `flashcardReviews` gained nullable `category` + `difficulty` columns (varchar enums matching PAT categories/difficulties).
 - Migration `0007_handy_nomad.sql`: `DROP TABLE pat_questions CASCADE; ALTER TABLE flashcard_reviews ADD category/difficulty`.
 - `server/pat-router.ts`: removed `getQuestions`/`getQuestionCount`/`verifyAnswer`; `recordAttempt` is seed-only (stores `questionId: String(input.seed)`, increments `patQuestionsGenerated`).
@@ -649,20 +703,147 @@ Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of th
 
 ---
 
+### 37. Due-Diligence High-Severity Remediation
+
+Completed the critical/high remediation batch from the 2026-08-07 technical
+due-diligence audit:
+
+- OAuth users are keyed by `(provider, unionId)` throughout authentication,
+  upsert, owner protection, and database uniqueness. Added migration
+  `0008_icy_jackpot.sql` and a cross-provider collision regression test.
+- Added shared expiry-aware entitlement policy in `contracts/tiers.ts`,
+  `premiumQuery`/`premiumPlusQuery` middleware, paid API enforcement, and
+  matching frontend upgrade states. Expired or missing `premiumUntil` now
+  fails closed to Free.
+- PAT quota reservation and attempt creation now run in one transaction with a
+  conditional atomic counter update, preventing concurrent quota overrun and
+  orphaned usage increments.
+- Replaced answer-bearing mock-exam reads with `startExam`/`submitExam` Premium
+  mutations. Start responses omit answers; a signed, user-bound, two-hour token
+  constrains the allowed question set; only the grading response returns
+  answers and explanations.
+- Stripe webhook validation now derives plans from actual Stripe prices and
+  validates subscription/payment state. Event claims and entitlement updates
+  are transactional, ordered by Stripe event creation time, tied to the active
+  subscription on deletion, and unable to downgrade lifetime access. Added
+  migration `0009_puzzling_centennial.sql`.
+- Replaced process-local-only production limiting with an atomic Redis REST
+  fixed-window counter. Production fails closed if the shared store is missing
+  or unavailable, emits rate-limit/retry headers, and trusts forwarded IPs only
+  from Vercel or explicitly configured proxies. Local development retains an
+  in-memory store.
+- Added unit and DB-gated regression coverage for entitlement expiry, signed
+  exams, rate-limit behavior, OAuth identity separation, paid APIs, and PAT
+  quota exhaustion.
+- CI now provisions disposable PostgreSQL 16, applies committed migrations,
+  runs the database integration suite with `TEST_DATABASE_URL`, and executes
+  frontend Vitest separately.
+- Optional PostHog analytics and Sentry masked replay now remain uninitialized
+  until explicit consent. Added an accessible consent banner, persistent footer
+  Privacy Choices control, opt-out cleanup, updated privacy copy, and consent
+  state tests.
+
+Deployment requirements: apply migrations 0008 through 0011, and configure
+`UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` before production
+traffic. `RATE_LIMIT_ALLOW_IN_MEMORY=true` is only a single-instance emergency
+escape hatch. Set `METRICS_SECRET` before enabling metrics scraping.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓ (zero warnings), server
+tests ✓ (43 passed / 112 DB-gated skipped), frontend tests ✓ (57), production
+build ✓, Playwright smoke ✓ (17/17). Safe dependency updates reduced the
+production audit from 23 total advisories to one moderate, Windows-specific
+`@hono/node-server` static-serving advisory; its fix requires a dedicated major
+adapter upgrade. Database integration tests remain pending an explicit
+disposable `TEST_DATABASE_URL`.
+
+---
+
+### 38. Due-Diligence Medium-Term Remediation
+
+Completed every item in the audit's medium-term roadmap:
+
+- Added service/repository boundaries for notifications, analytics, and
+  community reads, plus a transactional outbox with atomic claims,
+  `SKIP LOCKED`, bounded retries, stale-lock recovery, and dead-letter state.
+- Moved core PAT/DAT analytics aggregation into PostgreSQL and added composite
+  indexes, constraints, CI query-plan fixtures, timezone-aware timestamps, and
+  validated per-user IANA timezones in migrations 0010–0011.
+- Added signed, user-bound exam sessions with server-side grading; normalized
+  community likes into idempotent reactions; and made moderation/admin writes
+  transactional.
+- Standardized tRPC validation/error envelopes with request IDs and added
+  bounded cursor pages for growing feeds, notifications, and tasks.
+- Added JSON request/procedure logs, correlation IDs, liveness/readiness,
+  protected Prometheus metrics, queue telemetry, and documented SLO/burn-rate
+  alerts.
+- Completed the WCAG pass with axe coverage, a global skip link, keyboard-safe
+  navigation/notifications, live loading semantics, and contrast corrections.
+- Reduced the initial entry from about 984 kB to 586.5 kB and School Detail
+  from about 423 kB to 25.9 kB by lazy-loading routes, telemetry, and the 399.1
+  kB chart chunk. CI now rejects bundle-budget regressions.
+- Made visual regression tests consent-stable and replaced the Community Hub's
+  mutable-database screenshot fixture with deterministic posts.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓, server tests ✓ (46
+passed / 114 DB-gated skipped without `TEST_DATABASE_URL`), frontend tests ✓
+(57), production build and bundle budgets ✓, Playwright ✓ (72/72), and the
+previously flaky lazy-route dark screenshot ✓ (3/3 runs with retries disabled).
+PostgreSQL migrations and query-plan assertions run in CI; they were not run
+locally because no disposable PostgreSQL URL was configured.
+
+---
+
+### 39. Due-Diligence Production Hardening Closeout
+
+Completed the ten non-PAT follow-ups identified after the audit:
+
+- Upgraded Nano ID and the Hono Node adapter; production `npm audit` now reports
+  zero vulnerabilities. Added weekly Dependabot updates, a license gate,
+  immutable GitHub Action SHA pins, and dependency/image CycloneDX SBOMs.
+- Hardened the multi-stage production container to install runtime dependencies
+  only, run as non-root, expose a liveness healthcheck, and fail CI on fixable
+  high/critical image vulnerabilities.
+- Unified CSP/HSTS/cross-origin/referrer/permissions headers across Hono and
+  Vercel, enforced trusted Origin on production cookie-authenticated tRPC
+  mutations, allowlisted production callback/redirect origins, shortened
+  sessions to 30 days, added issuer/audience/JTI validation, and adopted a
+  production `__Host-` cookie.
+- Added Stripe entitlement dry-run and confirmed reconciliation in the Admin
+  Billing tab, customer subscription discovery after missed webhooks, manual
+  review for unknown prices/multiple active subscriptions, and immutable audit
+  records. Updated webhook parsing for Stripe v22 while retaining older event
+  compatibility.
+- Migrated Community, notification, and Planner UI consumers to cursor-backed
+  APIs; subsequent Community/Planner pages append rather than replace data.
+- CI now runs Playwright accessibility/smoke gates with snapshot auto-update
+  disabled, applies all migrations to disposable PostgreSQL 16, and verifies
+  critical query plans.
+- Added release/rollback, incident-response, disaster-recovery, and dependency
+  governance runbooks; corrected unsupported SendGrid, session lifetime,
+  dependency version, and rate-limit documentation.
+
+PAT generation was intentionally untouched because it is scheduled for a
+separate rewrite.
+
+**Local verification:** `npm run check` ✓, `npm run lint` ✓, server tests ✓
+(56 passed / 114 DB-gated skipped without `TEST_DATABASE_URL`), frontend tests
+✓ (57), production build and bundle budgets ✓, Playwright accessibility/smoke
+✓ (24/24), targeted Community visual regression ✓ (1/1), production dependency
+audit ✓ (0 vulnerabilities), license policy ✓ (766 packages), and
+`npm run db:generate` ✓ (no uncommitted schema delta). Disposable PostgreSQL
+migration execution remains enforced in CI because no local
+PostgreSQL/container runtime was available.
+
+---
+
 ## Open Tasks / Future Work
 
-### Tech Debt (archived — deferred until explicitly brought up)
-- SQLite → PostgreSQL/MySQL migration
-- E2E tests (Playwright/Cypress)
-- ~~API rate limiting~~ (done)
-- Error boundaries + Sentry logging
+### Remaining strategic work
 
-### Medium Priority (all complete)
-- ~~PostHog analytics~~ (done — `536dd7b`)
-- ~~Email notifications expansion~~ (done — `7b1067a`)
-- ~~Community Hub enhancements~~ (done — `345654b`)
-- ~~Web Push notifications~~ (done — `5145fd3`)
-- ~~Advanced study planner~~ (done — `6560307`)
+- Pre-render or server-render public SEO content routes.
+- Rewrite PAT generation as a separately scoped domain package.
+- Run representative load tests and review production SLOs with real traffic.
+- Execute and record the first quarterly disaster-recovery restore drill.
 
 ---
 
@@ -671,11 +852,13 @@ Two-part effort: a standalone PAT CLI toolset in `tools/`, and the removal of th
 Implemented fixes based on audit-report.md analysis:
 
 **Phase 1 — High Impact:**
+
 - Comparison table: added card-based mobile view (`md:hidden`/`hidden md:block`), replacing horizontal-scroll-only approach
 - Image optimization: added `width`/`height` attributes to all `<img>` tags (prevents CLS), `loading="lazy"` on below-fold images
 - Meta tags & SEO: added Open Graph, Twitter Cards, canonical URL, Schema.org structured data to `index.html`
 
 **Phase 2 — Accessibility & Polish:**
+
 - Global `*:focus-visible` outline rule in `index.css`
 - Pricing toggle buttons: added `focus-visible` styles
 - Stats section: added `<h2>` heading ("The Canadian Dental School Landscape")
@@ -684,12 +867,14 @@ Implemented fixes based on audit-report.md analysis:
 - Reduced motion: added `prefers-reduced-motion` media query to disable animations
 
 **Phase 3 — Minor Polish:**
+
 - Standardized section heading margins to `mb-12` (was inconsistent `mb-12`/`mb-16`)
 - CTA section heading: upgraded to `text-4xl lg:text-5xl font-extrabold` for visual hierarchy
 - Font loading: moved Google Fonts from CSS `@import` to HTML `<link rel="preconnect">` (no render blocking)
 - Skip navigation: added visually-hidden skip link for keyboard accessibility
 
 **Files changed:**
+
 - `src/pages/LandingPage.tsx` — mobile comparison table, image attributes, stats heading, mid-page CTA, spacing, CTA typography, pricing focus styles, skip-nav
 - `src/index.css` — focus-visible, color contrast, reduced motion, font import removal
 - `index.html` — OG tags, Twitter Cards, canonical, structured data, font preconnect

@@ -10,9 +10,11 @@ if (env.isProduction && !isVercel) {
   const { serveStaticFiles } = await import("./lib/vite");
   const { startTaskNotificationScheduler } =
     await import("./lib/tasks/notifications");
+  const { startOutboxWorker } = await import("./lib/outbox/worker");
 
   serveStaticFiles(app);
   startTaskNotificationScheduler();
+  startOutboxWorker();
 
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {

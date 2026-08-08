@@ -7,6 +7,12 @@ dist
 .env.local
 .env.*.local
 coverage
+test-results
+playwright-report
+e2e
+docs
+.agents
+.codex
 *.db
 .direnv
 .nix-shell

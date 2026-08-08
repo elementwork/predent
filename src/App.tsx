@@ -2,9 +2,9 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import LandingPage from "./pages/LandingPage";
 import OnboardingModal from "./components/OnboardingModal";
 
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SchoolHubPage = lazy(() => import("./pages/SchoolHubPage"));
 const GPACalculatorPage = lazy(() => import("./pages/GPACalculatorPage"));
 const CompetitivenessCalculatorPage = lazy(
@@ -30,9 +30,7 @@ const PricingPage = lazy(() => import("./pages/PricingPage"));
 const DATPracticePage = lazy(() => import("./pages/DATPracticePage"));
 const MockExamPage = lazy(() => import("./pages/MockExamPage"));
 const SchoolDetailPage = lazy(() => import("./pages/SchoolDetailPage"));
-const SchoolComparisonPage = lazy(
-  () => import("./pages/SchoolComparisonPage")
-);
+const SchoolComparisonPage = lazy(() => import("./pages/SchoolComparisonPage"));
 const CommunityHubPage = lazy(() => import("./pages/CommunityHubPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -41,15 +39,24 @@ const CommunityModerationPage = lazy(
 );
 const Login = lazy(() => import("./pages/Login"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const NotificationSettingsPage = lazy(() => import("./pages/NotificationSettingsPage"));
+const NotificationSettingsPage = lazy(
+  () => import("./pages/NotificationSettingsPage")
+);
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const FlashcardsPage = lazy(() => import("./pages/FlashcardsPage"));
 
 function PageSpinner() {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-4 border-[var(--border-color)] border-t-[#2563EB] rounded-full animate-spin" />
+    <div
+      className="flex items-center justify-center min-h-[60vh]"
+      role="status"
+      aria-label="Loading page"
+    >
+      <div
+        aria-hidden="true"
+        className="w-8 h-8 border-4 border-[var(--border-color)] border-t-[#2563EB] rounded-full animate-spin"
+      />
     </div>
   );
 }
@@ -57,8 +64,19 @@ function PageSpinner() {
 function App() {
   return (
     <div className="min-h-screen flex flex-col">
+      <a
+        href="#main-content"
+        onClick={() =>
+          requestAnimationFrame(() =>
+            document.getElementById("main-content")?.focus()
+          )
+        }
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[var(--page-surface)] focus:border focus:border-[var(--border-color)] focus:rounded-lg"
+      >
+        Skip to main content
+      </a>
       <Navbar />
-      <div className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         <Suspense fallback={<PageSpinner />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -67,10 +85,7 @@ function App() {
 
             {/* PAT Academy - Step 4 */}
             <Route path="/pat-academy" element={<PATAcademyPage />} />
-            <Route
-              path="/pat-academy/practice"
-              element={<PATPracticePage />}
-            />
+            <Route path="/pat-academy/practice" element={<PATPracticePage />} />
             <Route
               path="/pat-academy/generators"
               element={<PATGeneratorsPage />}
@@ -81,18 +96,9 @@ function App() {
             />
 
             <Route path="/dat-academy" element={<DATAcademyPage />} />
-            <Route
-              path="/dat-academy/practice"
-              element={<DATPracticePage />}
-            />
-            <Route
-              path="/dat-academy/mock-exam"
-              element={<MockExamPage />}
-            />
-            <Route
-              path="/flashcards"
-              element={<FlashcardsPage />}
-            />
+            <Route path="/dat-academy/practice" element={<DATPracticePage />} />
+            <Route path="/dat-academy/mock-exam" element={<MockExamPage />} />
+            <Route path="/flashcards" element={<FlashcardsPage />} />
 
             {/* SEO Content Pages - Step 3 */}
             <Route path="/guides" element={<GuidesIndexPage />} />
@@ -104,10 +110,7 @@ function App() {
               path="/guides/canadian-dat-guide"
               element={<DATGuidePage />}
             />
-            <Route
-              path="/guides/pat/:category"
-              element={<PATStrategyPage />}
-            />
+            <Route path="/guides/pat/:category" element={<PATStrategyPage />} />
             <Route
               path="/guides/casper-dental-school"
               element={<CASPerGuidePage />}
@@ -143,9 +146,15 @@ function App() {
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/dashboard/planner" element={<PlannerPage />} />
-            <Route path="/dashboard/settings/notifications" element={<NotificationSettingsPage />} />
+            <Route
+              path="/dashboard/settings/notifications"
+              element={<NotificationSettingsPage />}
+            />
             <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/community" element={<CommunityModerationPage />} />
+            <Route
+              path="/admin/community"
+              element={<CommunityModerationPage />}
+            />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
 
@@ -153,7 +162,7 @@ function App() {
           </Routes>
         </Suspense>
         <OnboardingModal />
-      </div>
+      </main>
       <Footer />
     </div>
   );

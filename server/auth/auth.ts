@@ -1,11 +1,14 @@
 import type { Context } from "hono";
 import { setCookie, getCookie } from "hono/cookie";
 import * as cookie from "cookie";
-import { getSessionCookieOptions } from "../lib/cookies";
+import {
+  getSessionCookieName,
+  getSessionCookieOptions,
+} from "../lib/cookies";
 import { Session } from "@contracts/constants";
 import { Errors } from "@contracts/errors";
 import { signSessionToken, verifySessionToken } from "./session";
-import { findUserByUnionId, upsertUser } from "../queries/users";
+import { findUserByOAuthIdentity, upsertUser } from "../queries/users";
 import {
   isOAuthProvider,
   buildAuthorizeUrl,
@@ -14,6 +17,7 @@ import {
   createCodeVerifier,
 } from "./providers";
 import type { OAuthProvider } from "./providers";
+import { getPublicAppOrigin } from "../lib/origin";
 
 const ALLOWED_REDIRECTS = new Set(["/", "/dashboard", "/pricing"]);
 const OAUTH_STATE_COOKIE = "predent_oauth_state";
@@ -23,7 +27,8 @@ const OAUTH_REDIRECT_COOKIE = "predent_oauth_redirect";
 
 export async function authenticateRequest(headers: Headers) {
   const cookies = cookie.parse(headers.get("cookie") || "");
-  const token = cookies[Session.cookieName];
+  const token =
+    cookies[getSessionCookieName()] ?? cookies[Session.cookieName];
   if (!token) {
     console.warn("[auth] No session cookie found in request.");
     throw Errors.unauthorized("Invalid authentication token.");
@@ -32,7 +37,7 @@ export async function authenticateRequest(headers: Headers) {
   if (!claim) {
     throw Errors.unauthorized("Invalid authentication token.");
   }
-  const user = await findUserByUnionId(claim.unionId);
+  const user = await findUserByOAuthIdentity(claim.provider, claim.unionId);
   if (!user) {
     throw Errors.unauthorized("User not found. Please re-login.");
   }
@@ -55,7 +60,7 @@ function getRedirectTarget(raw: string | undefined): string {
 }
 
 function getCallbackUrl(c: Context): string {
-  return `${new URL(c.req.url).origin}/api/oauth/callback`;
+  return `${getPublicAppOrigin(c.req.url)}/api/oauth/callback`;
 }
 
 export function createOAuthAuthorizeHandler() {
@@ -82,10 +87,18 @@ export function createOAuthAuthorizeHandler() {
 
     setCookie(c, OAUTH_STATE_COOKIE, state, { ...cookieOpts, maxAge });
     setCookie(c, OAUTH_PROVIDER_COOKIE, provider, { ...cookieOpts, maxAge });
-    setCookie(c, OAUTH_VERIFIER_COOKIE, codeVerifier, { ...cookieOpts, maxAge });
+    setCookie(c, OAUTH_VERIFIER_COOKIE, codeVerifier, {
+      ...cookieOpts,
+      maxAge,
+    });
     setCookie(c, OAUTH_REDIRECT_COOKIE, redirect, { ...cookieOpts, maxAge });
 
-    const authorizeUrl = buildAuthorizeUrl(provider, redirectUri, state, codeVerifier);
+    const authorizeUrl = buildAuthorizeUrl(
+      provider,
+      redirectUri,
+      state,
+      codeVerifier
+    );
     return c.redirect(authorizeUrl.toString(), 302);
   };
 }
@@ -143,7 +156,10 @@ export function createOAuthCallbackHandler() {
         lastSignInAt: new Date(),
       });
 
-      const user = await findUserByUnionId(profile.unionId);
+      const user = await findUserByOAuthIdentity(
+        profile.provider,
+        profile.unionId
+      );
       const token = await signSessionToken({
         unionId: profile.unionId,
         provider: profile.provider,
@@ -151,7 +167,7 @@ export function createOAuthCallbackHandler() {
       });
 
       const cookieOpts = getSessionCookieOptions(c.req.raw.headers);
-      setCookie(c, Session.cookieName, token, {
+      setCookie(c, getSessionCookieName(), token, {
         ...cookieOpts,
         maxAge: Session.maxAgeMs / 1000,
       });
@@ -182,7 +198,8 @@ function missingEnvForProvider(provider: OAuthProvider): string | null {
       return null;
     case "instagram":
       if (!process.env.INSTAGRAM_CLIENT_ID) return "INSTAGRAM_CLIENT_ID";
-      if (!process.env.INSTAGRAM_CLIENT_SECRET) return "INSTAGRAM_CLIENT_SECRET";
+      if (!process.env.INSTAGRAM_CLIENT_SECRET)
+        return "INSTAGRAM_CLIENT_SECRET";
       return null;
     case "linkedin":
       if (!process.env.LINKEDIN_CLIENT_ID) return "LINKEDIN_CLIENT_ID";
@@ -200,7 +217,8 @@ function missingEnvForProvider(provider: OAuthProvider): string | null {
       return null;
     case "microsoft":
       if (!process.env.MICROSOFT_CLIENT_ID) return "MICROSOFT_CLIENT_ID";
-      if (!process.env.MICROSOFT_CLIENT_SECRET) return "MICROSOFT_CLIENT_SECRET";
+      if (!process.env.MICROSOFT_CLIENT_SECRET)
+        return "MICROSOFT_CLIENT_SECRET";
       return null;
     case "facebook":
       if (!process.env.FACEBOOK_CLIENT_ID) return "FACEBOOK_CLIENT_ID";

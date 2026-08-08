@@ -12,7 +12,7 @@ const legalContent: Record<
 > = {
   privacy: {
     title: "Privacy Policy",
-    lastUpdated: "June 2026",
+    lastUpdated: "August 2026",
     sections: [
       {
         heading: "Information We Collect",
@@ -28,11 +28,15 @@ const legalContent: Record<
       },
       {
         heading: "Cookies",
-        body: "We use cookies and similar technologies to maintain your session, remember preferences, and understand platform usage. You can control cookies through your browser settings.",
+        body: "Essential cookies maintain your session and preferences. Optional product analytics and masked error replay remain disabled unless you select Allow analytics. You can change this decision at any time through Privacy Choices in the footer.",
       },
       {
         heading: "Your Rights",
         body: "You may request access to, correction of, or deletion of your personal data by contacting support@predentcanada.ca.",
+      },
+      {
+        heading: "Analytics Retention",
+        body: "When you opt in, product analytics are retained for no more than 12 months and masked error replay for no more than 30 days. You may withdraw consent through Privacy Choices and request deletion by contacting support.",
       },
     ],
   },

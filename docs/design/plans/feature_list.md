@@ -666,7 +666,7 @@ A notification bell and dropdown showing recent activity.
 Email delivery for task reminders, study reminders, and community activity.
 
 **How it is implemented**
-- Provider abstraction: `EMAIL_PROVIDER=console|resend|sendgrid`.
+- Provider abstraction: `EMAIL_PROVIDER=console|resend`. SendGrid is not implemented.
 - Templates in `server/lib/email/templates.ts`.
 - Sends respect user preferences stored in `users.emailTaskDue`, `emailStudyReminder`, `emailCommunity`.
 

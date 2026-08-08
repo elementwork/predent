@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import { communityRouter } from "./community-router";
 import { createTestUser, mockContext, seedCommunityPost } from "./test-helpers";
 import { getDb } from "./queries/connection";
-import { communityPosts, communityComments } from "@db/schema";
-import { eq } from "drizzle-orm";
+import {
+  communityPosts,
+  communityComments,
+  communityReactions,
+} from "@db/schema";
+import { and, eq } from "drizzle-orm";
 import { hasDb } from "./test-db-flag";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
@@ -79,20 +83,29 @@ describe.skipIf(!hasDb)("communityRouter.createPost", () => {
 });
 
 describe.skipIf(!hasDb)("communityRouter.likePost", () => {
-  it("increments likes", async () => {
+  it("creates one idempotent reaction per user and post", async () => {
     const user = await createTestUser();
     const post = await seedCommunityPost(user.id, { likes: 5 });
     const caller = createCaller(user);
 
-    await caller.likePost({ postId: post.id });
+    const first = await caller.likePost({ postId: post.id });
+    const second = await caller.likePost({ postId: post.id });
 
     const db = getDb();
-    const [updated] = await db
+    const reactions = await db
       .select()
-      .from(communityPosts)
-      .where(eq(communityPosts.id, post.id));
+      .from(communityReactions)
+      .where(
+        and(
+          eq(communityReactions.postId, post.id),
+          eq(communityReactions.userId, user.id)
+        )
+      );
 
-    expect(updated.likes).toBe(6);
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(second.likes).toBe(6);
+    expect(reactions).toHaveLength(1);
   });
 
   it("throws NOT_FOUND for missing post", async () => {

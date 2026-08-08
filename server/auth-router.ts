@@ -1,7 +1,10 @@
 import * as cookie from "cookie";
 import { eq, sql } from "drizzle-orm";
 import { Session } from "@contracts/constants";
-import { getSessionCookieOptions } from "./lib/cookies";
+import {
+  getSessionCookieName,
+  getSessionCookieOptions,
+} from "./lib/cookies";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
@@ -24,16 +27,18 @@ export const authRouter = createRouter({
       .where(eq(users.id, ctx.user.id));
 
     const opts = getSessionCookieOptions(ctx.req.headers);
-    ctx.resHeaders.append(
-      "set-cookie",
-      cookie.serialize(Session.cookieName, "", {
+    const expiredCookie = (name: string) =>
+      cookie.serialize(name, "", {
         httpOnly: opts.httpOnly,
         path: opts.path,
         sameSite: opts.sameSite?.toLowerCase() as "lax" | "none",
         secure: opts.secure,
         maxAge: 0,
-      })
-    );
+      });
+    ctx.resHeaders.append("set-cookie", expiredCookie(getSessionCookieName()));
+    if (getSessionCookieName() !== Session.cookieName) {
+      ctx.resHeaders.append("set-cookie", expiredCookie(Session.cookieName));
+    }
     return { success: true };
   }),
 });

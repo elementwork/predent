@@ -295,10 +295,7 @@ function ReviewView({
               {card.source.toUpperCase()}
             </Badge>
           </div>
-          <Progress
-            value={progress}
-            className="h-1.5 bg-[var(--page-muted)]"
-          />
+          <Progress value={progress} className="h-1.5 bg-[var(--page-muted)]" />
           <p className="text-xs text-[var(--text-tertiary)] mt-1.5">
             {remaining} card{remaining !== 1 ? "s" : ""} remaining
           </p>
@@ -313,9 +310,7 @@ function ReviewView({
         >
           <Card
             className={`bg-[var(--page-surface)] border-[var(--border-color)] transition-all duration-300 ${
-              flipped
-                ? "ring-2 ring-[#8B5CF6]"
-                : "hover:border-[#8B5CF6]/50"
+              flipped ? "ring-2 ring-[#8B5CF6]" : "hover:border-[#8B5CF6]/50"
             }`}
           >
             <CardContent className="p-8 min-h-[320px] flex flex-col items-center justify-center text-center">
@@ -390,9 +385,11 @@ function ReviewView({
                   >
                     <span className="text-sm font-semibold">{q.label}</span>
                     <span className="text-[10px] opacity-60">
-                      [{Object.keys(qualityKeys).find(
+                      [
+                      {Object.keys(qualityKeys).find(
                         k => qualityKeys[k] === quality
-                      )}]
+                      )}
+                      ]
                     </span>
                   </Button>
                 );
@@ -503,14 +500,14 @@ export default function FlashcardsPage() {
     },
   });
 
-  const allDueCards = dueCardsData ?? [];
-  const filteredCards = useMemo(
-    () =>
-      sourceFilter === "all"
-        ? allDueCards
-        : allDueCards.filter((c: { source?: string }) => c.source === sourceFilter),
-    [allDueCards, sourceFilter]
-  );
+  const filteredCards = useMemo(() => {
+    const allDueCards = dueCardsData ?? [];
+    return sourceFilter === "all"
+      ? allDueCards
+      : allDueCards.filter(
+          (c: { source?: string }) => c.source === sourceFilter
+        );
+  }, [dueCardsData, sourceFilter]);
 
   const normalizedCards: NormalizedCard[] = useMemo(
     () => filteredCards.map(normalizeCard),
@@ -538,7 +535,14 @@ export default function FlashcardsPage() {
         source: raw.source,
         questionId: raw.questionId,
         quality,
-        category: raw.category as "keyholes" | "tfe" | "angle_ranking" | "hole_punching" | "cube_counting" | "pattern_folding" | undefined,
+        category: raw.category as
+          | "keyholes"
+          | "tfe"
+          | "angle_ranking"
+          | "hole_punching"
+          | "cube_counting"
+          | "pattern_folding"
+          | undefined,
         difficulty: raw.difficulty as "easy" | "medium" | "hard" | undefined,
       });
 

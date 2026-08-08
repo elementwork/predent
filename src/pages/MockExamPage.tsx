@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useTier } from "@/hooks/useTier";
+import { PremiumLock } from "@/components/PremiumCTA";
+import { toast } from "sonner";
 import {
   Clock,
   ChevronLeft,
@@ -36,8 +39,13 @@ interface ExamQuestion {
   difficulty: string;
   questionText: string;
   options: string[];
+}
+
+interface GradedExamQuestion extends ExamQuestion {
+  userAnswer: number | null;
   correctAnswer: number;
   explanation: string;
+  isCorrect: boolean;
 }
 
 interface SectionConfig {
@@ -50,7 +58,12 @@ interface SectionConfig {
 const SECTIONS: SectionConfig[] = [
   { key: "biology", label: "Biology", count: 40, color: "#10B981" },
   { key: "chemistry", label: "Chemistry", count: 40, color: "#2563EB" },
-  { key: "reading", label: "Reading Comprehension", count: 20, color: "#8B5CF6" },
+  {
+    key: "reading",
+    label: "Reading Comprehension",
+    count: 20,
+    color: "#8B5CF6",
+  },
 ];
 
 const EXAM_DURATION = 60 * 60;
@@ -77,49 +90,73 @@ function predictedDATScore(percentage: number): number {
   return 6;
 }
 
-type Phase = "setup" | "loading" | "exam" | "results";
+type Phase = "setup" | "loading" | "exam" | "submitting" | "results";
 
 export default function MockExamPage() {
   usePageTitle("Mock DAT Exam");
   const navigate = useNavigate();
+  const { isPremium } = useTier();
 
   const [phase, setPhase] = useState<Phase>("setup");
-  const [selectedSections, setSelectedSections] = useState<Record<Subject, boolean>>({
+  const [selectedSections, setSelectedSections] = useState<
+    Record<Subject, boolean>
+  >({
     biology: true,
     chemistry: true,
     reading: true,
   });
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
+  const [examToken, setExamToken] = useState<string | null>(null);
+  const [gradedQuestions, setGradedQuestions] = useState<GradedExamQuestion[]>(
+    []
+  );
+  const [timeTaken, setTimeTaken] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [timeLeft, setTimeLeft] = useState(EXAM_DURATION);
   const [showNav, setShowNav] = useState(false);
 
-  const getExamQuestions = trpc.dat.getExamQuestions.useQuery;
+  const startExamMutation = trpc.dat.startExam.useMutation();
+  const submitExamMutation = trpc.dat.submitExam.useMutation();
 
-  const bioQ = getExamQuestions(
-    { subject: "biology", limit: 40 },
-    { enabled: false }
-  );
-  const chemQ = getExamQuestions(
-    { subject: "chemistry", limit: 40 },
-    { enabled: false }
-  );
-  const readQ = getExamQuestions(
-    { subject: "reading", limit: 20 },
-    { enabled: false }
-  );
+  const handleSubmit = useCallback(async () => {
+    if (!examToken || submitExamMutation.isPending) return;
+    setPhase("submitting");
+    try {
+      const result = await submitExamMutation.mutateAsync({
+        examToken,
+        answers: Object.entries(answers).map(([questionId, userAnswer]) => ({
+          questionId: Number(questionId),
+          userAnswer,
+        })),
+      });
+      setGradedQuestions(result.results);
+      setTimeTaken(EXAM_DURATION - timeLeft);
+      setPhase("results");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to grade this exam."
+      );
+      setPhase("exam");
+    }
+  }, [answers, examToken, submitExamMutation, timeLeft]);
 
   useEffect(() => {
     if (phase !== "exam") return;
-    if (timeLeft <= 0) {
-      handleSubmit();
-      return;
-    }
-    const id = setInterval(() => setTimeLeft(t => t - 1), 1000);
-    return () => clearInterval(id);
-  }, [phase, timeLeft]);
+    const intervalId = setInterval(
+      () => setTimeLeft(current => Math.max(0, current - 1)),
+      1000
+    );
+    const timeoutId = setTimeout(
+      () => void handleSubmit(),
+      Math.max(0, timeLeft) * 1000
+    );
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }, [handleSubmit, phase, timeLeft]);
 
   const toggleSection = (key: Subject) => {
     setSelectedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -134,27 +171,28 @@ export default function MockExamPage() {
     if (totalQuestions === 0) return;
     setPhase("loading");
 
-    const promises: Promise<{ data: ExamQuestion[] | undefined }>[] = [];
-    if (selectedSections.biology)
-      promises.push(bioQ.refetch() as Promise<{ data: ExamQuestion[] | undefined }>);
-    if (selectedSections.chemistry)
-      promises.push(chemQ.refetch() as Promise<{ data: ExamQuestion[] | undefined }>);
-    if (selectedSections.reading)
-      promises.push(readQ.refetch() as Promise<{ data: ExamQuestion[] | undefined }>);
+    try {
+      const result = await startExamMutation.mutateAsync({
+        sections: SECTIONS.filter(s => selectedSections[s.key]).map(s => ({
+          subject: s.key,
+          limit: s.count,
+        })),
+      });
 
-    const results = await Promise.all(promises);
-    const all: ExamQuestion[] = [];
-    for (const r of results) {
-      if (r.data) all.push(...r.data);
+      setQuestions(result.questions);
+      setExamToken(result.examToken);
+      setGradedQuestions([]);
+      setCurrentIndex(0);
+      setAnswers({});
+      setFlagged(new Set());
+      setTimeLeft(EXAM_DURATION);
+      setPhase("exam");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to start this exam."
+      );
+      setPhase("setup");
     }
-
-    const shuffled = all.sort(() => Math.random() - 0.5);
-    setQuestions(shuffled);
-    setCurrentIndex(0);
-    setAnswers({});
-    setFlagged(new Set());
-    setTimeLeft(EXAM_DURATION);
-    setPhase("exam");
   };
 
   const current = questions[currentIndex];
@@ -175,10 +213,6 @@ export default function MockExamPage() {
       return next;
     });
   };
-
-  const handleSubmit = useCallback(() => {
-    setPhase("results");
-  }, []);
 
   if (phase === "setup") {
     return (
@@ -202,92 +236,110 @@ export default function MockExamPage() {
             </p>
           </div>
 
-          <Card className="bg-[var(--page-surface)] border-[var(--border-color)] p-6 mb-8">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
-              Select Sections
-            </h2>
-            <div className="space-y-3">
-              {SECTIONS.map(s => (
-                <label
-                  key={s.key}
-                  className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
-                    selectedSections[s.key]
-                      ? "border-[var(--text-tertiary)] bg-[var(--page-muted)]"
-                      : "border-[var(--border-color)] hover:border-[var(--text-tertiary)]"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedSections[s.key]}
-                      onChange={() => toggleSection(s.key)}
-                      className="w-4 h-4 rounded border-[var(--border-color)]"
-                    />
-                    <span className="font-medium text-[var(--text-primary)]">
-                      {s.label}
-                    </span>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="border-[var(--border-color)] text-[var(--text-secondary)]"
+          {!isPremium ? (
+            <PremiumLock
+              title="Premium Mock DAT Exams"
+              description="An active Premium subscription is required to start and grade mock DAT exams."
+            />
+          ) : (
+            <Card className="bg-[var(--page-surface)] border-[var(--border-color)] p-6 mb-8">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
+                Select Sections
+              </h2>
+              <div className="space-y-3">
+                {SECTIONS.map(s => (
+                  <label
+                    key={s.key}
+                    className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
+                      selectedSections[s.key]
+                        ? "border-[var(--text-tertiary)] bg-[var(--page-muted)]"
+                        : "border-[var(--border-color)] hover:border-[var(--text-tertiary)]"
+                    }`}
                   >
-                    {s.count} questions
-                  </Badge>
-                </label>
-              ))}
-            </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections[s.key]}
+                        onChange={() => toggleSection(s.key)}
+                        className="w-4 h-4 rounded border-[var(--border-color)]"
+                      />
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {s.label}
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="border-[var(--border-color)] text-[var(--text-secondary)]"
+                    >
+                      {s.count} questions
+                    </Badge>
+                  </label>
+                ))}
+              </div>
 
-            <div className="mt-6 pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
-              <span className="text-sm text-[var(--text-secondary)]">
-                Total: <strong className="text-[var(--text-primary)]">{totalQuestions}</strong> questions
-                &middot; 60 minutes
-              </span>
-              <Button
-                onClick={startExam}
-                disabled={totalQuestions === 0}
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
-              >
-                Start Exam
-              </Button>
-            </div>
-          </Card>
+              <div className="mt-6 pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
+                <span className="text-sm text-[var(--text-secondary)]">
+                  Total:{" "}
+                  <strong className="text-[var(--text-primary)]">
+                    {totalQuestions}
+                  </strong>{" "}
+                  questions &middot; 60 minutes
+                </span>
+                <Button
+                  onClick={startExam}
+                  disabled={totalQuestions === 0}
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+                >
+                  Start Exam
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
       </main>
     );
   }
 
-  if (phase === "loading") {
+  if (phase === "loading" || phase === "submitting") {
     return (
       <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-12 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-4 border-[var(--border-color)] border-t-[#2563EB] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[var(--text-secondary)]">Loading exam questions...</p>
+          <p className="text-[var(--text-secondary)]">
+            {phase === "submitting"
+              ? "Grading your exam securely..."
+              : "Loading exam questions..."}
+          </p>
         </div>
       </main>
     );
   }
 
   if (phase === "results") {
-    const timeTaken = EXAM_DURATION - timeLeft;
     const sectionStats: Record<Subject, { correct: number; total: number }> = {
       biology: { correct: 0, total: 0 },
       chemistry: { correct: 0, total: 0 },
       reading: { correct: 0, total: 0 },
     };
 
-    for (const q of questions) {
+    for (const q of gradedQuestions) {
       sectionStats[q.subject].total++;
-      if (answers[q.id] === q.correctAnswer) {
+      if (q.isCorrect) {
         sectionStats[q.subject].correct++;
       }
     }
 
-    const totalCorrect = questions.filter(q => answers[q.id] === q.correctAnswer).length;
-    const totalAnswered = Object.keys(answers).length;
-    const percentage = questions.length > 0 ? Math.round((totalCorrect / questions.length) * 100) : 0;
+    const totalCorrect = gradedQuestions.filter(q => q.isCorrect).length;
+    const totalAnswered = gradedQuestions.filter(
+      q => q.userAnswer !== null
+    ).length;
+    const percentage =
+      gradedQuestions.length > 0
+        ? Math.round((totalCorrect / gradedQuestions.length) * 100)
+        : 0;
     const predicted = predictedDATScore(percentage);
 
-    const missedQuestions = questions.filter(q => answers[q.id] !== q.correctAnswer);
+    const missedQuestions = gradedQuestions.filter(q => !q.isCorrect);
 
     return (
       <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-12">
@@ -303,23 +355,35 @@ export default function MockExamPage() {
 
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
             <Card className="bg-[var(--page-surface)] border-[var(--border-color)] p-6 text-center">
-              <p className="text-sm text-[var(--text-secondary)] mb-1">Overall Score</p>
-              <p className="text-4xl font-bold text-[var(--text-primary)]">{percentage}%</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-1">
+                Overall Score
+              </p>
+              <p className="text-4xl font-bold text-[var(--text-primary)]">
+                {percentage}%
+              </p>
               <p className="text-sm text-[var(--text-tertiary)] mt-1">
-                Predicted DAT: <span className="font-semibold text-[var(--text-primary)]">{predicted}</span>/30
+                Predicted DAT:{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {predicted}
+                </span>
+                /30
               </p>
             </Card>
             <Card className="bg-[var(--page-surface)] border-[var(--border-color)] p-6 text-center">
-              <p className="text-sm text-[var(--text-secondary)] mb-1">Correct / Answered</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-1">
+                Correct / Answered
+              </p>
               <p className="text-4xl font-bold text-[var(--text-primary)]">
                 {totalCorrect}/{totalAnswered}
               </p>
               <p className="text-sm text-[var(--text-tertiary)] mt-1">
-                {questions.length - totalAnswered} unanswered
+                {gradedQuestions.length - totalAnswered} unanswered
               </p>
             </Card>
             <Card className="bg-[var(--page-surface)] border-[var(--border-color)] p-6 text-center">
-              <p className="text-sm text-[var(--text-secondary)] mb-1">Time Taken</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-1">
+                Time Taken
+              </p>
               <p className="text-4xl font-bold text-[var(--text-primary)]">
                 {formatTime(timeTaken)}
               </p>
@@ -336,7 +400,10 @@ export default function MockExamPage() {
             <div className="space-y-4">
               {SECTIONS.filter(s => selectedSections[s.key]).map(s => {
                 const stats = sectionStats[s.key];
-                const acc = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+                const acc =
+                  stats.total > 0
+                    ? Math.round((stats.correct / stats.total) * 100)
+                    : 0;
                 return (
                   <div key={s.key}>
                     <div className="flex items-center justify-between mb-1">
@@ -366,7 +433,7 @@ export default function MockExamPage() {
               </h2>
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {missedQuestions.map((q, i) => {
-                  const userAnswer = answers[q.id];
+                  const userAnswer = q.userAnswer;
                   return (
                     <div
                       key={q.id}
@@ -407,8 +474,12 @@ export default function MockExamPage() {
                                     : "text-[var(--text-secondary)]"
                               }`}
                             >
-                              {isCorrect && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                              {isUserWrong && <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                              {isCorrect && (
+                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              {isUserWrong && (
+                                <XCircle className="w-3.5 h-3.5 shrink-0" />
+                              )}
                               {!isCorrect && !isUserWrong && (
                                 <span className="w-3.5 h-3.5 shrink-0" />
                               )}
@@ -441,6 +512,8 @@ export default function MockExamPage() {
               onClick={() => {
                 setPhase("setup");
                 setQuestions([]);
+                setExamToken(null);
+                setGradedQuestions([]);
                 setAnswers({});
                 setFlagged(new Set());
                 setTimeLeft(EXAM_DURATION);
@@ -492,9 +565,11 @@ export default function MockExamPage() {
                     Submit Exam?
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-[var(--text-secondary)]">
-                    You have answered {answeredCount} of {questions.length} questions.
-                    {flaggedCount > 0 && ` ${flaggedCount} question(s) are flagged for review.`}
-                    {" "}This cannot be undone.
+                    You have answered {answeredCount} of {questions.length}{" "}
+                    questions.
+                    {flaggedCount > 0 &&
+                      ` ${flaggedCount} question(s) are flagged for review.`}{" "}
+                    This cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -618,7 +693,9 @@ export default function MockExamPage() {
                     <Button
                       size="sm"
                       onClick={() =>
-                        setCurrentIndex(i => Math.min(questions.length - 1, i + 1))
+                        setCurrentIndex(i =>
+                          Math.min(questions.length - 1, i + 1)
+                        )
                       }
                       disabled={currentIndex === questions.length - 1}
                       className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white"

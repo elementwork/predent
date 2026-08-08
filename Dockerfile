@@ -1,37 +1,44 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS base
-
-# Install build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++ gcc libc-dev
+FROM node:24-alpine AS dependencies
 
 WORKDIR /app
 
-# Copy dependency files and install
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy source and build
+FROM dependencies AS build
+
 COPY . .
 RUN npm run build
 
-# Production stage
-FROM node:22-alpine AS production
+FROM node:24-alpine AS production-dependencies
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+FROM node:24-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies for sqlite
 RUN apk add --no-cache ca-certificates
 
-# Copy built artifacts and dependencies from build stage
-COPY --from=base /app/dist ./dist
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/package.json ./package.json
-COPY --from=base /app/public ./public
-COPY --from=base /app/db ./db
-COPY --from=base /app/drizzle.config.ts ./drizzle.config.ts
+ARG VCS_REF="unknown"
+ARG BUILD_DATE="unknown"
+LABEL org.opencontainers.image.title="PreDent Canada" \
+      org.opencontainers.image.source="https://github.com/elementwork/predent" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.created="$BUILD_DATE"
 
-# Expose port
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./package.json
+
+USER node
+
 EXPOSE 3000
 
-# Start the production server
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
 CMD ["npm", "start"]

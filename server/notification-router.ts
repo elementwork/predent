@@ -1,9 +1,32 @@
 import { z } from "zod";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, lt, or } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { notifications, users, pushSubscriptions } from "@db/schema";
 import { TRPCError } from "@trpc/server";
+import { cursorSchema, nextCursor } from "@contracts/pagination";
+
+const pushEndpointSchema = z
+  .string()
+  .url()
+  .max(2048)
+  .superRefine((value, ctx) => {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname.endsWith(".local") ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A public HTTPS push endpoint is required",
+      });
+    }
+  });
 
 export const notificationRouter = createRouter({
   list: authedQuery
@@ -48,6 +71,41 @@ export const notificationRouter = createRouter({
     return row?.total ?? 0;
   }),
 
+  listPage: authedQuery
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).default(20),
+        cursor: cursorSchema,
+        unreadOnly: z.boolean().default(false),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(notifications.userId, ctx.user.id)];
+      if (input.unreadOnly) conditions.push(eq(notifications.read, false));
+      if (input.cursor) {
+        const date = new Date(input.cursor.createdAt);
+        conditions.push(
+          or(
+            lt(notifications.createdAt, date),
+            and(
+              eq(notifications.createdAt, date),
+              lt(notifications.id, input.cursor.id)
+            )
+          )!
+        );
+      }
+      const rows = await getDb()
+        .select()
+        .from(notifications)
+        .where(and(...conditions))
+        .orderBy(desc(notifications.createdAt), desc(notifications.id))
+        .limit(input.limit + 1);
+      return {
+        items: rows.slice(0, input.limit),
+        nextCursor: nextCursor(rows, input.limit),
+      };
+    }),
+
   markRead: authedQuery
     .input(z.object({ notificationId: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -55,7 +113,7 @@ export const notificationRouter = createRouter({
       const user = ctx.user;
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      await db
+      const [updated] = await db
         .update(notifications)
         .set({ read: true })
         .where(
@@ -63,7 +121,10 @@ export const notificationRouter = createRouter({
             eq(notifications.id, input.notificationId),
             eq(notifications.userId, user.id)
           )
-        );
+        )
+        .returning({ id: notifications.id });
+
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
 
       return { success: true };
     }),
@@ -116,10 +177,7 @@ export const notificationRouter = createRouter({
       const db = getDb();
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      await db
-        .update(users)
-        .set(input)
-        .where(eq(users.id, ctx.user.id));
+      await db.update(users).set(input).where(eq(users.id, ctx.user.id));
 
       return { success: true };
     }),
@@ -127,40 +185,56 @@ export const notificationRouter = createRouter({
   subscribePush: authedQuery
     .input(
       z.object({
-        endpoint: z.string(),
-        p256dh: z.string(),
-        auth: z.string(),
-        userAgent: z.string().optional(),
+        endpoint: pushEndpointSchema,
+        p256dh: z.string().min(16).max(512),
+        auth: z.string().min(8).max(512),
+        userAgent: z.string().max(500).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
+      const [existing] = await db
+        .select({ userId: pushSubscriptions.userId })
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.endpoint, input.endpoint))
+        .limit(1);
+      if (existing && existing.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Push endpoint is already registered",
+        });
+      }
       await db
-        .delete(pushSubscriptions)
-        .where(eq(pushSubscriptions.endpoint, input.endpoint));
-
-      await db.insert(pushSubscriptions).values({
-        userId: ctx.user.id,
-        endpoint: input.endpoint,
-        p256dh: input.p256dh,
-        auth: input.auth,
-        userAgent: input.userAgent,
-      });
+        .insert(pushSubscriptions)
+        .values({ userId: ctx.user.id, ...input })
+        .onConflictDoUpdate({
+          target: pushSubscriptions.endpoint,
+          set: {
+            p256dh: input.p256dh,
+            auth: input.auth,
+            userAgent: input.userAgent,
+          },
+        });
 
       return { success: true };
     }),
 
   unsubscribePush: authedQuery
-    .input(z.object({ endpoint: z.string() }))
+    .input(z.object({ endpoint: pushEndpointSchema }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
       await db
         .delete(pushSubscriptions)
-        .where(eq(pushSubscriptions.endpoint, input.endpoint));
+        .where(
+          and(
+            eq(pushSubscriptions.endpoint, input.endpoint),
+            eq(pushSubscriptions.userId, ctx.user.id)
+          )
+        );
 
       return { success: true };
     }),

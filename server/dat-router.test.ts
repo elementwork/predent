@@ -6,9 +6,64 @@ import { createTestUser, mockContext, seedDatQuestion } from "./test-helpers";
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   datRouter.createCaller(mockContext(user));
 
+const createPremiumTestUser = () =>
+  createTestUser({
+    tier: "premium",
+    premiumUntil: new Date("2099-01-01T00:00:00.000Z"),
+  });
+
+describe.skipIf(!hasDb)("datRouter mock exams", () => {
+  it("does not expose answers before submission and grades on the server", async () => {
+    const user = await createPremiumTestUser();
+    await seedDatQuestion({ subject: "biology" });
+    const caller = createCaller(user);
+
+    const exam = await caller.startExam({
+      sections: [{ subject: "biology", limit: 1 }],
+    });
+
+    expect(exam.questions).toHaveLength(1);
+    expect(exam.questions[0]).not.toHaveProperty("correctAnswer");
+    expect(exam.questions[0]).not.toHaveProperty("explanation");
+
+    const grade = await caller.submitExam({
+      examToken: exam.examToken,
+      answers: [
+        {
+          questionId: exam.questions[0].id,
+          userAnswer: 0,
+        },
+      ],
+    });
+
+    expect(grade.results[0]).toHaveProperty("correctAnswer");
+    expect(grade.results[0]).toHaveProperty("explanation");
+    expect(grade.results[0].userAnswer).toBe(0);
+    expect(grade.results[0].isCorrect).toBe(
+      grade.results[0].correctAnswer === 0
+    );
+  });
+
+  it("rejects answers for questions outside the signed exam", async () => {
+    const user = await createPremiumTestUser();
+    await seedDatQuestion({ subject: "biology" });
+    const caller = createCaller(user);
+    const exam = await caller.startExam({
+      sections: [{ subject: "biology", limit: 1 }],
+    });
+
+    await expect(
+      caller.submitExam({
+        examToken: exam.examToken,
+        answers: [{ questionId: 999999, userAnswer: 0 }],
+      })
+    ).rejects.toThrow("outside this exam");
+  });
+});
+
 describe.skipIf(!hasDb)("datRouter.listQuestions", () => {
   it("returns questions for a subject", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     await seedDatQuestion({ subject: "biology" });
     await seedDatQuestion({ subject: "chemistry" });
 
@@ -20,7 +75,7 @@ describe.skipIf(!hasDb)("datRouter.listQuestions", () => {
   });
 
   it("filters by difficulty", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     await seedDatQuestion({ subject: "biology", difficulty: "advanced" });
 
     const caller = createCaller(user);
@@ -33,7 +88,7 @@ describe.skipIf(!hasDb)("datRouter.listQuestions", () => {
   });
 
   it("excludes provided ids", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     const q = await seedDatQuestion({ subject: "biology" });
 
     const caller = createCaller(user);
@@ -48,7 +103,7 @@ describe.skipIf(!hasDb)("datRouter.listQuestions", () => {
 
 describe.skipIf(!hasDb)("datRouter.recordAttempt", () => {
   it("records a correct attempt", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     const question = await seedDatQuestion();
     const caller = createCaller(user);
 
@@ -63,7 +118,7 @@ describe.skipIf(!hasDb)("datRouter.recordAttempt", () => {
   });
 
   it("records an incorrect attempt and returns correct answer", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     const question = await seedDatQuestion();
     const caller = createCaller(user);
 
@@ -80,7 +135,7 @@ describe.skipIf(!hasDb)("datRouter.recordAttempt", () => {
   });
 
   it("throws NOT_FOUND for missing question", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     const caller = createCaller(user);
 
     await expect(
@@ -98,7 +153,7 @@ describe.skipIf(!hasDb)("datRouter.recordAttempt", () => {
 
 describe.skipIf(!hasDb)("datRouter.stats", () => {
   it("returns zero stats when no attempts", async () => {
-    const user = await createTestUser();
+    const user = await createPremiumTestUser();
     const caller = createCaller(user);
 
     const stats = await caller.stats();

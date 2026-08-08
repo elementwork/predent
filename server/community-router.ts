@@ -1,15 +1,23 @@
 import { z } from "zod";
 import { eq, desc, count, sql, and, ne, isNull } from "drizzle-orm";
-import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware";
+import {
+  createRouter,
+  publicQuery,
+  authedQuery,
+  adminQuery,
+} from "./middleware";
 import { getDb } from "./queries/connection";
 import {
   communityPosts,
   communityComments,
   communityReports,
+  communityReactions,
   users,
 } from "@db/schema";
 import { TRPCError } from "@trpc/server";
-import { createNotification } from "./lib/email";
+import { createNotification } from "./services/notification-service";
+import { cursorSchema, nextCursor } from "@contracts/pagination";
+import { listVisiblePosts } from "./repositories/community-repository";
 
 const postTypeSchema = z.enum(["result", "question", "discussion"]);
 const resultSchema = z.enum([
@@ -26,6 +34,13 @@ const reportReasonSchema = z.enum([
   "other",
 ]);
 
+const reactionCount = sql<number>`(
+  ${communityPosts.likes} + (
+    SELECT count(*)::int FROM ${communityReactions}
+    WHERE ${communityReactions.postId} = ${communityPosts.id}
+  )
+)`;
+
 export const communityRouter = createRouter({
   listPosts: publicQuery
     .input(
@@ -35,41 +50,31 @@ export const communityRouter = createRouter({
         offset: z.number().min(0).default(0),
       })
     )
-    .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [
-        isNull(communityPosts.deletedAt),
-        isNull(communityPosts.hiddenAt),
-      ];
-      if (input.type) conditions.push(eq(communityPosts.type, input.type));
+    .query(async ({ ctx, input }) => {
+      return listVisiblePosts({
+        ...input,
+        viewerId: ctx.user?.id,
+      });
+    }),
 
-      const rows = await db
-        .select({
-          id: communityPosts.id,
-          userId: communityPosts.userId,
-          type: communityPosts.type,
-          title: communityPosts.title,
-          content: communityPosts.content,
-          school: communityPosts.school,
-          program: communityPosts.program,
-          result: communityPosts.result,
-          gpa: communityPosts.gpa,
-          datAa: communityPosts.datAa,
-          datPat: communityPosts.datPat,
-          province: communityPosts.province,
-          likes: communityPosts.likes,
-          createdAt: communityPosts.createdAt,
-          authorName: users.name,
-          authorAvatar: users.avatar,
-        })
-        .from(communityPosts)
-        .leftJoin(users, eq(communityPosts.userId, users.id))
-        .where(and(...conditions))
-        .orderBy(desc(communityPosts.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-
-      return rows;
+  listPostsPage: publicQuery
+    .input(
+      z.object({
+        type: postTypeSchema.optional(),
+        limit: z.number().int().min(1).max(50).default(20),
+        cursor: cursorSchema,
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await listVisiblePosts({
+        ...input,
+        limit: input.limit + 1,
+        viewerId: ctx.user?.id,
+      });
+      return {
+        items: rows.slice(0, input.limit),
+        nextCursor: nextCursor(rows, input.limit),
+      };
     }),
 
   listAllPosts: authedQuery
@@ -102,7 +107,7 @@ export const communityRouter = createRouter({
           datAa: communityPosts.datAa,
           datPat: communityPosts.datPat,
           province: communityPosts.province,
-          likes: communityPosts.likes,
+          likes: reactionCount,
           createdAt: communityPosts.createdAt,
           authorName: users.name,
           authorAvatar: users.avatar,
@@ -154,7 +159,7 @@ export const communityRouter = createRouter({
           datAa: communityPosts.datAa,
           datPat: communityPosts.datPat,
           province: communityPosts.province,
-          likes: communityPosts.likes,
+          likes: reactionCount,
           deletedAt: communityPosts.deletedAt,
           hiddenAt: communityPosts.hiddenAt,
           createdAt: communityPosts.createdAt,
@@ -164,7 +169,13 @@ export const communityRouter = createRouter({
         })
         .from(communityPosts)
         .leftJoin(users, eq(communityPosts.userId, users.id))
-        .where(eq(communityPosts.id, input.postId))
+        .where(
+          and(
+            eq(communityPosts.id, input.postId),
+            isNull(communityPosts.deletedAt),
+            isNull(communityPosts.hiddenAt)
+          )
+        )
         .limit(1);
 
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
@@ -239,7 +250,11 @@ export const communityRouter = createRouter({
       // Notify users who posted about the same school (for questions)
       if (input.type === "question" && input.school) {
         const relatedPosters = await db
-          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .select({
+            id: users.id,
+            email: users.email,
+            emailCommunity: users.emailCommunity,
+          })
           .from(communityPosts)
           .innerJoin(users, eq(communityPosts.userId, users.id))
           .where(
@@ -260,7 +275,7 @@ export const communityRouter = createRouter({
             message: `${user.name || "Someone"} asked: "${input.title}"`,
             link: `/community`,
             sendEmail: true,
-            email: poster.email ?? undefined,
+            idempotencyKey: `community:school:${post.id}:${poster.id}`,
           }).catch(err => {
             console.error("[community] Failed to send post notification:", err);
           });
@@ -292,12 +307,17 @@ export const communityRouter = createRouter({
       const [post] = await db
         .select({ id: communityPosts.id, userId: communityPosts.userId })
         .from(communityPosts)
-        .where(eq(communityPosts.id, input.postId))
+        .where(
+          and(
+            eq(communityPosts.id, input.postId),
+            isNull(communityPosts.deletedAt),
+            isNull(communityPosts.hiddenAt)
+          )
+        )
         .limit(1);
 
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
-      if (post.userId !== user.id)
-        throw new TRPCError({ code: "FORBIDDEN" });
+      if (post.userId !== user.id) throw new TRPCError({ code: "FORBIDDEN" });
 
       const { postId, ...updates } = input;
       const [updated] = await db
@@ -318,7 +338,13 @@ export const communityRouter = createRouter({
       const [post] = await db
         .select({ id: communityPosts.id, userId: communityPosts.userId })
         .from(communityPosts)
-        .where(eq(communityPosts.id, input.postId))
+        .where(
+          and(
+            eq(communityPosts.id, input.postId),
+            isNull(communityPosts.deletedAt),
+            isNull(communityPosts.hiddenAt)
+          )
+        )
         .limit(1);
 
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
@@ -345,9 +371,19 @@ export const communityRouter = createRouter({
       const user = ctx.user!;
 
       const [post] = await db
-        .select({ id: communityPosts.id, userId: communityPosts.userId, title: communityPosts.title })
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          title: communityPosts.title,
+        })
         .from(communityPosts)
-        .where(eq(communityPosts.id, input.postId))
+        .where(
+          and(
+            eq(communityPosts.id, input.postId),
+            isNull(communityPosts.deletedAt),
+            isNull(communityPosts.hiddenAt)
+          )
+        )
         .limit(1);
 
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
@@ -363,7 +399,11 @@ export const communityRouter = createRouter({
 
       if (post.userId !== user.id) {
         const [author] = await db
-          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .select({
+            id: users.id,
+            email: users.email,
+            emailCommunity: users.emailCommunity,
+          })
           .from(users)
           .where(eq(users.id, post.userId))
           .limit(1);
@@ -376,9 +416,12 @@ export const communityRouter = createRouter({
             message: `${user.name || "Someone"} commented on "${post.title}"`,
             link: `/community`,
             sendEmail: true,
-            email: author.email ?? undefined,
+            idempotencyKey: `community:comment:${comment.id}:${author.id}`,
           }).catch(err => {
-            console.error("[community] Failed to send comment notification:", err);
+            console.error(
+              "[community] Failed to send comment notification:",
+              err
+            );
           });
         }
       }
@@ -421,19 +464,6 @@ export const communityRouter = createRouter({
       const db = getDb();
       const user = ctx.user!;
 
-      const [existing] = await db
-        .select()
-        .from(communityReports)
-        .where(
-          and(
-            eq(communityReports.postId, input.postId),
-            eq(communityReports.reporterId, user.id)
-          )
-        )
-        .limit(1);
-
-      if (existing) return existing;
-
       const [report] = await db
         .insert(communityReports)
         .values({
@@ -442,9 +472,21 @@ export const communityRouter = createRouter({
           reason: input.reason,
           description: input.description,
         })
+        .onConflictDoNothing()
         .returning();
-
-      return report;
+      if (report) return report;
+      return (
+        await db
+          .select()
+          .from(communityReports)
+          .where(
+            and(
+              eq(communityReports.postId, input.postId),
+              eq(communityReports.reporterId, user.id)
+            )
+          )
+          .limit(1)
+      )[0];
     }),
 
   reportComment: authedQuery
@@ -459,19 +501,6 @@ export const communityRouter = createRouter({
       const db = getDb();
       const user = ctx.user!;
 
-      const [existing] = await db
-        .select()
-        .from(communityReports)
-        .where(
-          and(
-            eq(communityReports.commentId, input.commentId),
-            eq(communityReports.reporterId, user.id)
-          )
-        )
-        .limit(1);
-
-      if (existing) return existing;
-
       const [report] = await db
         .insert(communityReports)
         .values({
@@ -480,9 +509,21 @@ export const communityRouter = createRouter({
           reason: input.reason,
           description: input.description,
         })
+        .onConflictDoNothing()
         .returning();
-
-      return report;
+      if (report) return report;
+      return (
+        await db
+          .select()
+          .from(communityReports)
+          .where(
+            and(
+              eq(communityReports.commentId, input.commentId),
+              eq(communityReports.reporterId, user.id)
+            )
+          )
+          .limit(1)
+      )[0];
     }),
 
   listMyPosts: authedQuery
@@ -509,7 +550,7 @@ export const communityRouter = createRouter({
           datAa: communityPosts.datAa,
           datPat: communityPosts.datPat,
           province: communityPosts.province,
-          likes: communityPosts.likes,
+          likes: reactionCount,
           deletedAt: communityPosts.deletedAt,
           hiddenAt: communityPosts.hiddenAt,
           createdAt: communityPosts.createdAt,
@@ -532,22 +573,30 @@ export const communityRouter = createRouter({
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
       const [post] = await db
-        .select({ id: communityPosts.id, userId: communityPosts.userId, title: communityPosts.title })
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          title: communityPosts.title,
+        })
         .from(communityPosts)
         .where(eq(communityPosts.id, input.postId))
         .limit(1);
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Atomic increment — no race condition
-      await db
-        .update(communityPosts)
-        .set({ likes: sql`${communityPosts.likes} + 1` })
-        .where(eq(communityPosts.id, input.postId));
+      const [reaction] = await db
+        .insert(communityReactions)
+        .values({ postId: input.postId, userId: user.id })
+        .onConflictDoNothing()
+        .returning({ id: communityReactions.id });
 
       // Notify post author (if liker is not the author)
-      if (post.userId !== user.id) {
+      if (reaction && post.userId !== user.id) {
         const [author] = await db
-          .select({ id: users.id, email: users.email, emailCommunity: users.emailCommunity })
+          .select({
+            id: users.id,
+            email: users.email,
+            emailCommunity: users.emailCommunity,
+          })
           .from(users)
           .where(eq(users.id, post.userId))
           .limit(1);
@@ -560,14 +609,32 @@ export const communityRouter = createRouter({
             message: `${user.name || "Someone"} liked "${post.title}"`,
             link: `/community`,
             sendEmail: true,
-            email: author.email ?? undefined,
+            idempotencyKey: `community:like:${input.postId}:${user.id}`,
           }).catch(err => {
             console.error("[community] Failed to send like notification:", err);
           });
         }
       }
 
-      return { success: true };
+      const [{ likes }] = await db
+        .select({ likes: reactionCount })
+        .from(communityPosts)
+        .where(eq(communityPosts.id, input.postId));
+      return { success: true, liked: true, created: Boolean(reaction), likes };
+    }),
+
+  unlikePost: authedQuery
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await getDb()
+        .delete(communityReactions)
+        .where(
+          and(
+            eq(communityReactions.postId, input.postId),
+            eq(communityReactions.userId, ctx.user.id)
+          )
+        );
+      return { success: true, liked: false };
     }),
 
   // ─── Admin procedures ───
@@ -643,28 +710,30 @@ export const communityRouter = createRouter({
 
       if (!report) throw new TRPCError({ code: "NOT_FOUND" });
 
-      await db
-        .update(communityReports)
-        .set({
-          status: input.status,
-          reviewedBy: user.id,
-          reviewedAt: new Date(),
-        })
-        .where(eq(communityReports.id, input.reportId));
+      await db.transaction(async tx => {
+        await tx
+          .update(communityReports)
+          .set({
+            status: input.status,
+            reviewedBy: user.id,
+            reviewedAt: new Date(),
+          })
+          .where(eq(communityReports.id, input.reportId));
 
-      if (input.status === "actioned") {
-        if (report.postId) {
-          await db
-            .update(communityPosts)
-            .set({ hiddenAt: new Date() })
-            .where(eq(communityPosts.id, report.postId));
+        if (input.status === "actioned") {
+          if (report.postId) {
+            await tx
+              .update(communityPosts)
+              .set({ hiddenAt: new Date() })
+              .where(eq(communityPosts.id, report.postId));
+          }
+          if (report.commentId) {
+            await tx
+              .delete(communityComments)
+              .where(eq(communityComments.id, report.commentId));
+          }
         }
-        if (report.commentId) {
-          await db
-            .delete(communityComments)
-            .where(eq(communityComments.id, report.commentId));
-        }
-      }
+      });
 
       return { success: true };
     }),

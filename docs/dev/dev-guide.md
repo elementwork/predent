@@ -2,7 +2,7 @@
 
 This guide is for developers who will extend, maintain, or deploy PreDent Canada.
 
-> Last updated: 2026-08-03T22:40:00-04:00
+> Last updated: 2026-08-07T15:45:00-04:00
 
 ## Table of Contents
 
@@ -124,7 +124,7 @@ OAuth is handled by `server/auth/auth.ts` and provider-specific code in `server/
 
 ### Database
 
-- `db/schema.ts` defines 17 tables using Drizzle PostgreSQL core: `users`, `profiles`, `tasks`, `patAttempts`, `datQuestions`, `datAttempts`, `communityPosts`, `communityComments`, `communityReports`, `notifications`, `pushSubscriptions`, `schoolStats`, `stripeWebhookEvents`, `adminActions`, `interviewQuestions`, `savedQuestions`, `flashcardReviews`.
+- `db/schema.ts` defines 19 tables using Drizzle PostgreSQL core, including `communityReactions` for idempotent likes and `outboxJobs` for durable asynchronous notification delivery.
 - `db/relations.ts` defines all foreign-key relationships.
 - PAT questions are never stored in the DB — generated on the fly from numeric seeds (see `contracts/pat-stats.ts`, `server/lib/pat-generation/`, `src/lib/prng.ts`). Generators follow the authentic recent-DAT (ADA) format — see `docs/design/pat-research.md` and the PAT format section of `AGENTS.md` (choice counts 5/4/4/5/5/4, dashed hidden TFE lines, half-fold hole punching, etc.).
 - `db/seed-dat.ts` seeds 15 DAT questions; `db/seed-dat-full.ts` seeds 500; `db/seed-interview.ts` seeds 24 interview questions.
@@ -234,7 +234,9 @@ Top-level index/academy pages (e.g. `/schools`, `/pat-academy`, `/dat-academy`) 
         <Icon className="w-7 h-7 text-white" />
       </div>
       <div>
-        <h1 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)]">Page Title</h1>
+        <h1 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)]">
+          Page Title
+        </h1>
         <p className="text-[var(--text-secondary)]">Short subtitle.</p>
       </div>
     </div>
@@ -245,7 +247,10 @@ Top-level index/academy pages (e.g. `/schools`, `/pat-academy`, `/dat-academy`) 
 Deeper/subpages should add a small parent back-link at the top of the content area:
 
 ```tsx
-<Link to="/parent" className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] mb-4">
+<Link
+  to="/parent"
+  className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] mb-4"
+>
   <ArrowLeft className="w-4 h-4" />
   Back to Parent
 </Link>
@@ -261,7 +266,18 @@ All page content containers use `section-container max-w-7xl mx-auto` for a cons
 ### Security & Backend Conventions
 
 - **Sessions:** Store a `tokenVersion` in the `users` table, include it in the JWT, and verify it on every request. Increment on logout to revoke existing tokens.
-- **Rate limiting:** Add per-route rate limiting via Hono middleware for public endpoints (`/api/oauth/callback`, `/api/trpc/*`, `/api/webhooks/stripe`, `/api/cron/notify`).
+- **Rate limiting:** Public API groups use Hono middleware backed by atomic
+  Upstash Redis REST counters in production. Configure
+  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; requests fail closed
+  with 503 if the shared store is unavailable. Local development uses the
+  in-process store. `RATE_LIMIT_ALLOW_IN_MEMORY=true` is an explicit
+  single-instance production escape hatch and must not be used on Vercel or a
+  horizontally scaled deployment.
+- **Trusted client IPs:** Vercel uses its sanitized
+  `X-Vercel-Forwarded-For`. Traditional deployments use the socket address
+  unless `TRUST_PROXY=true`; Cloudflare origins may opt into
+  `TRUST_CLOUDFLARE_PROXY=true`. Never enable either trust flag unless the
+  corresponding proxy is the only path to the origin.
 - **Soft deletes:** Use `deletedAt` timestamps instead of hard deletes for destructive admin actions, and keep an `adminActions` audit log.
 - **Environment variables:** Read `process.env` directly for values that may change between tests. Cache only values accessed on every request (e.g., `APP_SECRET`, `DATABASE_URL`).
 
@@ -273,6 +289,26 @@ Run tests:
 
 ```bash
 npm test
+npm run test:frontend
+npm run test:e2e
+```
+
+Playwright is pinned and configured to use the installed Google Chrome channel
+instead of downloading an OS-specific browser bundle. Local and CI E2E runners
+must therefore provide Google Chrome.
+
+Database integration tests are opt-in and must use a disposable PostgreSQL
+database supplied through `TEST_DATABASE_URL`. The test harness deliberately
+ignores the normal application `DATABASE_URL` and never loads `.env`, because
+integration suites create and delete shared rows.
+
+GitHub Actions provisions its own PostgreSQL 16 service, applies all committed
+migrations, and supplies that service through `TEST_DATABASE_URL`. A CI run
+that cannot migrate or execute the integration suite fails rather than falling
+back to skipped database coverage.
+
+```bash
+TEST_DATABASE_URL=postgresql://localhost:5432/predent_test npm test
 ```
 
 Add new tests next to the code they test. Example:
@@ -310,31 +346,31 @@ For pages that should always be dark/light regardless of toggle, apply the `dark
 
 1. **PAT Predicted Score** — Improve algorithm to account for difficulty distribution, category performance, time spent (#21)
 2. **Silent Error Swallowing** — Replace `.catch(() => {})` with proper error logging in community-router.ts (#24)
-3. **Email Provider Fix** — Add sendgrid to dependencies or remove provider, document required env vars (#25)
-4. **Schema Cleanup** — Remove unused `kimi` from provider enum (#50)
+3. **Schema Cleanup** — Remove unused `kimi` from provider enum (#50)
 
 ### Completed (kept for reference)
 
-- **~~Community Post Edit~~** *(done — EditPostDialog component, userId in listPosts)*
-- **~~Interview Questions to DB~~** *(done — interviewQuestions table, seed script, router updated)*
-- **~~DAT Analytics~~** *(done — getAnalytics endpoint with trend, heatmap, strengths, weaknesses)*
-- **~~Study Schedule Generator~~** *(done — DynamicScheduleGenerator with test date, hours/week, comfort levels)*
-- **~~Shared Provinces~~** *(done — DashboardPage uses contracts/schools.ts provinces)*
-- **~~On-the-Fly PAT Generation~~** *(done — seeded PRNG, 6 generators, quota system, 140 tests)*
-- **~~PAT Generators~~** *(done — all 6 categories with DB persistence + on-the-fly generation)*
-- **~~E2E Tests~~** *(done — Playwright smoke tests)*
-- **~~Production Error Tracking~~** *(done — Sentry integrated)*
-- **~~DAT Question Banks~~** *(done — Biology, Chemistry, Reading Comprehension)*
-- **~~Payment & Premium Gating~~** *(done — Stripe Checkout, webhooks, billing portal)*
-- **~~Admin Dashboard~~** *(done — stats, user/role management, question management)*
-- **~~Email Notifications~~** *(done — Resend/SendGrid, study reminders, task due-date reminders, community notifications)*
-- **~~Community Hub~~** *(done — posts, comments, reports, moderation, tabbed feed)*
-- **~~Web Push Notifications~~** *(done — VAPID, service worker, settings toggle)*
-- **~~Product Analytics~~** *(done — PostHog pageviews and key events)*
-- **~~Advanced Study Planner~~** *(done — calendar view, filters, scheduling suggestions)*
-- **~~Database Migration~~** *(done — PostgreSQL on Supabase)*
-- **~~Code Splitting~~** *(done — all pages lazy-loaded)*
-- **~~API Rate Limiting~~** *(done — in-memory Hono middleware on public endpoints)*
+- **~~Community Post Edit~~** _(done — EditPostDialog component, userId in listPosts)_
+- **~~Email Provider Fix~~** _(done — unsupported SendGrid configuration removed from current operator docs; Resend is the supported production provider)_
+- **~~Interview Questions to DB~~** _(done — interviewQuestions table, seed script, router updated)_
+- **~~DAT Analytics~~** _(done — getAnalytics endpoint with trend, heatmap, strengths, weaknesses)_
+- **~~Study Schedule Generator~~** _(done — DynamicScheduleGenerator with test date, hours/week, comfort levels)_
+- **~~Shared Provinces~~** _(done — DashboardPage uses contracts/schools.ts provinces)_
+- **~~On-the-Fly PAT Generation~~** _(done — seeded PRNG, 6 generators, quota system, 140 tests)_
+- **~~PAT Generators~~** _(done — all 6 categories with DB persistence + on-the-fly generation)_
+- **~~E2E Tests~~** _(done — Playwright smoke tests)_
+- **~~Production Error Tracking~~** _(done — Sentry integrated)_
+- **~~DAT Question Banks~~** _(done — Biology, Chemistry, Reading Comprehension)_
+- **~~Payment & Premium Gating~~** _(done — Stripe Checkout, webhooks, billing portal)_
+- **~~Admin Dashboard~~** _(done — stats, user/role management, question management)_
+- **~~Email Notifications~~** _(done — Resend/SendGrid, study reminders, task due-date reminders, community notifications)_
+- **~~Community Hub~~** _(done — posts, comments, reports, moderation, tabbed feed)_
+- **~~Web Push Notifications~~** _(done — VAPID, service worker, settings toggle)_
+- **~~Product Analytics~~** _(done — PostHog pageviews and key events)_
+- **~~Advanced Study Planner~~** _(done — calendar view, filters, scheduling suggestions)_
+- **~~Database Migration~~** _(done — PostgreSQL on Supabase)_
+- **~~Code Splitting~~** _(done — all pages lazy-loaded)_
+- **~~API Rate Limiting~~** _(done — shared Redis REST fixed-window limiting in production; explicit in-memory development fallback)_
 
 ---
 

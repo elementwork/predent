@@ -8,8 +8,7 @@ if (dsn) {
     dsn,
     environment: process.env.NODE_ENV,
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
-    enabled:
-      process.env.NODE_ENV === "production" || !!process.env.SENTRY_DSN,
+    enabled: process.env.NODE_ENV === "production" || !!process.env.SENTRY_DSN,
   });
 }
 

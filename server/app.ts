@@ -12,33 +12,112 @@ import {
 } from "./auth/auth";
 import { Paths } from "@contracts/constants";
 import { getDb } from "./queries/connection";
-import { users, stripeWebhookEvents } from "@db/schema";
-import { eq } from "drizzle-orm";
-import { getPlanFromPrice, getTierFromPlan } from "./payment-router";
-import { notifyUpcomingTasks, sendStudyReminders } from "./lib/tasks/notifications";
+import { users, stripeWebhookEvents, outboxJobs } from "@db/schema";
+import { and, count, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
+import {
+  getInvoiceSubscriptionId,
+  getPlanFromPrice,
+  getSubscriptionPeriodEnd,
+  getTierFromPlan,
+} from "./lib/stripe";
+import {
+  notifyUpcomingTasks,
+  sendStudyReminders,
+} from "./lib/tasks/notifications";
 import { rateLimit } from "./lib/rate-limit";
 import { sentryMiddleware } from "./lib/sentry";
+import { processOutboxBatch } from "./lib/outbox/worker";
+import {
+  renderPrometheusMetrics,
+  requestObservability,
+} from "./lib/observability";
+import {
+  requireTrustedMutationOrigin,
+  securityHeaders,
+} from "./lib/security";
 
-type StripeSubscriptionWithPeriod = Stripe.Subscription & {
-  current_period_end: number;
+type EntitlementUpdate = {
+  userId: number;
+  expectedSubscriptionId?: string;
+  values: {
+    tier?: "free" | "premium" | "premium_plus";
+    stripeSubscriptionId?: string | null;
+    premiumUntil?: Date;
+  };
 };
 
-type StripeInvoiceWithSubscription = Stripe.Invoice & {
-  subscription: string;
-};
+function parseStripeUserId(value: string | undefined): number | null {
+  const userId = value ? Number(value) : NaN;
+  return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
+}
 
-const app = new Hono<{ Bindings: HttpBindings }>();
+const app = new Hono<{
+  Bindings: HttpBindings;
+  Variables: { requestId: string };
+}>();
 
-const stripeClient = env.stripeSecretKey ? new Stripe(env.stripeSecretKey) : null;
+const stripeClient = env.stripeSecretKey
+  ? new Stripe(env.stripeSecretKey)
+  : null;
 
 app.use(bodyLimit({ maxSize: 1 * 1024 * 1024 })); // 1MB — no file uploads needed
+app.use("*", requestObservability());
+app.use("*", securityHeaders());
 app.use(sentryMiddleware());
+
+app.get("/api/health/live", c =>
+  c.json({ status: "ok", requestId: c.get("requestId") })
+);
+
+app.get("/api/health/ready", async c => {
+  try {
+    await Promise.race([
+      getDb().execute(sql`select 1`),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Database readiness timeout")), 3_000)
+      ),
+    ]);
+    return c.json({ status: "ready", requestId: c.get("requestId") });
+  } catch {
+    return c.json({ status: "not_ready", requestId: c.get("requestId") }, 503);
+  }
+});
+
+app.get("/api/metrics", async c => {
+  if (
+    !env.metricsSecret ||
+    c.req.header("authorization") !== `Bearer ${env.metricsSecret}`
+  ) {
+    return c.text("Unauthorized", 401);
+  }
+  const rows = await getDb()
+    .select({ status: outboxJobs.status, total: count() })
+    .from(outboxJobs)
+    .where(
+      or(eq(outboxJobs.status, "pending"), eq(outboxJobs.status, "failed"))
+    )
+    .groupBy(outboxJobs.status);
+  const queue = { pending: 0, failed: 0 };
+  for (const row of rows) {
+    if (row.status === "pending" || row.status === "failed") {
+      queue[row.status] = row.total;
+    }
+  }
+  return c.text(renderPrometheusMetrics(queue), 200, {
+    "content-type": "text/plain; version=0.0.4; charset=utf-8",
+  });
+});
 
 app.use(
   "/api/oauth/authorize/:provider",
   rateLimit({ windowMs: 60_000, maxRequests: 20, keyPrefix: "oauth_authorize" })
 );
 app.get("/api/oauth/authorize/:provider", createOAuthAuthorizeHandler());
+
+app.use(
+  "/api/trpc/community.*",
+  rateLimit({ windowMs: 60_000, maxRequests: 60, keyPrefix: "community" })
+);
 
 app.use(
   Paths.oauthCallback,
@@ -50,12 +129,13 @@ app.use(
   "/api/trpc/*",
   rateLimit({ windowMs: 60_000, maxRequests: 120, keyPrefix: "trpc" })
 );
+app.use("/api/trpc/*", requireTrustedMutationOrigin());
 app.use("/api/trpc/*", async c => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
     router: appRouter,
-    createContext,
+    createContext: opts => createContext(opts, c.get("requestId")),
   });
 });
 
@@ -90,109 +170,212 @@ app.post("/api/webhooks/stripe", async c => {
     return c.json({ error: "Webhook signature verification failed" }, 400);
   }
 
-  const db = getDb();
-
-  // Idempotency: skip events that have already been processed
-  const [existing] = await db
-    .select({ id: stripeWebhookEvents.id })
-    .from(stripeWebhookEvents)
-    .where(eq(stripeWebhookEvents.eventId, event.id))
-    .limit(1);
-  if (existing) {
-    return c.json({ received: true, duplicate: true });
-  }
+  let entitlementUpdate: EntitlementUpdate | null = null;
 
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId
-        ? parseInt(session.metadata.userId)
-        : null;
+      const userId = parseStripeUserId(session.metadata?.userId);
       if (!userId) {
         return c.json({ error: "Missing userId in session metadata" }, 400);
       }
 
       if (session.mode === "subscription") {
+        if (typeof session.subscription !== "string") {
+          return c.json({ error: "Missing subscription id" }, 400);
+        }
         const subscription = await stripe.subscriptions.retrieve(
-          session.subscription as string
+          session.subscription
         );
-        const sub = subscription as unknown as StripeSubscriptionWithPeriod;
+        const sub = subscription;
+        if (sub.status !== "active" && sub.status !== "trialing") {
+          return c.json({ error: "Inactive subscription" }, 400);
+        }
         const item = sub.items.data[0];
         const priceId = item?.price.id;
         const plan = priceId ? getPlanFromPrice(priceId) : null;
-        const tier = plan ? getTierFromPlan(plan) : "premium";
+        if (
+          !plan ||
+          plan === "plus_lifetime" ||
+          session.metadata?.plan !== plan
+        ) {
+          console.error("[Stripe] Rejected subscription checkout plan", {
+            eventId: event.id,
+            priceId,
+            checkoutPlan: session.metadata?.plan,
+          });
+          return c.json({ error: "Invalid subscription plan" }, 400);
+        }
+        const tier = getTierFromPlan(plan);
 
-        await db
-          .update(users)
-          .set({
+        const currentPeriodEnd = getSubscriptionPeriodEnd(sub);
+        if (!currentPeriodEnd) {
+          return c.json({ error: "Missing subscription billing period" }, 400);
+        }
+        entitlementUpdate = {
+          userId,
+          values: {
             tier,
             stripeSubscriptionId: sub.id,
-            premiumUntil: new Date(sub.current_period_end * 1000),
-          })
-          .where(eq(users.id, userId));
+            premiumUntil: new Date(currentPeriodEnd * 1000),
+          },
+        };
       } else if (session.mode === "payment") {
-        // Plus lifetime
-        await db
-          .update(users)
-          .set({
+        if (
+          session.payment_status !== "paid" ||
+          session.metadata?.plan !== "plus_lifetime"
+        ) {
+          return c.json({ error: "Invalid lifetime payment" }, 400);
+        }
+        const lineItems = await stripe.checkout.sessions.listLineItems(
+          session.id,
+          { limit: 1 }
+        );
+        const priceId = lineItems.data[0]?.price?.id;
+        if (getPlanFromPrice(priceId ?? "") !== "plus_lifetime") {
+          console.error("[Stripe] Rejected lifetime checkout price", {
+            eventId: event.id,
+            priceId,
+          });
+          return c.json({ error: "Invalid lifetime price" }, 400);
+        }
+
+        entitlementUpdate = {
+          userId,
+          values: {
             tier: "premium_plus",
             premiumUntil: new Date(
               Date.now() + 100 * 365 * 24 * 60 * 60 * 1000
             ), // ~100 years
-          })
-          .where(eq(users.id, userId));
+          },
+        };
+      } else {
+        return c.json({ error: "Unsupported checkout mode" }, 400);
       }
       break;
     }
 
     case "invoice.paid": {
-      const invoice = event.data.object as StripeInvoiceWithSubscription;
-      const subscriptionId = invoice.subscription;
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = getInvoiceSubscriptionId(invoice);
       if (subscriptionId) {
         const subscription =
           await stripe.subscriptions.retrieve(subscriptionId);
-        const sub = subscription as unknown as StripeSubscriptionWithPeriod;
-        const userId = sub.metadata?.userId
-          ? parseInt(sub.metadata.userId)
-          : null;
-        if (userId) {
-          await db
-            .update(users)
-            .set({
-              premiumUntil: new Date(sub.current_period_end * 1000),
-            })
-            .where(eq(users.id, userId));
+        const sub = subscription;
+        const userId = parseStripeUserId(sub.metadata?.userId);
+        const priceId = sub.items.data[0]?.price.id;
+        const plan = priceId ? getPlanFromPrice(priceId) : null;
+        if (!userId || !plan || plan === "plus_lifetime") {
+          console.error("[Stripe] Rejected paid invoice subscription", {
+            eventId: event.id,
+            priceId,
+            userId,
+          });
+          return c.json({ error: "Invalid invoice subscription" }, 400);
         }
+        const currentPeriodEnd = getSubscriptionPeriodEnd(sub);
+        if (!currentPeriodEnd) {
+          return c.json({ error: "Missing subscription billing period" }, 400);
+        }
+        entitlementUpdate = {
+          userId,
+          values: {
+            tier: getTierFromPlan(plan),
+            stripeSubscriptionId: sub.id,
+            premiumUntil: new Date(currentPeriodEnd * 1000),
+          },
+        };
       }
       break;
     }
 
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
-      const userId = subscription.metadata?.userId
-        ? parseInt(subscription.metadata.userId)
-        : null;
+      const userId = parseStripeUserId(subscription.metadata?.userId);
       if (userId) {
-        await db
-          .update(users)
-          .set({
+        entitlementUpdate = {
+          userId,
+          expectedSubscriptionId: subscription.id,
+          values: {
             tier: "free",
             stripeSubscriptionId: null,
             premiumUntil: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          })
-          .where(eq(users.id, userId));
+          },
+        };
       }
       break;
     }
   }
 
-  // Record successful processing
-  await db
-    .insert(stripeWebhookEvents)
-    .values({ eventId: event.id, type: event.type })
-    .onConflictDoNothing();
+  const db = getDb();
+  try {
+    const transactionResult = await db.transaction(async tx => {
+      const claimed = await tx
+        .insert(stripeWebhookEvents)
+        .values({ eventId: event.id, type: event.type })
+        .onConflictDoNothing()
+        .returning({ id: stripeWebhookEvents.id });
 
-  return c.json({ received: true });
+      if (claimed.length === 0) {
+        return { duplicate: true };
+      }
+
+      if (!entitlementUpdate) {
+        return { duplicate: false };
+      }
+
+      const [user] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, entitlementUpdate.userId))
+        .limit(1);
+      if (!user) {
+        throw new Error(
+          `Stripe event ${event.id} references missing user ${entitlementUpdate.userId}`
+        );
+      }
+
+      const eventCreatedAt = new Date(event.created * 1000);
+      const orderCondition =
+        entitlementUpdate.values.tier === "premium_plus"
+          ? undefined
+          : or(
+              isNull(users.stripeEntitlementUpdatedAt),
+              lte(users.stripeEntitlementUpdatedAt, eventCreatedAt)
+            );
+      const preserveLifetimeCondition =
+        entitlementUpdate.values.tier === "premium_plus"
+          ? undefined
+          : ne(users.tier, "premium_plus");
+
+      await tx
+        .update(users)
+        .set({
+          ...entitlementUpdate.values,
+          stripeEntitlementUpdatedAt: eventCreatedAt,
+        })
+        .where(
+          and(
+            eq(users.id, entitlementUpdate.userId),
+            orderCondition,
+            preserveLifetimeCondition,
+            entitlementUpdate.expectedSubscriptionId
+              ? eq(
+                  users.stripeSubscriptionId,
+                  entitlementUpdate.expectedSubscriptionId
+                )
+              : undefined
+          )
+        );
+
+      return { duplicate: false };
+    });
+
+    return c.json({ received: true, ...transactionResult });
+  } catch (error) {
+    console.error("[Stripe] Webhook processing failed:", error);
+    return c.json({ error: "Webhook processing failed" }, 500);
+  }
 });
 
 app.use(
@@ -210,7 +393,12 @@ app.get("/api/cron/notify", async c => {
 
   const taskResult = await notifyUpcomingTasks();
   const studyResult = await sendStudyReminders();
-  return c.json({ tasks: taskResult, study: studyResult });
+  const outboxResult = await processOutboxBatch(100);
+  return c.json({
+    tasks: taskResult,
+    study: studyResult,
+    outbox: outboxResult,
+  });
 });
 
 app.all("/api/*", c => c.json({ error: "Not Found" }, 404));

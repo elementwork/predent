@@ -247,6 +247,13 @@ export default function Navbar() {
             <button
               className="p-2 rounded-md"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={
+                mobileMenuOpen
+                  ? "Close navigation menu"
+                  : "Open navigation menu"
+              }
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
             >
               {mobileMenuOpen ? (
                 <X className="text-[var(--text-primary)]" />
@@ -259,7 +266,10 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-[var(--page-surface)] rounded-lg shadow-lg border border-[var(--border-color)] mt-2 p-4 animate-fade-in">
+          <div
+            id="mobile-navigation"
+            className="lg:hidden bg-[var(--page-surface)] rounded-lg shadow-lg border border-[var(--border-color)] mt-2 p-4 animate-fade-in"
+          >
             {navLinks.map(link => (
               <Link
                 key={link.name}

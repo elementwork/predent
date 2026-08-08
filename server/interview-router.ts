@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { eq, and, isNull } from "drizzle-orm";
-import { createRouter, publicQuery } from "./middleware";
+import { eq, and, gt, isNull, sql } from "drizzle-orm";
+import { createRouter, premiumQuery, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { interviewQuestions } from "@db/schema";
 
@@ -24,14 +24,16 @@ const formatCategories: Record<string, string[]> = {
 };
 
 export const interviewRouter = createRouter({
-  getQuestions: publicQuery
+  getQuestions: premiumQuery
     .input(
       z
         .object({
           format: z.enum(["MMI", "Panel"]).optional(),
           category: z.string().optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+          cursor: z.number().int().positive().optional(),
         })
-        .default({})
+        .default({ limit: 50 })
     )
     .query(async ({ input }) => {
       const db = getDb();
@@ -43,11 +45,15 @@ export const interviewRouter = createRouter({
       if (input.category) {
         conditions.push(eq(interviewQuestions.category, input.category));
       }
+      if (input.cursor)
+        conditions.push(gt(interviewQuestions.id, input.cursor));
 
       const rows = await db
         .select()
         .from(interviewQuestions)
-        .where(and(...conditions));
+        .where(and(...conditions))
+        .orderBy(interviewQuestions.id)
+        .limit(input.limit);
 
       return rows;
     }),
@@ -56,7 +62,7 @@ export const interviewRouter = createRouter({
     .input(z.object({ format: z.enum(["MMI", "Panel"]) }))
     .query(({ input }) => formatCategories[input.format]),
 
-  getRandomSet: publicQuery
+  getRandomSet: premiumQuery
     .input(
       z.object({
         format: z.enum(["MMI", "Panel"]),
@@ -65,7 +71,7 @@ export const interviewRouter = createRouter({
     )
     .query(async ({ input }) => {
       const db = getDb();
-      const rows = await db
+      return db
         .select()
         .from(interviewQuestions)
         .where(
@@ -73,9 +79,8 @@ export const interviewRouter = createRouter({
             eq(interviewQuestions.format, input.format),
             isNull(interviewQuestions.deletedAt)
           )
-        );
-
-      const shuffled = [...rows].sort(() => Math.random() - 0.5);
-      return shuffled.slice(0, Math.min(input.count, shuffled.length));
+        )
+        .orderBy(sql`random()`)
+        .limit(input.count);
     }),
 });

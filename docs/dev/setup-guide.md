@@ -897,10 +897,9 @@ STRIPE_PRICE_PREMIUM_YEARLY=         # price_... for $249/yr plan
 STRIPE_PRICE_PLUS_LIFETIME=          # price_... for $149 one-time
 
 # ── Email ─────────────────────────────────────────────────────
-EMAIL_PROVIDER=                      # "console", "resend", or "sendgrid"
+EMAIL_PROVIDER=                      # "console" or "resend"
 EMAIL_FROM=                          # noreply@yourdomain.com
 RESEND_API_KEY=                      # re_... (if using Resend)
-SENDGRID_API_KEY=                    # SG.xxx (if using SendGrid)
 PUBLIC_APP_URL=                      # https://your-domain.com
 
 # ── Vercel Cron ───────────────────────────────────────────────

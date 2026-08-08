@@ -2,7 +2,7 @@
 
 This guide covers how to set up, deploy, and operate the PreDent Canada platform. It is intended for administrators, DevOps engineers, and content managers.
 
-> Last updated: 2026-08-03T22:40:00-04:00
+> Last updated: 2026-08-08
 
 > **New to PreDent?** Start with the [Step-by-Step Setup Guide](./setup-guide.md) for a complete walkthrough from zero to production.
 
@@ -32,6 +32,13 @@ APP_SECRET=               # Strong random secret for signing session JWTs
 # ── Database ───────────────────────────────────────────────────
 DATABASE_URL=             # Supabase PostgreSQL connection string
                           # e.g. postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+
+# ── Distributed rate limiting (required in production) ─────────
+UPSTASH_REDIS_REST_URL=    # Shared Redis REST endpoint
+UPSTASH_REDIS_REST_TOKEN=  # Shared Redis REST bearer token
+RATE_LIMIT_ALLOW_IN_MEMORY=false # Single-instance emergency escape hatch only
+TRUST_PROXY=false          # Only for a controlled proxy that sanitizes XFF
+TRUST_CLOUDFLARE_PROXY=false # Only when Cloudflare directly fronts the origin
 
 # ── Google OAuth ────────────────────────────────────────────────
 VITE_GOOGLE_CLIENT_ID=    # Browser-facing Google OAuth client ID
@@ -80,14 +87,14 @@ STRIPE_PRICE_PREMIUM_YEARLY=      # price_... for $249/yr Premium plan
 STRIPE_PRICE_PLUS_LIFETIME=      # price_... for $149 one-time Plus plan
 
 # ── Email / Notifications ───────────────────────────────────────
-EMAIL_PROVIDER=           # "console" (default), "resend", or "sendgrid"
+EMAIL_PROVIDER=           # "console" (default) or "resend"; SendGrid is unsupported
 EMAIL_FROM=               # Sender address (e.g. noreply@predent.ca)
 RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
-SENDGRID_API_KEY=         # SG.xxx (required when EMAIL_PROVIDER=sendgrid)
 PUBLIC_APP_URL=           # Public origin for links (e.g. https://predent.ca)
 
 # ── Vercel Cron ─────────────────────────────────────────────────
 CRON_SECRET=              # Random secret Vercel sends for cron auth
+METRICS_SECRET=           # Bearer token protecting /api/metrics
 ```
 
 ### OAuth Redirect URI
@@ -129,7 +136,7 @@ You must register this URI in every provider console you enable. The backend rou
 1. Go to [Microsoft Entra admin center](https://entra.microsoft.com/) → **App registrations**.
 2. Click **New registration**.
 3. Set **Supported account types** to:
-   - *Accounts in any organizational directory and personal Microsoft accounts* (recommended)
+   - _Accounts in any organizational directory and personal Microsoft accounts_ (recommended)
 4. Add a **Web** platform redirect URI:
    - `https://your-domain.com/api/oauth/callback`
 5. Create a **Client secret** and note the **Application (client) ID**.
@@ -285,6 +292,22 @@ The admin dashboard (`/admin`) provides:
 - PAT/DAT question listing and deletion.
 - Manual DAT question seeding.
 - Manual task due-date reminder dispatch.
+- Dry-run and confirmed Stripe entitlement reconciliation with an immutable
+  admin audit record for applied corrections.
+
+### Billing Reconciliation
+
+Open **Admin → Billing** and run **Audit Stripe** first. The audit compares
+local paid/customer records with Stripe using bounded concurrency. It discovers
+active subscriptions from a stored customer ID when a webhook did not attach
+the subscription locally. Unknown prices and multiple active subscriptions are
+always flagged for manual review and are never changed automatically.
+
+After reviewing the full result set, use the explicit confirmation control to
+apply deterministic drift corrections. Every applied user change is written to
+`admin_actions` with previous and recommended state. Lifetime Premium Plus is
+never downgraded by subscription reconciliation. Run this after webhook
+outages, Stripe price changes, restores, and before/after billing migrations.
 
 ---
 
@@ -355,10 +378,13 @@ The project includes a `vercel.json` configuration for serverless deployment:
    - `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_PREMIUM_YEARLY`, `STRIPE_PRICE_PLUS_LIFETIME`
 
    Email/notifications (if sending real emails):
-   - `EMAIL_PROVIDER`, `EMAIL_FROM`, `RESEND_API_KEY` or `SENDGRID_API_KEY`
+   - `EMAIL_PROVIDER`, `EMAIL_FROM`, `RESEND_API_KEY`
 
    Vercel Cron:
    - `CRON_SECRET`
+
+   Distributed rate limiting:
+   - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 
 4. Configure OAuth redirect URIs in every provider console you enable:
 
@@ -386,12 +412,19 @@ The project includes a `vercel.json` configuration for serverless deployment:
 7. Configure email provider (Resend or SendGrid) for real notifications.
 8. Set `PUBLIC_APP_URL` to the production origin (e.g. `https://predent.ca`).
 9. Set `CRON_SECRET` for Vercel cron authentication (Vercel only).
+10. Configure the shared Redis REST rate-limit store. Do not enable the
+    in-memory escape hatch on Vercel or multi-instance deployments.
+11. Follow the [release runbook](./release-runbook.md), including disposable
+    database migration validation and a verified recovery point.
+12. Run a dry Stripe entitlement audit and resolve all manual-review rows.
 
 ### Environment Notes
 
 - The production build bundles the frontend into `dist/public/` and the backend into `dist/boot.js`.
 - The server serves static files and tRPC API routes from `/api/trpc`.
 - Migrations are **not** run automatically on startup; run them during deploy.
+- Production API requests fail closed with 503 when the shared rate-limit store
+  is missing or unavailable. Monitor this response rate and Redis health.
 
 ---
 
@@ -482,7 +515,10 @@ Set `EMAIL_PROVIDER` to one of:
 
 - `console` — logs emails to stdout (default, useful for local dev)
 - `resend` — sends via [Resend](https://resend.com); requires `RESEND_API_KEY` and `EMAIL_FROM`
-- `sendgrid` — sends via [SendGrid](https://sendgrid.com); requires `SENDGRID_API_KEY` and `EMAIL_FROM`
+
+`sendgrid` is intentionally unsupported; selecting it returns an explicit
+delivery error. Use Resend or implement and review a provider before exposing
+that configuration in production.
 
 Example Resend configuration:
 
@@ -560,9 +596,25 @@ Manual process:
 NODE_ENV=production npm start 2>&1 | tee predent.log
 ```
 
+### Telemetry Privacy Operations
+
+- PostHog analytics and Sentry browser telemetry initialize only after the user
+  selects **Allow analytics**. Declining leaves both services off.
+- Configure PostHog event retention to no more than 12 months and Sentry replay
+  retention to no more than 30 days in their provider dashboards.
+- Process access/deletion requests across both providers using the internal user
+  ID; names and email addresses are not sent as analytics person properties.
+- Revisit consent and the privacy policy before adding any new event properties,
+  replay allowlists, advertising tools, or cross-domain tracking.
+
 ---
 
 ## Backup & Recovery
+
+The authoritative procedure and quarterly restore-drill evidence requirements
+are in the [disaster-recovery runbook](./disaster-recovery.md). The commands
+below are examples, not proof that the production Supabase plan has backups or
+point-in-time recovery enabled.
 
 ### Database Backups
 
@@ -632,7 +684,7 @@ Provider-specific tips:
 
 ### Emails not sending
 
-- Verify `EMAIL_PROVIDER` is set to `resend` or `sendgrid` in production.
+- Verify `EMAIL_PROVIDER` is set to `resend` in production.
 - Check API keys and `EMAIL_FROM`.
 - For `console` provider, emails are only logged to stdout.
 

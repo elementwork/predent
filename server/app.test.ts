@@ -7,6 +7,10 @@ describe("app", () => {
     expect(res.status).toBe(404);
     const body: unknown = await res.json();
     expect((body as { error: string }).error).toBe("Not Found");
+    expect(res.headers.get("content-security-policy")).toContain(
+      "default-src 'self'"
+    );
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
   });
 
   it("returns 200 for trpc ping", async () => {

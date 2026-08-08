@@ -1,22 +1,8 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "../../queries/connection";
-import { notifications } from "@db/schema";
-import { sendPushNotification } from "../push";
-
 export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
   html?: string;
-}
-
-function escapeHtml(unsafe: string): string {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
 
 interface SendResult {
@@ -65,7 +51,7 @@ async function sendWithResend(message: EmailMessage): Promise<SendResult> {
 
 async function sendWithSendgrid(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _message: EmailMessage,
+  _message: EmailMessage
 ): Promise<SendResult> {
   return {
     success: false,
@@ -79,7 +65,7 @@ async function sendWithSendgrid(
  * Send an email. Supported providers (set via EMAIL_PROVIDER):
  * - "console" (default): logs to stdout for local development
  * - "resend": uses Resend API (set RESEND_API_KEY and EMAIL_FROM)
- * - "sendgrid": uses SendGrid API (set SENDGRID_API_KEY and EMAIL_FROM)
+ * - "sendgrid": intentionally unsupported; returns an explicit error
  */
 export async function sendEmail(message: EmailMessage): Promise<SendResult> {
   const provider = (process.env.EMAIL_PROVIDER || "console").toLowerCase();
@@ -103,58 +89,4 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
 
   console.warn(`Email provider "${provider}" is not implemented.`);
   return { success: false, provider, error: "Provider not implemented" };
-}
-
-interface NotificationInput {
-  userId: number;
-  type: "task_due" | "payment" | "community" | "system" | "study_reminder";
-  title: string;
-  message: string;
-  link?: string;
-  sendEmail?: boolean;
-  email?: string;
-}
-
-export async function createNotification(input: NotificationInput) {
-  const db = getDb();
-
-  const [notification] = await db
-    .insert(notifications)
-    .values({
-      userId: input.userId,
-      type: input.type,
-      title: input.title,
-      message: input.message,
-      link: input.link,
-      read: false,
-      emailSent: false,
-    })
-    .returning();
-
-  if (input.sendEmail && input.email) {
-    const result = await sendEmail({
-      to: input.email,
-      subject: input.title,
-      text: `${input.title}\n\n${input.message}${input.link ? `\n\n${input.link}` : ""}`,
-      html: input.link
-        ? `<p>${escapeHtml(input.message)}</p><p><a href="${escapeHtml(input.link)}">View in PreDent</a></p>`
-        : `<p>${escapeHtml(input.message)}</p>`,
-    });
-    if (result.success && notification) {
-      await db
-        .update(notifications)
-        .set({ emailSent: true })
-        .where(eq(notifications.id, notification.id));
-    }
-  }
-
-  sendPushNotification(input.userId, {
-    title: input.title,
-    body: input.message,
-    link: input.link,
-  }).catch(err => {
-    console.error("[push] Failed to send push notification:", err);
-  });
-
-  return notification;
 }

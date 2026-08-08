@@ -6,9 +6,9 @@ import { ThemeProvider } from "@/providers/theme";
 import { PostHogProvider } from "@/providers/posthog";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import "@/lib/sentry";
 import "./index.css";
 import App from "./App.tsx";
+import { TelemetryConsentBanner } from "@/components/TelemetryConsent";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -26,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
           <TRPCProvider>
             <PostHogProvider>
               <App />
+              <TelemetryConsentBanner />
               <Toaster />
             </PostHogProvider>
           </TRPCProvider>

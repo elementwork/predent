@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Check, Loader2, BookOpen, Users, CreditCard, Info, Settings } from "lucide-react";
+import {
+  Bell,
+  Check,
+  Loader2,
+  BookOpen,
+  Users,
+  CreditCard,
+  Info,
+  Settings,
+} from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -16,17 +25,20 @@ export default function NotificationBell() {
   const { isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const { data: unreadCount = 0, refetch: refetchCount } =
     trpc.notification.unreadCount.useQuery(undefined, {
       enabled: isAuthenticated,
       refetchInterval: 60_000,
     });
-  const { data: notifications = [], refetch: refetchNotifications } =
-    trpc.notification.list.useQuery(
+  const { data: notificationPage, refetch: refetchNotifications } =
+    trpc.notification.listPage.useQuery(
       { limit: 10 },
       { enabled: isAuthenticated && open }
     );
+  const notifications = notificationPage?.items ?? [];
 
   const markRead = trpc.notification.markRead.useMutation({
     onSuccess: () => {
@@ -48,29 +60,57 @@ export default function NotificationBell() {
         setOpen(false);
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape" && open) {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      panelRef.current?.querySelector<HTMLElement>("button, a")?.focus();
+    }
+  }, [open]);
 
   if (!isAuthenticated) return null;
 
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         className="relative flex items-center justify-center w-9 h-9 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--page-muted)] transition-colors"
         aria-label="Notifications"
+        aria-expanded={open}
+        aria-controls="notification-panel"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-4 h-4 bg-[#EF4444] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          <span
+            aria-live="polite"
+            className="absolute top-1 right-1 w-4 h-4 bg-[#EF4444] text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+          >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-[var(--page-surface)] rounded-xl shadow-lg border border-[var(--border-color)] py-2 z-50 animate-fade-in">
+        <div
+          ref={panelRef}
+          id="notification-panel"
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute right-0 mt-2 w-80 bg-[var(--page-surface)] rounded-xl shadow-lg border border-[var(--border-color)] py-2 z-50 animate-fade-in"
+        >
           <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">
             <p className="text-sm font-semibold text-[var(--text-primary)]">
               Notifications
@@ -101,9 +141,10 @@ export default function NotificationBell() {
             {notifications.map(n => {
               const TypeIcon = typeIcons[n.type] ?? Bell;
               return (
-                <div
+                <button
+                  type="button"
                   key={n.id}
-                  className={`px-4 py-3 border-b border-[var(--border-color)]/50 hover:bg-[var(--page-muted)] transition-colors cursor-pointer ${
+                  className={`w-full px-4 py-3 text-left border-b border-[var(--border-color)]/50 hover:bg-[var(--page-muted)] transition-colors ${
                     n.read ? "opacity-70" : ""
                   }`}
                   onClick={() => {
@@ -115,7 +156,9 @@ export default function NotificationBell() {
                   }}
                 >
                   <div className="flex items-start gap-2">
-                    <TypeIcon className={`w-4 h-4 mt-0.5 shrink-0 ${n.read ? "text-[var(--text-tertiary)]" : "text-[#2563EB]"}`} />
+                    <TypeIcon
+                      className={`w-4 h-4 mt-0.5 shrink-0 ${n.read ? "text-[var(--text-tertiary)]" : "text-[#2563EB]"}`}
+                    />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-[var(--text-primary)]">
                         {n.title}
@@ -128,21 +171,14 @@ export default function NotificationBell() {
                           {new Date(n.createdAt).toLocaleDateString()}
                         </span>
                         {!n.read && (
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              markRead.mutate({ notificationId: n.id });
-                            }}
-                            className="text-[10px] text-[var(--text-tertiary)] hover:text-[#2563EB]"
-                            disabled={markRead.isPending}
-                          >
-                            Mark read
-                          </button>
+                          <span className="text-[10px] text-[#2563EB]">
+                            Unread
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

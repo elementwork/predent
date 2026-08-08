@@ -1,8 +1,9 @@
 import { eq, ne, and, lte, gte, isNull, or } from "drizzle-orm";
 import { getDb } from "../../queries/connection";
 import { tasks, users } from "@db/schema";
-import { createNotification } from "../email";
+import { insertQueuedNotification } from "../../services/notification-service";
 import { studyReminderEmail } from "../email/templates";
+import { formatInTimeZone } from "../time";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
@@ -12,6 +13,13 @@ interface NotifyOptions {
   windowMs?: number;
   /** Only send one notification per task within this period (ms). Default: 24 hours. */
   minIntervalMs?: number;
+}
+
+export function getTaskDueEmail(user: {
+  email: string | null;
+  emailTaskDue: boolean;
+}): string | undefined {
+  return user.emailTaskDue ? (user.email ?? undefined) : undefined;
 }
 
 /**
@@ -33,6 +41,8 @@ export async function notifyUpcomingTasks(options: NotifyOptions = {}) {
       user: {
         id: users.id,
         email: users.email,
+        emailTaskDue: users.emailTaskDue,
+        timezone: users.timezone,
       },
     })
     .from(tasks)
@@ -58,28 +68,31 @@ export async function notifyUpcomingTasks(options: NotifyOptions = {}) {
   for (const { task, user } of pending) {
     try {
       if (!task.dueDate) continue;
+      const dueDate = task.dueDate;
+      const email = getTaskDueEmail(user);
 
-      const dueText = task.dueDate.toLocaleDateString("en-CA", {
+      const dueText = formatInTimeZone(dueDate, user.timezone, {
         weekday: "long",
         year: "numeric",
         month: "long",
         day: "numeric",
       });
 
-      await createNotification({
-        userId: task.userId,
-        type: "task_due",
-        title: `Task due soon: ${task.title}`,
-        message: `Your "${task.title}" task is due on ${dueText}.`,
-        link: `${process.env.PUBLIC_APP_URL || ""}/dashboard`,
-        sendEmail: true,
-        email: user.email ?? undefined,
+      await db.transaction(async tx => {
+        await insertQueuedNotification(tx, {
+          userId: task.userId,
+          type: "task_due",
+          title: `Task due soon: ${task.title}`,
+          message: `Your "${task.title}" task is due on ${dueText}.`,
+          link: `${process.env.PUBLIC_APP_URL || ""}/dashboard`,
+          sendEmail: Boolean(email),
+          idempotencyKey: `task-due:${task.id}:${dueDate.toISOString()}`,
+        });
+        await tx
+          .update(tasks)
+          .set({ dueNotifiedAt: new Date() })
+          .where(eq(tasks.id, task.id));
       });
-
-      await db
-        .update(tasks)
-        .set({ dueNotifiedAt: new Date() })
-        .where(eq(tasks.id, task.id));
 
       notified++;
     } catch (err) {
@@ -157,6 +170,7 @@ export async function sendStudyReminders() {
         name: users.name,
         email: users.email,
         emailStudyReminder: users.emailStudyReminder,
+        timezone: users.timezone,
       },
     })
     .from(tasks)
@@ -188,35 +202,35 @@ export async function sendStudyReminders() {
     const user = rows[0]!.user;
     const taskList = rows.map(r => ({
       title: r.task.title,
-      dueDate: r.task.dueDate!.toLocaleDateString("en-CA", {
+      dueDate: formatInTimeZone(r.task.dueDate!, user.timezone, {
         month: "short",
         day: "numeric",
       }),
       category: r.task.category,
     }));
 
-    const template = studyReminderEmail(
-      user.name || "Student",
-      taskList
-    );
+    const template = studyReminderEmail(user.name || "Student", taskList);
 
-    await createNotification({
-      userId,
-      type: "study_reminder",
-      title: template.subject,
-      message: `You have ${taskList.length} task${taskList.length > 1 ? "s" : ""} due soon.`,
-      link: `${process.env.PUBLIC_APP_URL || ""}/dashboard/planner`,
-      sendEmail: true,
-      email: user.email ?? undefined,
+    await db.transaction(async tx => {
+      await insertQueuedNotification(tx, {
+        userId,
+        type: "study_reminder",
+        title: template.subject,
+        message: `You have ${taskList.length} task${taskList.length > 1 ? "s" : ""} due soon.`,
+        link: `${process.env.PUBLIC_APP_URL || ""}/dashboard/planner`,
+        sendEmail: true,
+        idempotencyKey: `study:${userId}:${rows
+          .map(row => row.task.id)
+          .sort()
+          .join(",")}`,
+      });
+      for (const row of rows) {
+        await tx
+          .update(tasks)
+          .set({ dueNotifiedAt: new Date() })
+          .where(eq(tasks.id, row.task.id));
+      }
     });
-
-    // Mark tasks as notified
-    for (const row of rows) {
-      await db
-        .update(tasks)
-        .set({ dueNotifiedAt: new Date() })
-        .where(eq(tasks.id, row.task.id));
-    }
 
     notified++;
   }

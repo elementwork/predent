@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "stripe_entitlement_updated_at" timestamp;

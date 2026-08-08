@@ -3,8 +3,8 @@ import { notificationRouter } from "./notification-router";
 import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext, seedNotification } from "./test-helpers";
 import { getDb } from "./queries/connection";
-import { notifications } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { notifications, pushSubscriptions } from "@db/schema";
+import { count, eq } from "drizzle-orm";
 
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   notificationRouter.createCaller(mockContext(user));
@@ -115,5 +115,33 @@ describe.skipIf(!hasDb)("notificationRouter.updatePreferences", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe.skipIf(!hasDb)("notificationRouter push ownership", () => {
+  it("does not allow another user to claim or remove an endpoint", async () => {
+    const owner = await createTestUser();
+    const other = await createTestUser();
+    const endpoint = `https://push.example.com/${crypto.randomUUID()}`;
+    await createCaller(owner).subscribePush({
+      endpoint,
+      p256dh: "p".repeat(32),
+      auth: "a".repeat(16),
+    });
+
+    await expect(
+      createCaller(other).subscribePush({
+        endpoint,
+        p256dh: "q".repeat(32),
+        auth: "b".repeat(16),
+      })
+    ).rejects.toThrow("already registered");
+    await createCaller(other).unsubscribePush({ endpoint });
+
+    const [{ total }] = await getDb()
+      .select({ total: count() })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint));
+    expect(total).toBe(1);
   });
 });

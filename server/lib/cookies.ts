@@ -1,4 +1,6 @@
 import type { CookieOptions } from "hono/utils/cookie";
+import { Session } from "@contracts/constants";
+import { env } from "./env";
 
 function isLocalhost(headers: Headers): boolean {
   const host = headers.get("host") || "";
@@ -14,4 +16,8 @@ export function getSessionCookieOptions(headers: Headers): CookieOptions {
     sameSite: "Lax",
     secure: !localhost,
   };
+}
+
+export function getSessionCookieName(): string {
+  return env.isProduction ? Session.productionCookieName : Session.cookieName;
 }

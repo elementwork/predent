@@ -25,6 +25,72 @@ The most important immediate actions are:
 4. Harden Stripe event processing.
 5. Build a safe, complete CI test environment.
 
+## Remediation progress
+
+The report below is a point-in-time audit. Remediation began on 2026-08-07
+after the report was published:
+
+- F01: OAuth identities are now uniquely keyed and queried by
+  `(provider, unionId)`; migration `0008_icy_jackpot.sql` removes the unsafe
+  global subject constraint, and a cross-provider regression test was added.
+- F02: `getEffectiveTier` is now the shared expiry-aware policy for the server
+  and UI. Paid DAT, interview, mock-exam, and advanced PAT procedures use
+  premium middleware, while PAT quota reservation and attempt insertion are
+  atomic.
+- F03: mock exams now start through an authenticated Premium mutation that
+  returns no answer data. A signed, user-bound, two-hour exam token constrains
+  server-side submission and grading.
+- F04: Stripe price, plan, paid state, and subscription status are validated.
+  Event claiming and entitlement changes now share one transaction; stale
+  events and unrelated subscription deletions cannot overwrite current state,
+  and lifetime access is downgrade-safe. Migration
+  `0009_puzzling_centennial.sql` records entitlement event ordering. The Admin
+  Billing tab now provides bounded, paginated dry-run reconciliation against
+  Stripe, explicit confirmed corrections, multiple-subscription/unknown-price
+  manual review, missing-webhook subscription discovery, and immutable admin
+  audit records. Stripe v22 billing-period and invoice-parent fields are
+  handled with backward compatibility for older webhook API versions.
+
+- F05: tests no longer load `.env` or inherit the normal `DATABASE_URL`; an
+  explicit `TEST_DATABASE_URL` is required, and frontend Vitest aliases were
+  repaired. CI now provisions a disposable PostgreSQL 16 service, applies
+  migrations, runs the DB integration suite with `TEST_DATABASE_URL`, and runs
+  the frontend suite separately so neither can silently skip. Playwright smoke
+  and accessibility gates run in CI against Chrome; visual baselines remain a
+  separately reviewed, platform-specific suite and cannot auto-update in CI.
+- F06: Sentry Replay now masks all text and blocks media; PostHog no longer
+  receives user names or email addresses and resets identity on logout. Both
+  services now remain uninitialized until explicit opt-in; users can decline
+  or reopen Privacy Choices from the footer.
+- F08: service-worker navigations now use network-first delivery with the
+  cached app shell only as an offline fallback.
+- F09: the multi-stage Docker runtime now matches Node 24, installs production
+  dependencies only, runs as non-root `node`, exposes a liveness healthcheck,
+  and is scanned with an immutable-action-pinned Trivy gate and image SBOM.
+- F10: unused AWS S3, SendGrid, and Resend SDK dependencies were removed.
+  Nano ID and the Hono Node adapter were upgraded to patched releases. CI now
+  fails on high/critical production advisories and forbidden licenses,
+  publishes dependency/container CycloneDX SBOMs, pins actions by commit SHA,
+  and receives weekly Dependabot updates.
+- F11: task-due email delivery now honors `emailTaskDue`.
+- F22: targeted navigation, notification, range, and switch controls received
+  accessible labels, state, and keyboard behavior.
+- F23: Community, notifications, and Planner now consume bounded cursor pages;
+  Community and Planner append subsequent pages without offset drift.
+- F24: Node and Vercel share CSP, HSTS, frame/cross-origin, referrer, and
+  permissions headers. Cookie-authenticated tRPC mutations require the trusted
+  application Origin in production. OAuth and Stripe redirects use a validated
+  HTTPS `PUBLIC_APP_URL`; sessions have issuer/audience/JTI, 30-day expiry, and
+  a production `__Host-` cookie.
+- F26: current setup and operator documentation no longer advertises unsupported
+  SendGrid or obsolete one-year/in-memory-only controls. Release/rollback,
+  incident response, disaster recovery, and dependency governance runbooks are
+  now authoritative operator entry points.
+- F07: production rate limiting now uses an atomic shared Redis REST store,
+  fails closed when that store is unavailable or unconfigured, reads only
+  platform/trusted-proxy client IP headers, and emits standard limit headers.
+  An in-memory fallback requires an explicit production escape hatch.
+
 ## Validation performed
 
 | Check                               | Result                                                                                             |
@@ -39,6 +105,26 @@ The most important immediate actions are:
 | npm audit                           | 23 advisories: 13 high, 9 moderate, 1 low, 0 critical                                              |
 | Bundle                              | Main JS 981 kB; School Detail chunk 423 kB                                                         |
 | Secret heuristic scan               | No apparent production secret committed; the test fixture contains an intentional private test key |
+
+### Post-remediation validation
+
+| Check                                    | Result through 2026-08-08                                                                                                                     |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript                               | Passed                                                                                                                                        |
+| ESLint                                   | Passed with zero warnings                                                                                                                     |
+| Server tests without `TEST_DATABASE_URL` | 56 passed, 114 safely skipped                                                                                                                 |
+| Frontend tests                           | 57 passed                                                                                                                                     |
+| Production build                         | Passed; bundle budgets passed at 586.5 kB initial, 25.9 kB School Detail, and 399.1 kB deferred chart                                          |
+| Playwright accessibility/smoke gates     | 24/24 passed; targeted Community visual regression 1/1 passed                                                                                 |
+| Production dependency audit              | Passed with 0 vulnerabilities after upgrading Nano ID and `@hono/node-server`                                                                 |
+| Dependency license policy                | Passed across 766 packages                                                                                                                    |
+| Full dependency audit                    | Development-only moderate findings may remain in Drizzle Kit's legacy loader; it is excluded from production images and tracked by Dependabot |
+
+Database-backed integration tests were intentionally not run locally because
+no explicit disposable `TEST_DATABASE_URL`, PostgreSQL client, or container
+runtime was available. CI provisions PostgreSQL 16, applies migrations 0000
+through 0011 from an empty database, runs the DB-gated tests, and verifies query
+plans. That CI gate must pass before production rollout.
 
 Production infrastructure, live Supabase plans, real traffic, Vercel
 settings, Stripe configuration, monitoring dashboards, and real query plans
@@ -782,25 +868,51 @@ deployment/configuration mistakes.
 
 ### Medium term — this month
 
-- Introduce application services, repositories, and an outbox/worker.
-- Move analytics aggregation into SQL and add measured composite indexes.
-- Implement exam sessions and server-side grading.
-- Replace community like counters with a reaction model.
-- Standardize API errors and cursor pagination.
-- Add structured logging, request IDs, metrics, readiness, SLOs, and alerts.
-- Complete a WCAG keyboard/screen-reader pass.
-- Reduce initial and School Detail bundle sizes.
-- Normalize timestamp and user-timezone handling.
+- [x] Introduce application services, repositories, and an outbox/worker.
+- [x] Move analytics aggregation into SQL and add measured composite indexes.
+- [x] Implement exam sessions and server-side grading.
+- [x] Replace community like counters with a reaction model.
+- [x] Standardize API errors and cursor pagination.
+- [x] Add structured logging, request IDs, metrics, readiness, SLOs, and alerts.
+- [x] Complete a WCAG keyboard/screen-reader pass.
+- [x] Reduce initial and School Detail bundle sizes.
+- [x] Normalize timestamp and user-timezone handling.
+
+Completed in the post-audit remediation batch. Migrations 0010–0011 add
+timezone-aware instants, integrity constraints, composite indexes, reactions,
+notification deduplication, and the transactional outbox. CI now uses
+`EXPLAIN (ANALYZE, BUFFERS)` fixtures to verify the three critical composite
+indexes. Core PAT/DAT aggregates execute in SQL; growing resources expose
+cursor pages; error envelopes include correlation IDs and validation details.
+Production operations now have JSON logs, health/readiness, protected metrics,
+queue retry/dead-letter behavior, and documented SLO/alert thresholds.
+
+The initial entry decreased from approximately 984 kB to 586 kB (40%), while
+the School Detail route decreased from 423 kB to approximately 26 kB; the
+399 kB Recharts chunk is fetched only near its viewport. CI enforces these
+budgets. Axe checks across five public flows plus keyboard navigation tests pass
+with no serious or critical findings. Dates are classified as PostgreSQL
+`date` or `timestamptz`, and reminder formatting uses each user's validated IANA
+timezone.
+
+Verification on 2026-08-07: TypeScript and ESLint passed; 46 server tests and
+57 frontend tests passed; the production build met all three bundle budgets;
+and all 72 Playwright accessibility, smoke, and visual tests passed. The
+database-gated suite and `EXPLAIN (ANALYZE, BUFFERS)` checks require a disposable
+PostgreSQL URL and are configured to run in CI rather than locally executed.
 
 ### Long term
 
 - Pre-render or server-render public content routes.
 - Extract PAT generation into a shared deterministic domain package.
-- Build billing reconciliation and entitlement audit tooling.
-- Establish performance budgets, load tests, dependency governance, and SBOM
-  generation.
-- Add ADRs, rollback/runbook documentation, disaster-recovery exercises, and
-  production SLO reviews.
+- [x] Build billing reconciliation and entitlement audit tooling.
+- [x] Establish dependency governance and SBOM generation.
+- [x] Add release, rollback, incident, and disaster-recovery runbooks.
+- Run representative load tests and production SLO reviews.
+- Execute and record the first quarterly disaster-recovery restore drill.
+
+PAT generation/package work is explicitly deferred for a planned rewrite and
+was not changed in this closeout batch.
 
 ## Top 10 highest-impact issues
 

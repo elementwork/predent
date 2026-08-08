@@ -4,8 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Edit3 } from "lucide-react";
 import type { Task } from "@db/schema";
-import type { FilterState } from "./types";
-import { trpc } from "@/providers/trpc";
 
 const priorityColors: Record<string, string> = {
   critical: "bg-red-500",
@@ -31,55 +29,17 @@ const categoryLabels: Record<string, string> = {
 };
 
 interface CalendarViewProps {
-  filters: FilterState;
+  tasks: Task[];
   onEditTask: (task: Task) => void;
 }
 
-export function CalendarView({ filters, onEditTask }: CalendarViewProps) {
+export function CalendarView({ tasks, onEditTask }: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
-  const startOfMonth = new Date(
-    currentMonth.getFullYear(),
-    currentMonth.getMonth(),
-    1
-  );
-  const endOfMonth = new Date(
-    currentMonth.getFullYear(),
-    currentMonth.getMonth() + 1,
-    0
-  );
-
-  const { data: tasks } = trpc.task.listFiltered.useQuery({
-    category: (filters.category || undefined) as
-      | "academic"
-      | "dat"
-      | "experience"
-      | "application"
-      | "interview"
-      | "other"
-      | undefined,
-    priority: (filters.priority || undefined) as
-      | "critical"
-      | "high"
-      | "medium"
-      | "low"
-      | undefined,
-    status: (filters.status || undefined) as
-      | "not_started"
-      | "in_progress"
-      | "under_review"
-      | "complete"
-      | "blocked"
-      | undefined,
-    dueAfter: startOfMonth.toISOString().split("T")[0],
-    dueBefore: endOfMonth.toISOString().split("T")[0],
-    limit: 100,
-  });
-
   const tasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of tasks || []) {
+    for (const t of tasks) {
       if (!t.dueDate) continue;
       const key = new Date(t.dueDate).toISOString().split("T")[0];
       const arr = map.get(key) || [];

@@ -65,10 +65,7 @@ export default function PlannerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
 
-  const hasFilters = filters.status || filters.category || filters.priority;
-
-  const { data: allTasks, isLoading } = trpc.task.list.useQuery();
-  const { data: filteredTasks } = trpc.task.listFiltered.useQuery(
+  const tasksQuery = trpc.task.listPage.useInfiniteQuery(
     {
       category: (filters.category || undefined) as CategoryType | undefined,
       priority: (filters.priority || undefined) as
@@ -80,10 +77,10 @@ export default function PlannerPage() {
       status: (filters.status || undefined) as StatusType | undefined,
       limit: 100,
     },
-    { enabled: !!hasFilters }
+    { getNextPageParam: lastPage => lastPage.nextCursor ?? undefined }
   );
-
-  const tasks = hasFilters ? filteredTasks : allTasks;
+  const tasks = tasksQuery.data?.pages.flatMap(page => page.items) ?? [];
+  const { isLoading } = tasksQuery;
 
   const createTask = trpc.task.create.useMutation({
     onSuccess: () => utils.task.invalidate(),
@@ -131,7 +128,7 @@ export default function PlannerPage() {
   };
 
   const handleStatusChange = async (id: number, newStatus: string) => {
-    const task = tasks?.find(t => t.id === id);
+    const task = tasks.find(t => t.id === id);
     await updateTask.mutateAsync({
       id,
       status: newStatus as StatusType,
@@ -293,7 +290,7 @@ export default function PlannerPage() {
 
         {/* Content */}
         {viewMode === "calendar" ? (
-          <CalendarView filters={filters} onEditTask={startEdit} />
+          <CalendarView tasks={tasks} onEditTask={startEdit} />
         ) : isLoading ? (
           <div className="text-center py-20 text-[var(--text-tertiary)] text-sm">
             Loading tasks...
@@ -301,7 +298,7 @@ export default function PlannerPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {columns.map(col => {
-              const colTasks = (tasks || []).filter(t => t.status === col.id);
+              const colTasks = tasks.filter(t => t.status === col.id);
               return (
                 <div
                   key={col.id}
@@ -443,6 +440,17 @@ export default function PlannerPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+        {tasksQuery.hasNextPage && (
+          <div className="mt-6 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => tasksQuery.fetchNextPage()}
+              disabled={tasksQuery.isFetchingNextPage}
+            >
+              {tasksQuery.isFetchingNextPage ? "Loading…" : "Load more tasks"}
+            </Button>
           </div>
         )}
       </div>

@@ -41,17 +41,39 @@ type PracticeMode = "setup" | "active" | "paused" | "review";
 type ApiDifficulty = "beginner" | "intermediate" | "advanced" | "elite";
 
 const modes = [
-  { id: "quick", name: "Quick Practice", desc: "10 random questions", icon: Zap },
-  { id: "category", name: "Category Drill", desc: "Focus on one category", icon: Filter },
-  { id: "timed", name: "Timed Set", desc: "15 questions, 15 minutes", icon: Clock },
-  { id: "mixed", name: "Mixed Practice", desc: "All categories mixed", icon: RotateCcw },
-  { id: "exam", name: "Exam Mode", desc: "90 questions, 60 minutes", icon: Check },
+  {
+    id: "quick",
+    name: "Quick Practice",
+    desc: "10 random questions",
+    icon: Zap,
+  },
+  {
+    id: "category",
+    name: "Category Drill",
+    desc: "Focus on one category",
+    icon: Filter,
+  },
+  {
+    id: "timed",
+    name: "Timed Set",
+    desc: "15 questions, 15 minutes",
+    icon: Clock,
+  },
+  {
+    id: "mixed",
+    name: "Mixed Practice",
+    desc: "All categories mixed",
+    icon: RotateCcw,
+  },
+  {
+    id: "exam",
+    name: "Exam Mode",
+    desc: "90 questions, 60 minutes",
+    icon: Check,
+  },
 ];
 
-const categoryMeta: Record<
-  string,
-  { name: string; color: string }
-> = {
+const categoryMeta: Record<string, { name: string; color: string }> = {
   keyholes: { name: "Keyholes", color: "#14B8A6" },
   tfe: { name: "Top-Front-End", color: "#6366F1" },
   angle_ranking: { name: "Angle Ranking", color: "#F59E0B" },
@@ -264,6 +286,7 @@ function SetupScreen({
               <button
                 key={d}
                 onClick={() => setSelectedDifficulty(d)}
+                aria-pressed={selectedDifficulty === d}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   selectedDifficulty === d
                     ? "bg-[#2563EB] text-[var(--text-primary)]"
@@ -279,10 +302,14 @@ function SetupScreen({
         {/* Question Count */}
         {selectedMode !== "timed" && selectedMode !== "exam" && (
           <div className="mb-8">
-            <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
+            <label
+              htmlFor="pat-question-count"
+              className="block text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider"
+            >
               Questions: {questionCount}
-            </h2>
+            </label>
             <input
+              id="pat-question-count"
               type="range"
               min={5}
               max={50}
@@ -312,6 +339,10 @@ function SetupScreen({
             </div>
           </div>
           <button
+            type="button"
+            role="switch"
+            aria-checked={timeLimit}
+            aria-label="Use question target time"
             onClick={() => setTimeLimit(!timeLimit)}
             className={`w-12 h-6 rounded-full transition-colors ${timeLimit ? "bg-[#2563EB]" : "bg-white/20"}`}
           >
@@ -873,7 +904,8 @@ export default function PATPracticePage() {
       count: number;
       timeLimit: boolean;
     }) => {
-      const difficulty = difficultyToGen[config.difficulty as ApiDifficulty] ?? "medium";
+      const difficulty =
+        difficultyToGen[config.difficulty as ApiDifficulty] ?? "medium";
       const count =
         config.mode === "timed"
           ? 15
@@ -950,11 +982,7 @@ export default function PATPracticePage() {
   return (
     <AnimatePresence mode="wait">
       {mode === "setup" && (
-        <SetupScreen
-          key="setup"
-          onStart={handleStart}
-          quota={quota}
-        />
+        <SetupScreen key="setup" onStart={handleStart} quota={quota} />
       )}
       {mode === "active" && (
         <ActiveScreen

@@ -1,8 +1,22 @@
 import { z } from "zod";
-import { eq, and, desc, asc, lte, gte, inArray, sql, count } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  asc,
+  lte,
+  gte,
+  inArray,
+  sql,
+  count,
+  lt,
+  or,
+} from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tasks, patAttempts, datAttempts, datQuestions } from "@db/schema";
+import { cursorSchema, nextCursor } from "@contracts/pagination";
+import { TRPCError } from "@trpc/server";
 
 const categoryEnum = z.enum([
   "academic",
@@ -34,8 +48,45 @@ export const taskRouter = createRouter({
     return db.query.tasks.findMany({
       where: eq(tasks.userId, ctx.user.id),
       orderBy: [desc(tasks.createdAt)],
+      limit: 250,
     });
   }),
+
+  listPage: authedQuery
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).default(50),
+        cursor: cursorSchema,
+        status: statusEnum.optional(),
+        category: categoryEnum.optional(),
+        priority: priorityEnum.optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(tasks.userId, ctx.user.id)];
+      if (input.status) conditions.push(eq(tasks.status, input.status));
+      if (input.category) conditions.push(eq(tasks.category, input.category));
+      if (input.priority) conditions.push(eq(tasks.priority, input.priority));
+      if (input.cursor) {
+        const date = new Date(input.cursor.createdAt);
+        conditions.push(
+          or(
+            lt(tasks.createdAt, date),
+            and(eq(tasks.createdAt, date), lt(tasks.id, input.cursor.id))
+          )!
+        );
+      }
+      const rows = await getDb()
+        .select()
+        .from(tasks)
+        .where(and(...conditions))
+        .orderBy(desc(tasks.createdAt), desc(tasks.id))
+        .limit(input.limit + 1);
+      return {
+        items: rows.slice(0, input.limit),
+        nextCursor: nextCursor(rows, input.limit),
+      };
+    }),
 
   listFiltered: authedQuery
     .input(
@@ -97,20 +148,22 @@ export const taskRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const completedAt =
-        input.status === "complete" ? new Date() : null;
-      const result = await db.insert(tasks).values({
-        userId: ctx.user.id,
-        title: input.title,
-        category: input.category,
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-        status: input.status,
-        priority: input.priority,
-        schoolId: input.schoolId ?? null,
-        notes: input.notes ?? null,
-        estimatedMinutes: input.estimatedMinutes ?? null,
-        completedAt,
-      }).returning({ id: tasks.id });
+      const completedAt = input.status === "complete" ? new Date() : null;
+      const result = await db
+        .insert(tasks)
+        .values({
+          userId: ctx.user.id,
+          title: input.title,
+          category: input.category,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          status: input.status,
+          priority: input.priority,
+          schoolId: input.schoolId ?? null,
+          notes: input.notes ?? null,
+          estimatedMinutes: input.estimatedMinutes ?? null,
+          completedAt,
+        })
+        .returning({ id: tasks.id });
       return { success: true, id: result[0]!.id };
     }),
 
@@ -146,10 +199,12 @@ export const taskRouter = createRouter({
         }
       }
 
-      await db
+      const [updated] = await db
         .update(tasks)
         .set(updateData)
-        .where(and(eq(tasks.id, id), eq(tasks.userId, ctx.user.id)));
+        .where(and(eq(tasks.id, id), eq(tasks.userId, ctx.user.id)))
+        .returning({ id: tasks.id });
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
@@ -157,9 +212,11 @@ export const taskRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      await db
+      const [deleted] = await db
         .delete(tasks)
-        .where(and(eq(tasks.id, input.id), eq(tasks.userId, ctx.user.id)));
+        .where(and(eq(tasks.id, input.id), eq(tasks.userId, ctx.user.id)))
+        .returning({ id: tasks.id });
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
@@ -275,12 +332,7 @@ export const taskRouter = createRouter({
       const result = await db
         .update(tasks)
         .set(updateData)
-        .where(
-          and(
-            eq(tasks.userId, ctx.user.id),
-            inArray(tasks.id, input.ids)
-          )
-        )
+        .where(and(eq(tasks.userId, ctx.user.id), inArray(tasks.id, input.ids)))
         .returning({ id: tasks.id });
       return { success: true, updated: result.length };
     }),
@@ -330,7 +382,10 @@ export const taskRouter = createRouter({
 
       // Check if today or yesterday has activity (allow streak to start from today or yesterday)
       const latestDay = sortedDays[0]!;
-      if (latestDay === today.getTime() || latestDay === today.getTime() - dayMs) {
+      if (
+        latestDay === today.getTime() ||
+        latestDay === today.getTime() - dayMs
+      ) {
         streakDays = 1;
         for (let i = 1; i < sortedDays.length; i++) {
           if (sortedDays[i - 1]! - sortedDays[i]! === dayMs) {
@@ -404,7 +459,8 @@ export const taskRouter = createRouter({
     if (patRecent.length > 0) {
       const catStats: Record<string, { correct: number; total: number }> = {};
       for (const a of patRecent) {
-        if (!catStats[a.category]) catStats[a.category] = { correct: 0, total: 0 };
+        if (!catStats[a.category])
+          catStats[a.category] = { correct: 0, total: 0 };
         catStats[a.category].total++;
         if (a.isCorrect) catStats[a.category].correct++;
       }
@@ -429,7 +485,8 @@ export const taskRouter = createRouter({
     if (datRecent.length > 0) {
       const subStats: Record<string, { correct: number; total: number }> = {};
       for (const a of datRecent) {
-        if (!subStats[a.subject]) subStats[a.subject] = { correct: 0, total: 0 };
+        if (!subStats[a.subject])
+          subStats[a.subject] = { correct: 0, total: 0 };
         subStats[a.subject].total++;
         if (a.isCorrect) subStats[a.subject].correct++;
       }
@@ -455,7 +512,8 @@ export const taskRouter = createRouter({
       recommendations.push({
         type: "study",
         title: "Review Flashcards",
-        description: "Spaced repetition helps lock in what you've learned. Review your due cards.",
+        description:
+          "Spaced repetition helps lock in what you've learned. Review your due cards.",
         link: "/flashcards",
         priority: "medium",
       });
@@ -470,9 +528,10 @@ export const taskRouter = createRouter({
       recommendations.push({
         type: "task",
         title: task.title,
-        description: daysUntil <= 1
-          ? "Due soon — complete this task today!"
-          : `Due in ${daysUntil} days.`,
+        description:
+          daysUntil <= 1
+            ? "Due soon — complete this task today!"
+            : `Due in ${daysUntil} days.`,
         link: "/dashboard/planner",
         priority: daysUntil <= 1 ? "high" : "medium",
       });
@@ -484,21 +543,24 @@ export const taskRouter = createRouter({
         {
           type: "practice",
           title: "Start PAT Practice",
-          description: "Begin with a quick 10-question session to establish your baseline.",
+          description:
+            "Begin with a quick 10-question session to establish your baseline.",
           link: "/pat-academy/practice",
           priority: "high",
         },
         {
           type: "practice",
           title: "Try DAT Practice",
-          description: "Test your knowledge in Biology, Chemistry, or Reading Comprehension.",
+          description:
+            "Test your knowledge in Biology, Chemistry, or Reading Comprehension.",
           link: "/dat-academy/practice",
           priority: "medium",
         },
         {
           type: "study",
           title: "Explore Flashcards",
-          description: "Use spaced repetition to memorize key concepts efficiently.",
+          description:
+            "Use spaced repetition to memorize key concepts efficiently.",
           link: "/flashcards",
           priority: "low",
         }

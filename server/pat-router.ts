@@ -1,11 +1,19 @@
 import { z } from "zod";
-import { eq, desc, sql } from "drizzle-orm";
-import { createRouter, authedQuery } from "./middleware";
+import { and, eq, desc, lt, sql } from "drizzle-orm";
+import { createRouter, authedQuery, premiumQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { patAttempts, users } from "@db/schema";
 import { TRPCError } from "@trpc/server";
-import { getCorrectAnswer, type PatCategory, type Difficulty } from "./lib/pat-generation";
+import {
+  getCorrectAnswer,
+  type PatCategory,
+  type Difficulty,
+} from "./lib/pat-generation";
 import { computePredictedScore } from "./lib/score-prediction";
+import {
+  getPatAggregates,
+  percentage,
+} from "./repositories/analytics-repository";
 
 const apiToGenDifficulty: Record<string, Difficulty> = {
   beginner: "easy",
@@ -13,7 +21,7 @@ const apiToGenDifficulty: Record<string, Difficulty> = {
   advanced: "hard",
   elite: "hard",
 };
-import { getTierQuota } from "@contracts/tiers";
+import { getEffectiveTier, getTierQuota } from "@contracts/tiers";
 
 const categoryEnum = z.enum([
   "keyholes",
@@ -44,32 +52,60 @@ export const patRouter = createRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-
       // Generated question: re-derive answer from seed
       const genDifficulty = apiToGenDifficulty[input.difficulty] ?? "medium";
-      const correctAnswer = getCorrectAnswer(
-        input.category as PatCategory,
-        { seed: input.seed, difficulty: genDifficulty }
-      );
+      const correctAnswer = getCorrectAnswer(input.category as PatCategory, {
+        seed: input.seed,
+        difficulty: genDifficulty,
+      });
 
       const isCorrect = input.userAnswer === correctAnswer;
 
-      await db.insert(patAttempts).values({
-        userId: ctx.user.id,
-        category: input.category,
-        difficulty: input.difficulty,
-        questionId: String(input.seed),
-        userAnswer: input.userAnswer,
-        isCorrect,
-        timeSpent: input.timeSpent,
-        sessionId: input.sessionId,
-      });
+      const db = getDb();
+      await db.transaction(async tx => {
+        const [user] = await tx
+          .select({
+            tier: users.tier,
+            premiumUntil: users.premiumUntil,
+          })
+          .from(users)
+          .where(eq(users.id, ctx.user.id))
+          .limit(1);
+        if (!user) throw new TRPCError({ code: "NOT_FOUND" });
 
-      await db
-        .update(users)
-        .set({ patQuestionsGenerated: sql`${users.patQuestionsGenerated} + 1` })
-        .where(eq(users.id, ctx.user.id));
+        const tier = getEffectiveTier(user.tier, user.premiumUntil);
+        const quota = getTierQuota(tier);
+        const [reservation] = await tx
+          .update(users)
+          .set({
+            patQuestionsGenerated: sql`${users.patQuestionsGenerated} + 1`,
+          })
+          .where(
+            and(
+              eq(users.id, ctx.user.id),
+              lt(users.patQuestionsGenerated, quota)
+            )
+          )
+          .returning({ used: users.patQuestionsGenerated });
+
+        if (!reservation) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "PAT question quota exhausted.",
+          });
+        }
+
+        await tx.insert(patAttempts).values({
+          userId: ctx.user.id,
+          category: input.category,
+          difficulty: input.difficulty,
+          questionId: String(input.seed),
+          userAnswer: input.userAnswer,
+          isCorrect,
+          timeSpent: input.timeSpent,
+          sessionId: input.sessionId,
+        });
+      });
 
       return { success: true, isCorrect };
     }),
@@ -77,66 +113,58 @@ export const patRouter = createRouter({
   getQuota: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
     const [user] = await db
-      .select({ tier: users.tier, patQuestionsGenerated: users.patQuestionsGenerated })
+      .select({
+        tier: users.tier,
+        premiumUntil: users.premiumUntil,
+        patQuestionsGenerated: users.patQuestionsGenerated,
+      })
       .from(users)
       .where(eq(users.id, ctx.user.id))
       .limit(1);
 
     if (!user) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const quota = getTierQuota(user.tier as "free" | "premium" | "premium_plus");
+    const tier = getEffectiveTier(user.tier, user.premiumUntil);
+    const quota = getTierQuota(tier);
     const used = user.patQuestionsGenerated ?? 0;
     const remaining = Math.max(0, quota - used);
 
-    return { tier: user.tier, quota, used, remaining };
+    return { tier, quota, used, remaining };
   }),
 
   getStats: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const [aggregates, recentAttempts] = await Promise.all([
+      getPatAggregates(ctx.user.id),
+      db.query.patAttempts.findMany({
+        where: eq(patAttempts.userId, ctx.user.id),
+        orderBy: [desc(patAttempts.createdAt)],
+        limit: 50,
+      }),
+    ]);
+
+    return {
+      overallAccuracy: percentage(
+        aggregates.overall.correct,
+        aggregates.overall.total
+      ),
+      totalAttempts: aggregates.overall.total,
+      categoryStats: aggregates.categories.map(row => ({
+        category: row.category,
+        accuracy: percentage(row.correct, row.total),
+        avgTime: row.avgTime,
+        total: row.total,
+      })),
+      recentAttempts,
+    };
+  }),
+
+  getPredictedScore: premiumQuery.query(async ({ ctx }) => {
     const db = getDb();
     const attempts = await db.query.patAttempts.findMany({
       where: eq(patAttempts.userId, ctx.user.id),
       orderBy: [desc(patAttempts.createdAt)],
       limit: 1000,
-    });
-
-    // Aggregate by category
-    const byCategory: Record<
-      string,
-      { correct: number; total: number; totalTime: number }
-    > = {};
-    attempts.forEach(a => {
-      if (!byCategory[a.category])
-        byCategory[a.category] = { correct: 0, total: 0, totalTime: 0 };
-      byCategory[a.category].total++;
-      if (a.isCorrect) byCategory[a.category].correct++;
-      byCategory[a.category].totalTime += a.timeSpent ?? 0;
-    });
-
-    const categoryStats = Object.entries(byCategory).map(([cat, stats]) => ({
-      category: cat,
-      accuracy: Math.round((stats.correct / stats.total) * 100),
-      avgTime: Math.round(stats.totalTime / stats.total),
-      total: stats.total,
-    }));
-
-    const totalCorrect = attempts.filter(a => a.isCorrect).length;
-    const overallAccuracy =
-      attempts.length > 0
-        ? Math.round((totalCorrect / attempts.length) * 100)
-        : 0;
-
-    return {
-      overallAccuracy,
-      totalAttempts: attempts.length,
-      categoryStats,
-      recentAttempts: attempts.slice(0, 50),
-    };
-  }),
-
-  getPredictedScore: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const attempts = await db.query.patAttempts.findMany({
-      where: eq(patAttempts.userId, ctx.user.id),
     });
 
     if (attempts.length === 0) return { score: null, confidence: 0 };
@@ -146,13 +174,16 @@ export const patRouter = createRouter({
     return { score, confidence };
   }),
 
-  getAnalytics: authedQuery.query(async ({ ctx }) => {
+  getAnalytics: premiumQuery.query(async ({ ctx }) => {
     const db = getDb();
-    const attempts = await db.query.patAttempts.findMany({
-      where: eq(patAttempts.userId, ctx.user.id),
-      orderBy: [desc(patAttempts.createdAt)],
-      limit: 1000,
-    });
+    const [attempts, aggregates] = await Promise.all([
+      db.query.patAttempts.findMany({
+        where: eq(patAttempts.userId, ctx.user.id),
+        orderBy: [desc(patAttempts.createdAt)],
+        limit: 1000,
+      }),
+      getPatAggregates(ctx.user.id),
+    ]);
 
     if (attempts.length === 0) {
       return {
@@ -169,55 +200,37 @@ export const patRouter = createRouter({
       };
     }
 
-    const totalCorrect = attempts.filter(a => a.isCorrect).length;
-    const overallAccuracy = Math.round((totalCorrect / attempts.length) * 100);
-    const avgTime = Math.round(
-      attempts.reduce((s, a) => s + (a.timeSpent ?? 0), 0) / attempts.length
+    const overallAccuracy = percentage(
+      aggregates.overall.correct,
+      aggregates.overall.total
     );
+    const avgTime = aggregates.overall.avgTime;
 
     // Predicted PAT score using weighted algorithm (1-30)
     const { score: predictedScore, confidence: predictedConfidence } =
       computePredictedScore(attempts);
 
-    // Category stats
-    const categoryMap: Record<
-      string,
-      { correct: number; total: number; totalTime: number }
-    > = {};
-    const heatmapMap: Record<
-      string,
-      Record<string, { correct: number; total: number }>
-    > = {};
-
-    attempts.forEach(a => {
-      if (!categoryMap[a.category]) {
-        categoryMap[a.category] = { correct: 0, total: 0, totalTime: 0 };
-      }
-      categoryMap[a.category].total++;
-      if (a.isCorrect) categoryMap[a.category].correct++;
-      categoryMap[a.category].totalTime += a.timeSpent ?? 0;
-
-      if (!heatmapMap[a.category]) heatmapMap[a.category] = {};
-      const diff = a.difficulty;
-      if (!heatmapMap[a.category][diff]) {
-        heatmapMap[a.category][diff] = { correct: 0, total: 0 };
-      }
-      heatmapMap[a.category][diff].total++;
-      if (a.isCorrect) heatmapMap[a.category][diff].correct++;
-    });
-
-    const categoryStats = Object.entries(categoryMap).map(([cat, stats]) => ({
-      category: cat,
-      accuracy: Math.round((stats.correct / stats.total) * 100),
-      avgTime: Math.round(stats.totalTime / stats.total),
-      total: stats.total,
+    const categoryStats = aggregates.categories.map(row => ({
+      category: row.category,
+      accuracy: percentage(row.correct, row.total),
+      avgTime: row.avgTime,
+      total: row.total,
     }));
 
     // Heatmap: accuracy by category x difficulty
     const difficulties: Array<
       "beginner" | "intermediate" | "advanced" | "elite"
     > = ["beginner", "intermediate", "advanced", "elite"];
-    const heatmap = Object.entries(heatmapMap).map(([cat, byDiff]) => {
+    const heatmapMap = new Map<
+      string,
+      Map<string, { correct: number; total: number }>
+    >();
+    for (const item of aggregates.heatmap) {
+      const values = heatmapMap.get(item.category) ?? new Map();
+      values.set(item.difficulty, item);
+      heatmapMap.set(item.category, values);
+    }
+    const heatmap = [...heatmapMap].map(([cat, byDiff]) => {
       const row: {
         category: string;
         beginner: number;
@@ -232,8 +245,8 @@ export const patRouter = createRouter({
         elite: 0,
       };
       for (const d of difficulties) {
-        const s = byDiff[d];
-        row[d] = s ? Math.round((s.correct / s.total) * 100) : 0;
+        const s = byDiff.get(d);
+        row[d] = s ? percentage(s.correct, s.total) : 0;
       }
       return row;
     });
@@ -286,7 +299,7 @@ export const patRouter = createRouter({
       avgTime,
       predictedScore,
       predictedConfidence,
-      totalAttempts: attempts.length,
+      totalAttempts: aggregates.overall.total,
       categoryStats,
       trend,
       heatmap,

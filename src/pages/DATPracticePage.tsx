@@ -18,6 +18,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { useTier } from "@/hooks/useTier";
+import { PremiumLock } from "@/components/PremiumCTA";
 import { toast } from "sonner";
 import { events } from "@/lib/analytics";
 
@@ -53,6 +55,7 @@ interface AttemptResult {
 export default function DATPracticePage() {
   usePageTitle("DAT Practice");
   const { isAuthenticated } = useAuth();
+  const { isPremium } = useTier();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty | undefined>(
     undefined
@@ -60,7 +63,9 @@ export default function DATPracticePage() {
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null);
-  const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(null);
+  const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(
+    null
+  );
   const [seenIds, setSeenIds] = useState<number[]>([]);
   const startTimeRef = useRef<number>(0);
   useEffect(() => {
@@ -75,7 +80,7 @@ export default function DATPracticePage() {
 
   const listQuery = trpc.dat.listQuestions.useQuery(
     { subject: subject!, difficulty, limit: 1, excludeIds: seenIds },
-    { enabled: !!subject }
+    { enabled: !!subject && isPremium }
   );
 
   const recordAttempt = trpc.dat.recordAttempt.useMutation({
@@ -91,6 +96,7 @@ export default function DATPracticePage() {
         data.isCorrect
       );
     },
+    onError: error => toast.error(error.message),
   });
 
   const loadNext = (nextQuestion?: Question) => {
@@ -161,7 +167,12 @@ export default function DATPracticePage() {
           </p>
         </div>
 
-        {!subject ? (
+        {!isPremium ? (
+          <PremiumLock
+            title="Premium DAT Practice"
+            description="An active Premium subscription is required for the DAT question bank and progress tracking."
+          />
+        ) : !subject ? (
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
             {subjects.map(s => (
               <Card
@@ -255,6 +266,11 @@ export default function DATPracticePage() {
 
             {!question && !listQuery.isLoading && (
               <div className="text-center py-12">
+                {listQuery.error && (
+                  <p className="text-sm text-[#EF4444] mb-4">
+                    {listQuery.error.message}
+                  </p>
+                )}
                 <Button
                   onClick={nextQuestion}
                   className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
@@ -284,7 +300,9 @@ export default function DATPracticePage() {
                           );
                         }}
                         className="p-1.5 rounded-md transition-colors hover:bg-[var(--page-muted)]"
-                        title={isSaved.data?.saved ? "Unsave" : "Save for later"}
+                        title={
+                          isSaved.data?.saved ? "Unsave" : "Save for later"
+                        }
                       >
                         {isSaved.data?.saved ? (
                           <BookmarkCheck className="w-4 h-4 text-[#2563EB]" />

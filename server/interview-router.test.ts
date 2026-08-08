@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { interviewRouter } from "./interview-router";
 import { getDb } from "./queries/connection";
 import { interviewQuestions } from "@db/schema";
+import type { User } from "@db/schema";
 import { hasDb } from "./test-db-flag";
+import { mockContext } from "./test-helpers";
 
 const seedQuestions = [
   {
@@ -45,11 +47,17 @@ beforeAll(async () => {
   }
 });
 
-const createCaller = () =>
-  interviewRouter.createCaller({
-    req: new Request("http://localhost"),
-    resHeaders: new Headers(),
-  });
+const premiumUser = {
+  id: 9999,
+  role: "user",
+  tier: "premium",
+  premiumUntil: new Date("2099-01-01T00:00:00.000Z"),
+} as User;
+
+const createCaller = (authenticated = true) =>
+  interviewRouter.createCaller(
+    mockContext(authenticated ? premiumUser : undefined)
+  );
 
 describe.skipIf(!hasDb)("interviewRouter.getQuestions", () => {
   it("returns MMI questions when format is MMI", async () => {
@@ -91,7 +99,7 @@ describe.skipIf(!hasDb)("interviewRouter.getQuestions", () => {
 
 describe.skipIf(!hasDb)("interviewRouter.getCategories", () => {
   it("returns categories for MMI", async () => {
-    const caller = createCaller();
+    const caller = createCaller(false);
     const categories = await caller.getCategories({ format: "MMI" });
 
     expect(categories.length).toBeGreaterThan(0);
@@ -99,7 +107,7 @@ describe.skipIf(!hasDb)("interviewRouter.getCategories", () => {
   });
 
   it("returns categories for Panel", async () => {
-    const caller = createCaller();
+    const caller = createCaller(false);
     const categories = await caller.getCategories({ format: "Panel" });
 
     expect(categories.length).toBeGreaterThan(0);

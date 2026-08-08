@@ -10,9 +10,15 @@ import { hasDb } from "./test-db-flag";
 const createCaller = (user?: Partial<User>) =>
   patRouter.createCaller(mockContext(user as User | undefined));
 
+const premiumFields = {
+  role: "user" as const,
+  tier: "premium" as const,
+  premiumUntil: new Date("2099-01-01T00:00:00.000Z"),
+};
+
 describe.skipIf(!hasDb)("patRouter.getPredictedScore", () => {
   it("returns null score when no attempts exist", async () => {
-    const caller = createCaller({ id: 9999, role: "user" });
+    const caller = createCaller({ id: 9999, ...premiumFields });
     const result = await caller.getPredictedScore();
 
     expect(result.score).toBeNull();
@@ -22,7 +28,7 @@ describe.skipIf(!hasDb)("patRouter.getPredictedScore", () => {
 
 describe.skipIf(!hasDb)("patRouter.getAnalytics", () => {
   it("returns empty analytics when no attempts exist", async () => {
-    const caller = createCaller({ id: 9999, role: "user" });
+    const caller = createCaller({ id: 9999, ...premiumFields });
     const analytics = await caller.getAnalytics();
 
     expect(analytics.totalAttempts).toBe(0);
@@ -33,7 +39,7 @@ describe.skipIf(!hasDb)("patRouter.getAnalytics", () => {
   });
 
   it("returns analytics after attempts", async () => {
-    const user = await createTestUser();
+    const user = await createTestUser(premiumFields);
     const db = getDb();
     await db.insert(patAttempts).values({
       userId: user.id,
@@ -202,6 +208,29 @@ describe.skipIf(!hasDb)("patRouter.recordAttempt with seed", () => {
       .where(eq(users.id, user.id))
       .limit(1);
     expect(u.patQuestionsGenerated).toBe(2);
+  });
+
+  it("does not record an attempt after the quota is exhausted", async () => {
+    const user = await createTestUser({ patQuestionsGenerated: 20 });
+    const caller = createCaller(user);
+
+    await expect(
+      caller.recordAttempt({
+        category: "keyholes",
+        difficulty: "beginner",
+        seed: 300,
+        userAnswer: 0,
+        timeSpent: 10,
+        sessionId: "quota-test",
+      })
+    ).rejects.toThrow("PAT question quota exhausted");
+
+    const db = getDb();
+    const attempts = await db
+      .select({ id: patAttempts.id })
+      .from(patAttempts)
+      .where(eq(patAttempts.userId, user.id));
+    expect(attempts).toHaveLength(0);
   });
 
   it("re-derives correct answer from seed server-side", async () => {

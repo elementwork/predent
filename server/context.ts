@@ -6,12 +6,19 @@ export type TrpcContext = {
   req: Request;
   resHeaders: Headers;
   user?: User;
+  requestId?: string;
 };
 
 export async function createContext(
-  opts: FetchCreateContextFnOptions
+  opts: FetchCreateContextFnOptions,
+  requestId?: string
 ): Promise<TrpcContext> {
-  const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
+  const ctx: TrpcContext = {
+    req: opts.req,
+    resHeaders: opts.resHeaders,
+    requestId:
+      requestId ?? opts.req.headers.get("x-request-id") ?? crypto.randomUUID(),
+  };
   try {
     ctx.user = await authenticateRequest(opts.req.headers);
   } catch {

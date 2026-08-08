@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/providers/trpc";
+import { useTier } from "@/hooks/useTier";
+import { PremiumLock } from "@/components/PremiumCTA";
 
 const mmiStations = [
   {
@@ -162,6 +164,7 @@ const rubric = [
 
 export default function InterviewPrepPage() {
   usePageTitle("Interview Preparation");
+  const { isPremium } = useTier();
   const [tab, setTab] = useState<"guide" | "bank" | "practice">("guide");
   const [bankFormat, setBankFormat] = useState<"MMI" | "Panel">("Panel");
   const [practiceFormat, setPracticeFormat] = useState<"MMI" | "Panel">("MMI");
@@ -175,9 +178,10 @@ export default function InterviewPrepPage() {
     data: questions,
     isLoading: bankLoading,
     error: bankError,
-  } = trpc.interview.getQuestions.useQuery({
-    format: bankFormat,
-  });
+  } = trpc.interview.getQuestions.useQuery(
+    { format: bankFormat },
+    { enabled: isPremium && tab === "bank" }
+  );
   const {
     data: practiceSet,
     isLoading: practiceLoading,
@@ -185,7 +189,7 @@ export default function InterviewPrepPage() {
     refetch: refetchPractice,
   } = trpc.interview.getRandomSet.useQuery(
     { format: practiceFormat, count: practiceFormat === "MMI" ? 8 : 6 },
-    { enabled: tab === "practice" }
+    { enabled: isPremium && tab === "practice" }
   );
 
   const currentQuestion = practiceSet?.[activeIndex];
@@ -238,7 +242,8 @@ export default function InterviewPrepPage() {
                 Interview Preparation
               </h1>
               <p className="text-[var(--text-secondary)]">
-                Master MMI and Panel interview formats for Canadian dental schools.
+                Master MMI and Panel interview formats for Canadian dental
+                schools.
               </p>
             </div>
           </div>
@@ -279,7 +284,8 @@ export default function InterviewPrepPage() {
                     Ready to practice?
                   </h2>
                   <p className="text-sm text-[var(--text-secondary)]">
-                    Browse real interview questions or run a timed mock interview.
+                    Browse real interview questions or run a timed mock
+                    interview.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -476,7 +482,9 @@ export default function InterviewPrepPage() {
                       <p className="text-sm font-medium text-[var(--text-primary)]">
                         {item.criterion}
                       </p>
-                      <p className="text-xs text-[var(--text-secondary)]">{item.desc}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {item.desc}
+                      </p>
                       <div className="flex gap-1 mt-2">
                         {[1, 2, 3, 4, 5].map(n => (
                           <div
@@ -495,255 +503,278 @@ export default function InterviewPrepPage() {
           </div>
         )}
 
-        {tab === "bank" && (
-          <Card className="border-[var(--border-color)]">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-[var(--text-primary)]">
-                  Question Bank
-                </h2>
-                <div className="flex gap-2">
-                  {(["Panel", "MMI"] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setBankFormat(f)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        bankFormat === f
-                          ? "bg-[#2563EB] text-white"
-                          : "bg-[var(--page-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]"
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {bankLoading && (
-                <div className="space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <Skeleton key={i} className="h-16 w-full" />
-                  ))}
-                </div>
-              )}
-
-              {!bankLoading && bankError && (
-                <div className="p-8 text-center">
-                  <p className="text-sm text-[#EF4444]">
-                    Failed to load questions. Please try again.
-                  </p>
-                </div>
-              )}
-
-              {!bankLoading && !bankError && questions?.length === 0 && (
-                <div className="p-8 text-center">
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    No questions found for {bankFormat} format.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {questions?.map(q => (
-                  <div
-                    key={q.id}
-                    className="p-4 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)]"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge
-                        className={
-                          q.format === "MMI"
-                            ? "bg-[var(--page-muted)] text-[#2563EB]"
-                            : "bg-[var(--page-muted)] text-[#10B981]"
-                        }
+        {tab === "bank" &&
+          (!isPremium ? (
+            <PremiumLock
+              title="Premium Interview Question Bank"
+              description="Upgrade to browse the interview bank and model answers."
+            />
+          ) : (
+            <Card className="border-[var(--border-color)]">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-[var(--text-primary)]">
+                    Question Bank
+                  </h2>
+                  <div className="flex gap-2">
+                    {(["Panel", "MMI"] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setBankFormat(f)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          bankFormat === f
+                            ? "bg-[#2563EB] text-white"
+                            : "bg-[var(--page-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]"
+                        }`}
                       >
-                        {q.format}
-                      </Badge>
-                      <span className="text-xs text-[var(--text-tertiary)]">
-                        {q.category}
-                      </span>
-                      {q.frequency && (
-                        <span className="text-[10px] text-[#F59E0B]">
-                          ★ {q.frequency}%
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-[var(--text-primary)]">{q.question}</p>
+                        {f}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {tab === "practice" && (
-          <Card className="border-[var(--border-color)]">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-[var(--text-primary)]">
-                  Practice Simulator
-                </h2>
-                <div className="flex items-center gap-2">
-                  {(["MMI", "Panel"] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => {
-                        setPracticeFormat(f);
-                        setActiveIndex(0);
-                        setTimer(0);
-                        setIsTimerRunning(false);
-                        setHasStarted(false);
-                        setShowAnswer(false);
-                        refetchPractice();
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        practiceFormat === f
-                          ? "bg-[#2563EB] text-white"
-                          : "bg-[var(--page-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]"
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
                 </div>
-              </div>
 
-              {practiceLoading && (
-                <div className="text-center py-10">
-                  <div className="w-8 h-8 border-2 border-[var(--border-color)] border-t-[#2563EB] rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-[var(--text-secondary)] text-sm">Loading questions...</p>
-                </div>
-              )}
-
-              {!practiceLoading && practiceError && (
-                <div className="text-center py-10">
-                  <p className="text-sm text-[#EF4444] mb-4">
-                    Failed to load practice questions.
-                  </p>
-                  <Button
-                    onClick={() => refetchPractice()}
-                    className="bg-[#2563EB] hover:bg-[#1D4ED8]"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              )}
-
-              {!practiceLoading && !practiceError && practiceSet?.length === 0 && (
-                <div className="text-center py-10">
-                  <p className="text-[var(--text-secondary)] text-sm">
-                    No practice questions available for {practiceFormat} format.
-                  </p>
-                </div>
-              )}
-
-              {!practiceLoading && !practiceError && practiceSet && practiceSet.length > 0 && !hasStarted && (
-                <div className="text-center py-10">
-                  <Play className="w-10 h-10 text-[#2563EB] mx-auto mb-3" />
-                  <p className="text-[var(--text-secondary)] text-sm mb-4">
-                    {practiceFormat === "MMI"
-                      ? `${practiceSet.length} stations • 2 min prep + 5-8 min response each`
-                      : `${practiceSet.length} questions • practice with a 45-min timer`}
-                  </p>
-                  <Button
-                    onClick={startTimer}
-                    className="bg-[#2563EB] hover:bg-[#1D4ED8]"
-                  >
-                    Start Mock Interview
-                  </Button>
-                </div>
-              )}
-
-              {currentQuestion && (
-                <>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-xs text-[var(--text-tertiary)]">
-                        Question {activeIndex + 1} of {practiceSet?.length}
-                      </p>
-                      <p className="text-xs text-[var(--text-tertiary)]">
-                        {currentQuestion.category}
-                      </p>
-                    </div>
-                    <div
-                      className={`text-xl font-mono font-bold ${timer > (practiceFormat === "MMI" ? 360 : 2400) ? "text-[#EF4444]" : "text-[var(--text-primary)]"}`}
-                    >
-                      {formatTime(timer)}
-                    </div>
+                {bankLoading && (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
                   </div>
+                )}
 
-                  <div className="p-5 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)] mb-4">
-                    <p className="text-base text-[var(--text-primary)] leading-relaxed">
-                      {currentQuestion.question}
+                {!bankLoading && bankError && (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-[#EF4444]">
+                      Failed to load questions. Please try again.
                     </p>
                   </div>
+                )}
 
-                  {showAnswer && currentQuestion.modelAnswer && (
-                    <div className="p-4 rounded-lg bg-[var(--page-muted)] border border-[var(--border-color)] mb-4">
-                      <p className="text-xs font-medium text-[#10B981] mb-1">
-                        Model Answer
-                      </p>
+                {!bankLoading && !bankError && questions?.length === 0 && (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-[var(--text-secondary)]">
+                      No questions found for {bankFormat} format.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {questions?.map(q => (
+                    <div
+                      key={q.id}
+                      className="p-4 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)]"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge
+                          className={
+                            q.format === "MMI"
+                              ? "bg-[var(--page-muted)] text-[#2563EB]"
+                              : "bg-[var(--page-muted)] text-[#10B981]"
+                          }
+                        >
+                          {q.format}
+                        </Badge>
+                        <span className="text-xs text-[var(--text-tertiary)]">
+                          {q.category}
+                        </span>
+                        {q.frequency && (
+                          <span className="text-[10px] text-[#F59E0B]">
+                            ★ {q.frequency}%
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-[var(--text-primary)]">
-                        {currentQuestion.modelAnswer}
+                        {q.question}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+        {tab === "practice" &&
+          (!isPremium ? (
+            <PremiumLock
+              title="Premium Interview Simulator"
+              description="Upgrade to run timed MMI and panel interview practice sets."
+            />
+          ) : (
+            <Card className="border-[var(--border-color)]">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold text-[var(--text-primary)]">
+                    Practice Simulator
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {(["MMI", "Panel"] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => {
+                          setPracticeFormat(f);
+                          setActiveIndex(0);
+                          setTimer(0);
+                          setIsTimerRunning(false);
+                          setHasStarted(false);
+                          setShowAnswer(false);
+                          refetchPractice();
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          practiceFormat === f
+                            ? "bg-[#2563EB] text-white"
+                            : "bg-[var(--page-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]"
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {practiceLoading && (
+                  <div className="text-center py-10">
+                    <div className="w-8 h-8 border-2 border-[var(--border-color)] border-t-[#2563EB] rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-[var(--text-secondary)] text-sm">
+                      Loading questions...
+                    </p>
+                  </div>
+                )}
+
+                {!practiceLoading && practiceError && (
+                  <div className="text-center py-10">
+                    <p className="text-sm text-[#EF4444] mb-4">
+                      Failed to load practice questions.
+                    </p>
+                    <Button
+                      onClick={() => refetchPractice()}
+                      className="bg-[#2563EB] hover:bg-[#1D4ED8]"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                )}
+
+                {!practiceLoading &&
+                  !practiceError &&
+                  practiceSet?.length === 0 && (
+                    <div className="text-center py-10">
+                      <p className="text-[var(--text-secondary)] text-sm">
+                        No practice questions available for {practiceFormat}{" "}
+                        format.
                       </p>
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAnswer(s => !s)}
-                      className="text-sm"
-                    >
-                      {showAnswer ? "Hide Model Answer" : "Show Model Answer"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setActiveIndex(i => Math.max(0, i - 1));
-                        setShowAnswer(false);
-                      }}
-                      disabled={activeIndex === 0}
-                      className="text-sm"
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        if (activeIndex < (practiceSet?.length ?? 1) - 1) {
-                          setActiveIndex(i => i + 1);
+                {!practiceLoading &&
+                  !practiceError &&
+                  practiceSet &&
+                  practiceSet.length > 0 &&
+                  !hasStarted && (
+                    <div className="text-center py-10">
+                      <Play className="w-10 h-10 text-[#2563EB] mx-auto mb-3" />
+                      <p className="text-[var(--text-secondary)] text-sm mb-4">
+                        {practiceFormat === "MMI"
+                          ? `${practiceSet.length} stations • 2 min prep + 5-8 min response each`
+                          : `${practiceSet.length} questions • practice with a 45-min timer`}
+                      </p>
+                      <Button
+                        onClick={startTimer}
+                        className="bg-[#2563EB] hover:bg-[#1D4ED8]"
+                      >
+                        Start Mock Interview
+                      </Button>
+                    </div>
+                  )}
+
+                {currentQuestion && (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-xs text-[var(--text-tertiary)]">
+                          Question {activeIndex + 1} of {practiceSet?.length}
+                        </p>
+                        <p className="text-xs text-[var(--text-tertiary)]">
+                          {currentQuestion.category}
+                        </p>
+                      </div>
+                      <div
+                        className={`text-xl font-mono font-bold ${timer > (practiceFormat === "MMI" ? 360 : 2400) ? "text-[#EF4444]" : "text-[var(--text-primary)]"}`}
+                      >
+                        {formatTime(timer)}
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-lg bg-[var(--page-bg)] border border-[var(--border-color)] mb-4">
+                      <p className="text-base text-[var(--text-primary)] leading-relaxed">
+                        {currentQuestion.question}
+                      </p>
+                    </div>
+
+                    {showAnswer && currentQuestion.modelAnswer && (
+                      <div className="p-4 rounded-lg bg-[var(--page-muted)] border border-[var(--border-color)] mb-4">
+                        <p className="text-xs font-medium text-[#10B981] mb-1">
+                          Model Answer
+                        </p>
+                        <p className="text-sm text-[var(--text-primary)]">
+                          {currentQuestion.modelAnswer}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAnswer(s => !s)}
+                        className="text-sm"
+                      >
+                        {showAnswer ? "Hide Model Answer" : "Show Model Answer"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setActiveIndex(i => Math.max(0, i - 1));
                           setShowAnswer(false);
-                        } else {
-                          setIsTimerRunning(false);
+                        }}
+                        disabled={activeIndex === 0}
+                        className="text-sm"
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (activeIndex < (practiceSet?.length ?? 1) - 1) {
+                            setActiveIndex(i => i + 1);
+                            setShowAnswer(false);
+                          } else {
+                            setIsTimerRunning(false);
+                            setActiveIndex(0);
+                          }
+                        }}
+                        className="bg-[#2563EB] hover:bg-[#1D4ED8] text-sm"
+                      >
+                        {activeIndex < (practiceSet?.length ?? 1) - 1
+                          ? "Next Question"
+                          : "Finish"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
                           setActiveIndex(0);
-                        }
-                      }}
-                      className="bg-[#2563EB] hover:bg-[#1D4ED8] text-sm"
-                    >
-                      {activeIndex < (practiceSet?.length ?? 1) - 1
-                        ? "Next Question"
-                        : "Finish"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setActiveIndex(0);
-                        setTimer(0);
-                        setIsTimerRunning(false);
-                        setHasStarted(false);
-                        setShowAnswer(false);
-                        refetchPractice();
-                      }}
-                      className="text-sm ml-auto"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-1" /> New Set
-                    </Button>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                          setTimer(0);
+                          setIsTimerRunning(false);
+                          setHasStarted(false);
+                          setShowAnswer(false);
+                          refetchPractice();
+                        }}
+                        className="text-sm ml-auto"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" /> New Set
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          ))}
       </div>
     </main>
   );

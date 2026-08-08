@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Loader2,
   Bell,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +58,9 @@ export default function AdminDashboardPage() {
   usePageTitle("Admin Dashboard");
   const { user, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+  const [stripeAuditAfterId, setStripeAuditAfterId] = useState<
+    number | undefined
+  >();
 
   const statsQuery = trpc.admin.stats.useQuery(undefined, {
     enabled: user?.role === "admin",
@@ -71,6 +75,13 @@ export default function AdminDashboardPage() {
     { type: "dat", limit: 25 },
     {
       enabled: user?.role === "admin" && activeTab === "questions",
+    }
+  );
+  const stripeAuditQuery = trpc.admin.auditStripeEntitlements.useQuery(
+    { limit: 50, afterId: stripeAuditAfterId },
+    {
+      enabled: user?.role === "admin" && activeTab === "billing",
+      retry: false,
     }
   );
 
@@ -102,6 +113,14 @@ export default function AdminDashboardPage() {
   const sendReminders = trpc.admin.sendTaskDueReminders.useMutation({
     onSuccess: data => {
       toast.success(`Sent ${data.notified} task reminder(s)`);
+    },
+    onError: err => toast.error(err.message),
+  });
+  const reconcileStripe = trpc.admin.reconcileStripeEntitlements.useMutation({
+    onSuccess: data => {
+      toast.success(`Reconciled ${data.summary.applied} entitlement(s)`);
+      stripeAuditQuery.refetch();
+      usersQuery.refetch();
     },
     onError: err => toast.error(err.message),
   });
@@ -150,6 +169,7 @@ export default function AdminDashboardPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -381,6 +401,155 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="billing">
+            <Card className="bg-[var(--page-surface)] border-[var(--border-color)]">
+              <CardHeader>
+                <CardTitle className="text-[var(--text-primary)] flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" /> Stripe Entitlement Audit
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Compare paid local entitlements with current Stripe
+                  subscription state. Lifetime Premium Plus access is never
+                  downgraded automatically.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="outline"
+                    className="border-[var(--border-color)] text-[var(--text-primary)]"
+                    onClick={() => {
+                      setStripeAuditAfterId(undefined);
+                      if (stripeAuditAfterId === undefined) {
+                        stripeAuditQuery.refetch();
+                      }
+                    }}
+                    disabled={stripeAuditQuery.isFetching}
+                  >
+                    {stripeAuditQuery.isFetching && (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    )}
+                    Run Dry Audit
+                  </Button>
+                  <Button
+                    className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                    disabled={
+                      reconcileStripe.isPending ||
+                      !stripeAuditQuery.data?.summary.drift
+                    }
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Apply Stripe as the source of truth for every detected entitlement drift in this batch?"
+                        )
+                      ) {
+                        reconcileStripe.mutate({
+                          limit: 50,
+                          afterId: stripeAuditAfterId,
+                          confirmation: "RECONCILE_STRIPE_ENTITLEMENTS",
+                        });
+                      }
+                    }}
+                  >
+                    {reconcileStripe.isPending && (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    )}
+                    Apply Detected Drift
+                  </Button>
+                </div>
+
+                {stripeAuditQuery.error && (
+                  <p role="alert" className="text-sm text-[#DC2626]">
+                    {stripeAuditQuery.error.message}
+                  </p>
+                )}
+
+                {stripeAuditQuery.data && (
+                  <>
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                      {Object.entries(stripeAuditQuery.data.summary).map(
+                        ([label, value]) => (
+                          <div
+                            key={label}
+                            className="rounded-lg border border-[var(--border-color)] p-3"
+                          >
+                            <p className="text-xs capitalize text-[var(--text-tertiary)]">
+                              {label.replace(/([A-Z])/g, " $1")}
+                            </p>
+                            <p className="text-xl font-bold text-[var(--text-primary)]">
+                              {value}
+                            </p>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[var(--border-color)]">
+                            <th className="text-left py-2">User</th>
+                            <th className="text-left py-2">Status</th>
+                            <th className="text-left py-2">Local</th>
+                            <th className="text-left py-2">Stripe</th>
+                            <th className="text-left py-2">Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stripeAuditQuery.data.items.map(row => (
+                            <tr
+                              key={row.userId}
+                              className="border-b border-[var(--border-color)]/50"
+                            >
+                              <td className="py-2 text-[var(--text-primary)]">
+                                #{row.userId}
+                              </td>
+                              <td className="py-2">
+                                <Badge
+                                  className={
+                                    row.status === "in_sync"
+                                      ? "bg-[#059669] text-white"
+                                      : row.status === "drift"
+                                        ? "bg-[#DC2626] text-white"
+                                        : "bg-[#D97706] text-white"
+                                  }
+                                >
+                                  {row.status.replace("_", " ")}
+                                </Badge>
+                              </td>
+                              <td className="py-2 text-[var(--text-secondary)]">
+                                {row.local.tier}
+                              </td>
+                              <td className="py-2 text-[var(--text-secondary)]">
+                                {row.stripe?.tier ?? row.stripe?.status ?? "—"}
+                              </td>
+                              <td className="py-2 text-[var(--text-tertiary)] max-w-sm">
+                                {row.reason}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {stripeAuditQuery.data.nextCursor && (
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setStripeAuditAfterId(
+                              stripeAuditQuery.data.nextCursor ?? undefined
+                            )
+                          }
+                        >
+                          Audit next batch
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
