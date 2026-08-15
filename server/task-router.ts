@@ -43,15 +43,6 @@ const priorityWeight: Record<string, number> = {
 };
 
 export const taskRouter = createRouter({
-  list: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    return db.query.tasks.findMany({
-      where: eq(tasks.userId, ctx.user.id),
-      orderBy: [desc(tasks.createdAt)],
-      limit: 250,
-    });
-  }),
-
   listPage: authedQuery
     .input(
       z.object({
@@ -60,6 +51,8 @@ export const taskRouter = createRouter({
         status: statusEnum.optional(),
         category: categoryEnum.optional(),
         priority: priorityEnum.optional(),
+        dueBefore: z.string().datetime().optional(),
+        dueAfter: z.string().datetime().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -67,6 +60,10 @@ export const taskRouter = createRouter({
       if (input.status) conditions.push(eq(tasks.status, input.status));
       if (input.category) conditions.push(eq(tasks.category, input.category));
       if (input.priority) conditions.push(eq(tasks.priority, input.priority));
+      if (input.dueBefore)
+        conditions.push(lte(tasks.dueDate, new Date(input.dueBefore)));
+      if (input.dueAfter)
+        conditions.push(gte(tasks.dueDate, new Date(input.dueAfter)));
       if (input.cursor) {
         const date = new Date(input.cursor.createdAt);
         conditions.push(
@@ -86,51 +83,6 @@ export const taskRouter = createRouter({
         items: rows.slice(0, input.limit),
         nextCursor: nextCursor(rows, input.limit),
       };
-    }),
-
-  listFiltered: authedQuery
-    .input(
-      z.object({
-        status: statusEnum.optional(),
-        category: categoryEnum.optional(),
-        priority: priorityEnum.optional(),
-        dueBefore: z.string().datetime().optional(),
-        dueAfter: z.string().datetime().optional(),
-        limit: z.number().min(1).max(100).default(50),
-        offset: z.number().min(0).default(0),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const db = getDb();
-      const conditions = [eq(tasks.userId, ctx.user.id)];
-      if (input.status) conditions.push(eq(tasks.status, input.status));
-      if (input.category) conditions.push(eq(tasks.category, input.category));
-      if (input.priority) conditions.push(eq(tasks.priority, input.priority));
-      if (input.dueBefore)
-        conditions.push(lte(tasks.dueDate, new Date(input.dueBefore)));
-      if (input.dueAfter)
-        conditions.push(gte(tasks.dueDate, new Date(input.dueAfter)));
-
-      const whereClause = and(...conditions);
-
-      const rows = await db
-        .select()
-        .from(tasks)
-        .where(whereClause)
-        .orderBy(
-          sql`CASE WHEN ${tasks.dueDate} IS NULL THEN 1 ELSE 0 END`,
-          asc(tasks.dueDate),
-          sql`CASE
-            WHEN ${tasks.priority} = 'critical' THEN 0
-            WHEN ${tasks.priority} = 'high' THEN 1
-            WHEN ${tasks.priority} = 'medium' THEN 2
-            WHEN ${tasks.priority} = 'low' THEN 3
-          END`
-        )
-        .limit(input.limit)
-        .offset(input.offset);
-
-      return rows;
     }),
 
   create: authedQuery

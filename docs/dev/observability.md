@@ -11,8 +11,10 @@ OAuth tokens, session cookies, email addresses, or outbox payloads.
 - `GET /api/metrics` returns Prometheus text and requires
   `Authorization: Bearer $METRICS_SECRET`.
 
-Metrics include HTTP/tRPC request counters, internal tRPC failures, aggregate
-procedure duration, outbox delivery outcomes, and pending/failed outbox gauges.
+Metrics include HTTP/tRPC request counters, internal tRPC failures, Prometheus
+duration histograms, Stripe webhook outcomes, push delivery outcomes,
+reconciliation drift, outbox delivery outcomes, pending/failed gauges, and the
+oldest pending-job age.
 Process counters are per instance; aggregate them in the monitoring backend.
 
 ## Service-level objectives
@@ -27,6 +29,8 @@ Measure over a rolling 28-day window:
 | Notification delivery   | 99% completed within 5 min                         | Warn when pending jobs exceed 100 or oldest job exceeds 5 min; page on any failed jobs |
 | Database readiness      | 99.95% successful checks                           | Page after three consecutive failures                                                  |
 
+Import `ops/monitoring/grafana-dashboard.json` and
+`ops/monitoring/prometheus-rules.yml` into the production monitoring stack.
 Route JSON logs and Sentry events into the chosen provider, scrape metrics at
 30–60 second intervals, and attach `requestId` to incident timelines. Dashboard
 panels should cover request rate/error/latency, readiness, Stripe failures, and
@@ -41,4 +45,9 @@ those only after resolving the underlying cause.
    unhealthy instance from traffic.
 3. Verify alert delivery in staging and quarterly thereafter.
 4. Apply database migrations before starting workers.
-5. On Vercel, keep `/api/cron/notify` scheduled; it also drains the outbox.
+5. On Vercel Pro or Enterprise, keep `/api/cron/outbox` on its five-minute
+   schedule. Vercel Hobby only permits daily cron jobs and cannot meet the
+   five-minute notification SLO; use a Pro plan or an external scheduler.
+6. GitHub's `Production Uptime Monitor` probes readiness every five minutes and
+   opens/updates an incident issue. Treat it as an independent availability
+   check, not a replacement for metrics and paging.

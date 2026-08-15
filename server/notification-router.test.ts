@@ -1,4 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "142.250.72.234", family: 4 }]),
+}));
 import { notificationRouter } from "./notification-router";
 import { hasDb } from "./test-db-flag";
 import { createTestUser, mockContext, seedNotification } from "./test-helpers";
@@ -9,15 +13,15 @@ import { count, eq } from "drizzle-orm";
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   notificationRouter.createCaller(mockContext(user));
 
-describe.skipIf(!hasDb)("notificationRouter.list", () => {
+describe.skipIf(!hasDb)("notificationRouter.listPage", () => {
   it("returns user's notifications", async () => {
     const user = await createTestUser();
     await seedNotification(user.id);
 
     const caller = createCaller(user);
-    const rows = await caller.list({});
+    const page = await caller.listPage({});
 
-    expect(rows.length).toBeGreaterThan(0);
+    expect(page.items.length).toBeGreaterThan(0);
   });
 
   it("filters unread notifications", async () => {
@@ -26,14 +30,16 @@ describe.skipIf(!hasDb)("notificationRouter.list", () => {
     await seedNotification(user.id, { read: true });
 
     const caller = createCaller(user);
-    const rows = await caller.list({ unreadOnly: true });
+    const page = await caller.listPage({ unreadOnly: true });
 
-    expect(rows.every(n => !n.read)).toBe(true);
+    expect(page.items.every(n => !n.read)).toBe(true);
   });
 
   it("throws UNAUTHORIZED when no user", async () => {
     const caller = createCaller();
-    await expect(caller.list({})).rejects.toThrow("Authentication required");
+    await expect(caller.listPage({})).rejects.toThrow(
+      "Authentication required"
+    );
   });
 });
 
@@ -122,7 +128,7 @@ describe.skipIf(!hasDb)("notificationRouter push ownership", () => {
   it("does not allow another user to claim or remove an endpoint", async () => {
     const owner = await createTestUser();
     const other = await createTestUser();
-    const endpoint = `https://push.example.com/${crypto.randomUUID()}`;
+    const endpoint = `https://fcm.googleapis.com/send/${crypto.randomUUID()}`;
     await createCaller(owner).subscribePush({
       endpoint,
       p256dh: "p".repeat(32),

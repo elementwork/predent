@@ -48,6 +48,9 @@ export const users = pgTable(
       .notNull(),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
+    stripePriceId: text("stripe_price_id"),
+    stripeSubscriptionStatus: text("stripe_subscription_status"),
+    stripeLifetimePaymentIntentId: text("stripe_lifetime_payment_intent_id"),
     premiumUntil: instant("premium_until"),
     stripeEntitlementUpdatedAt: instant("stripe_entitlement_updated_at"),
     timezone: text("timezone").default("America/Toronto").notNull(),
@@ -70,6 +73,9 @@ export const users = pgTable(
       table.provider,
       table.unionId
     ),
+    uniqueIndex("users_stripe_lifetime_payment_intent_unique")
+      .on(table.stripeLifetimePaymentIntentId)
+      .where(sql`${table.stripeLifetimePaymentIntentId} is not null`),
   ]
 );
 

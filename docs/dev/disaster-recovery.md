@@ -46,3 +46,10 @@ Store the date, backup identifier, isolated destination, measured RTO/RPO,
 validation results, failures, and remediation owners in the operator record and
 link it from the devlog. A backup without a successful restore drill is not a
 verified recovery control.
+
+The `Backup Restore Drill` workflow performs a monthly and migration-triggered
+synthetic drill: it migrates PostgreSQL 16, inserts a canary, creates a custom
+format `pg_dump`, restores into a separate database, and verifies the canary and
+schema table count. This proves the repository procedure; operators must still
+run a quarterly isolated restore of the managed Supabase backup to validate
+provider retention, credentials, RPO, and measured production-scale RTO.

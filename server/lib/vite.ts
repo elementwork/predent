@@ -19,7 +19,12 @@ export function serveStaticFiles(app: App) {
     if (!accept.includes("text/html")) {
       return c.json({ error: "Not Found" }, 404);
     }
-    const indexPath = path.resolve(distPath, "index.html");
+    const relative = decodeURIComponent(c.req.path).replace(/^\/+/, "");
+    const candidate = path.resolve(distPath, relative, "index.html");
+    const indexPath =
+      candidate.startsWith(`${distPath}${path.sep}`) && fs.existsSync(candidate)
+        ? candidate
+        : path.resolve(distPath, "index.html");
     const content = fs.readFileSync(indexPath, "utf-8");
     return c.html(content);
   });

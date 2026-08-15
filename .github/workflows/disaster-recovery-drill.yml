@@ -1,0 +1,48 @@
+name: Backup Restore Drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 7 1 * *"
+  push:
+    branches: [main]
+    paths:
+      - "db/migrations/**"
+      - ".github/workflows/disaster-recovery-drill.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: predent
+          POSTGRES_PASSWORD: drill_password
+          POSTGRES_DB: predent_source
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U predent -d predent_source"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: drill_password
+      DATABASE_URL: postgresql://predent:drill_password@localhost:5432/predent_source
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - name: Build source database
+        run: npm run db:migrate
+      - name: Insert canary record
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into users (\"unionId\", provider, name) values ('restore-drill-canary', 'google', 'Restore Drill');"
+      - name: Back up, restore, and verify
+        run: |
+          pg_dump --format=custom --no-owner --no-acl "$DATABASE_URL" --file=/tmp/predent-drill.dump
+          createdb --host=localhost --username=predent predent_restored
+          pg_restore --host=localhost --username=predent --dbname=predent_restored --no-owner --no-acl --exit-on-error /tmp/predent-drill.dump
+          psql "postgresql://predent:drill_password@localhost:5432/predent_restored" -v ON_ERROR_STOP=1 -c "select 1 from users where \"unionId\"='restore-drill-canary';"
+          test "$(psql "postgresql://predent:drill_password@localhost:5432/predent_restored" -Atc "select count(*) from information_schema.tables where table_schema='public'")" -ge 19

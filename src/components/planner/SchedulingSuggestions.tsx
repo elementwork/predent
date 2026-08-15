@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ChevronDown, Clock, AlertTriangle, CalendarDays } from "lucide-react";
 import { trpc } from "@/providers/trpc";
-import type { Task } from "@db/schema";
+import type { PlannerTask as Task } from "@contracts/task";
 
 const priorityBadgeColors: Record<string, string> = {
   critical: "bg-red-500/20 text-red-400",

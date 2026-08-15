@@ -12,6 +12,7 @@ let client: postgres.Sql | undefined;
 
 function createClient(databaseUrl: string) {
   return postgres(databaseUrl, {
+    max: env.databasePoolMax,
     max_lifetime: 60 * 30, // 30 minutes
     connect_timeout: 10,
     idle_timeout: 20,
@@ -47,4 +48,8 @@ export async function closeDb() {
     instance = undefined;
     lastDatabaseUrl = undefined;
   }
+}
+
+export function getDatabasePoolConfiguration() {
+  return { maxConnectionsPerInstance: env.databasePoolMax };
 }

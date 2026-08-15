@@ -1,0 +1,40 @@
+name: Roll Back Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: "Eligible prior production deployment URL; blank rolls back one release"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - name: Link project
+        run: npx --yes vercel@58.8.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Roll back production
+        run: |
+          if [ -n "$DEPLOYMENT" ]; then
+            npx --yes vercel@58.8.0 rollback "$DEPLOYMENT" --token="$VERCEL_TOKEN"
+          else
+            npx --yes vercel@58.8.0 rollback --token="$VERCEL_TOKEN"
+          fi
+        env:
+          DEPLOYMENT: ${{ inputs.deployment }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

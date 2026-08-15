@@ -9,14 +9,16 @@ than a successful no-op.
 Growing collections use `{ limit, cursor }`, where the cursor is
 `{ createdAt, id }`, and return `{ items, nextCursor }`. Current cursor
 procedures are `community.listPostsPage`, `notification.listPage`, and
-`task.listPage`. Compatibility list procedures are bounded and should not be
-used for new infinite-scroll clients.
+`task.listPage`, `admin.listUsersPage`, `admin.listQuestionsPage`, and
+`community.listReportsPage`. These are the only collection procedures for
+those resources; obsolete offset variants were removed after every UI consumer
+migrated to cursor pagination.
 
 ## Authorization and entitlement matrix
 
 | Access        | Procedures                                                                                                                                                                            |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public        | `tools.*`, `interview.getCategories`, `dat.questionCount`, `community.listPosts`, `community.listPostsPage`, `community.getPostCount`                                                 |
+| Public        | `tools.*`, `interview.getCategories`, `dat.questionCount`, `community.listPostsPage`, `community.getPostCount`                                                                        |
 | Authenticated | `auth.*`, `profile.*`, `task.*`, `notification.*`, `saved.*`, `flash.*`, community read/write/comment/reaction/report procedures, `pat.recordAttempt`, `pat.getQuota`, `pat.getStats` |
 | Premium       | `pat.getPredictedScore`, `pat.getAnalytics`, DAT practice/attempt/stats/analytics/exam procedures, `interview.getQuestions`, `interview.getRandomSet`                                 |
 | Admin         | `admin.*` and community moderation/report-review procedures                                                                                                                           |

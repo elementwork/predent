@@ -35,12 +35,18 @@ export default function CommunityModerationPage() {
   const { user, isLoading } = useAuth();
   const [activeStatus, setActiveStatus] = useState<string>("pending");
 
-  const reportsQuery = trpc.community.listReports.useQuery(
+  const reportsQuery = trpc.community.listReportsPage.useInfiniteQuery(
     {
-      status: activeStatus === "all" ? undefined : (activeStatus as "pending" | "reviewed" | "dismissed" | "actioned"),
+      status:
+        activeStatus === "all"
+          ? undefined
+          : (activeStatus as "pending" | "reviewed" | "dismissed" | "actioned"),
       limit: 25,
     },
-    { enabled: user?.role === "admin" }
+    {
+      enabled: user?.role === "admin",
+      getNextPageParam: page => page.nextCursor ?? undefined,
+    }
   );
 
   const reviewReport = trpc.community.reviewReport.useMutation({
@@ -71,7 +77,7 @@ export default function CommunityModerationPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const reports = reportsQuery.data ?? [];
+  const reports = reportsQuery.data?.pages.flatMap(page => page.items) ?? [];
 
   return (
     <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-12">
@@ -276,6 +282,18 @@ export default function CommunityModerationPage() {
                     </div>
                   ))}
                 </div>
+                {reportsQuery.hasNextPage && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => reportsQuery.fetchNextPage()}
+                    disabled={reportsQuery.isFetchingNextPage}
+                  >
+                    {reportsQuery.isFetchingNextPage
+                      ? "Loading…"
+                      : "Load more reports"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

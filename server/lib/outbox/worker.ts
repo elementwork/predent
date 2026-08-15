@@ -4,6 +4,7 @@ import { getDb } from "../../queries/connection";
 import { sendEmail } from "../email";
 import { sendPushNotification } from "../push";
 import { incrementCounter, log } from "../observability";
+import { traced } from "../sentry";
 
 const MAX_ATTEMPTS = 5;
 
@@ -24,6 +25,20 @@ function parsePayload(payload: Record<string, unknown>): NotificationPayload {
 
 export function getRetryDelayMs(attempt: number) {
   return Math.min(60 * 60_000, 2 ** Math.max(0, attempt - 1) * 30_000);
+}
+
+export function shouldSendNotificationEmail(input: {
+  requested: boolean;
+  allowed: boolean;
+  email: string | null;
+  alreadySent: boolean;
+}) {
+  return (
+    input.requested &&
+    input.allowed &&
+    Boolean(input.email) &&
+    !input.alreadySent
+  );
 }
 
 async function claimJobs(limit: number) {
@@ -69,10 +84,19 @@ async function deliverNotification(payload: NotificationPayload) {
         : row.notification.type === "community"
           ? row.user.emailCommunity
           : true;
+  const recipient = row.user.email;
 
-  if (payload.sendEmail && emailAllowed && row.user.email) {
+  if (
+    recipient &&
+    shouldSendNotificationEmail({
+      requested: payload.sendEmail,
+      allowed: emailAllowed,
+      email: recipient,
+      alreadySent: row.notification.emailSent,
+    })
+  ) {
     const result = await sendEmail({
-      to: row.user.email,
+      to: recipient,
       subject: row.notification.title,
       text: `${row.notification.title}\n\n${row.notification.message}${row.notification.link ? `\n\n${row.notification.link}` : ""}`,
     });
@@ -102,7 +126,9 @@ export async function processOutboxBatch(limit = 25) {
       if (job.topic !== "notification_delivery") {
         throw new Error(`Unsupported outbox topic: ${job.topic}`);
       }
-      await deliverNotification(parsePayload(job.payload));
+      await traced("outbox.notification_delivery", "queue.process", () =>
+        deliverNotification(parsePayload(job.payload))
+      );
       await db
         .update(outboxJobs)
         .set({ status: "completed", processedAt: new Date(), lockedAt: null })
@@ -136,6 +162,27 @@ export async function processOutboxBatch(limit = 25) {
   }
 
   return { claimed: jobs.length, completed, failed };
+}
+
+export async function drainOutbox(options?: {
+  batchSize?: number;
+  maxBatches?: number;
+  maxDurationMs?: number;
+}) {
+  const batchSize = Math.max(1, Math.min(options?.batchSize ?? 100, 100));
+  const maxBatches = Math.max(1, Math.min(options?.maxBatches ?? 10, 50));
+  const deadline =
+    Date.now() + Math.max(1_000, options?.maxDurationMs ?? 20_000);
+  const total = { claimed: 0, completed: 0, failed: 0, batches: 0 };
+  while (total.batches < maxBatches && Date.now() < deadline) {
+    const result = await processOutboxBatch(batchSize);
+    total.batches++;
+    total.claimed += result.claimed;
+    total.completed += result.completed;
+    total.failed += result.failed;
+    if (result.claimed < batchSize) break;
+  }
+  return total;
 }
 
 export function startOutboxWorker() {

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node tools/check-bundle-budget.mjs && esbuild server/boot.ts --platform=node --bundle --format=esm --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && mkdir -p dist/api && esbuild server/app.ts --platform=node --bundle --format=esm --outfile=dist/api/index.js --packages=external",
+    "build": "vite build && node tools/prerender.mjs && node tools/check-bundle-budget.mjs && esbuild server/boot.ts --platform=node --bundle --format=esm --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && mkdir -p dist/api && esbuild server/app.ts --platform=node --bundle --format=esm --outfile=dist/api/index.js --packages=external",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:server": "vitest run --config vitest.config.ts",
     "test:frontend": "vitest run --config vitest.config.frontend.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts && vitest run --coverage --config vitest.config.frontend.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -22,6 +23,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:verify-plans": "tsx tools/verify-query-plans.ts",
+    "db:capacity": "tsx tools/check-db-capacity.ts",
+    "test:load": "node tools/load-test.mjs",
     "db:push": "drizzle-kit push",
     "db:seed:dat": "tsx db/seed-dat.ts",
     "db:seed:dat:full": "tsx db/seed-dat-full.ts",
@@ -112,6 +115,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "4.1.10",
     "autoprefixer": "^10.4.23",
     "drizzle-kit": "0.31.10",
     "esbuild": "^0.27.2",
@@ -129,7 +133,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
-    "vitest": "^4.0.16"
+    "vitest": "4.1.10"
   },
   "engines": {
     "node": ">=24.x"

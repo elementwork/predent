@@ -90,6 +90,20 @@ after the report was published:
   fails closed when that store is unavailable or unconfigured, reads only
   platform/trusted-proxy client IP headers, and emits standard limit headers.
   An in-memory fallback requires an explicit production escape hatch.
+- Follow-up items 1–16 are complete except the separately deferred PAT rewrite.
+  Stripe lifecycle handling now covers subscription updates/pauses/resumes,
+  payment failures, refunds, disputes, and lifetime reversals; the outbox drains
+  every five minutes on supported Vercel plans and propagates push failures.
+  Billing is isolated in a service with integration coverage and scheduled
+  reconciliation. Public sitemap routes are build-time pre-rendered with route
+  metadata. Admin collections now use cursor pages, authenticated Axe gates are
+  part of CI, and push endpoints have provider/DNS/IP egress enforcement.
+- Production operations now include histogram-backed SLO metrics, checked-in
+  Prometheus alerts/Grafana dashboard, independent GitHub readiness monitoring,
+  pool sizing, graceful shutdown, a capacity gate, reproducible deploy/manual
+  rollback workflows, and an automated backup/restore drill. CSP no longer
+  permits arbitrary HTTPS connections or external fonts, and sessions support
+  explicit `kid`-based key rotation.
 
 ## Validation performed
 
@@ -108,17 +122,17 @@ after the report was published:
 
 ### Post-remediation validation
 
-| Check                                    | Result through 2026-08-08                                                                                                                     |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript                               | Passed                                                                                                                                        |
-| ESLint                                   | Passed with zero warnings                                                                                                                     |
-| Server tests without `TEST_DATABASE_URL` | 56 passed, 114 safely skipped                                                                                                                 |
-| Frontend tests                           | 57 passed                                                                                                                                     |
-| Production build                         | Passed; bundle budgets passed at 586.5 kB initial, 25.9 kB School Detail, and 399.1 kB deferred chart                                          |
-| Playwright accessibility/smoke gates     | 24/24 passed; targeted Community visual regression 1/1 passed                                                                                 |
-| Production dependency audit              | Passed with 0 vulnerabilities after upgrading Nano ID and `@hono/node-server`                                                                 |
-| Dependency license policy                | Passed across 766 packages                                                                                                                    |
-| Full dependency audit                    | Development-only moderate findings may remain in Drizzle Kit's legacy loader; it is excluded from production images and tracked by Dependabot |
+| Check                                     | Result through 2026-08-14                                                                                                                     |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript                                | Passed                                                                                                                                        |
+| ESLint                                    | Passed with zero warnings                                                                                                                     |
+| Server tests without `TEST_DATABASE_URL`  | 64 passed, 118 safely skipped; PostgreSQL-backed cases remain an enforced CI gate                                                             |
+| Frontend tests                            | 57 passed                                                                                                                                     |
+| Production build                          | Passed; bundle budgets passed at 586.5 kB initial, 25.9 kB School Detail, and 399.1 kB deferred chart                                         |
+| Playwright accessibility/smoke/load gates | 32/32 passed, including six authenticated Axe routes and 200% zoom                                                                            |
+| Production dependency audit               | Passed with 0 vulnerabilities after upgrading Nano ID and `@hono/node-server`                                                                 |
+| Dependency license policy                 | Passed across 777 packages                                                                                                                    |
+| Full dependency audit                     | Development-only moderate findings may remain in Drizzle Kit's legacy loader; it is excluded from production images and tracked by Dependabot |
 
 Database-backed integration tests were intentionally not run locally because
 no explicit disposable `TEST_DATABASE_URL`, PostgreSQL client, or container
@@ -903,11 +917,14 @@ PostgreSQL URL and are configured to run in CI rather than locally executed.
 
 ### Long term
 
-- Pre-render or server-render public content routes.
+- [x] Pre-render public content routes at build time.
 - Extract PAT generation into a shared deterministic domain package.
 - [x] Build billing reconciliation and entitlement audit tooling.
 - [x] Establish dependency governance and SBOM generation.
 - [x] Add release, rollback, incident, and disaster-recovery runbooks.
+- [x] Automate production deployment/rollback and synthetic restore drills.
+- [x] Add measured SLO histograms, alerts, dashboard, uptime probes, load and
+      database-capacity gates.
 - Run representative load tests and production SLO reviews.
 - Execute and record the first quarterly disaster-recovery restore drill.
 

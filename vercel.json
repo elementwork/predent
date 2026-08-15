@@ -6,6 +6,17 @@
   "installCommand": "npm ci",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/schools", "destination": "/schools/index.html" },
+    { "source": "/school/:id", "destination": "/school/:id/index.html" },
+    { "source": "/guides", "destination": "/guides/index.html" },
+    { "source": "/guides/:slug", "destination": "/guides/:slug/index.html" },
+    { "source": "/tools", "destination": "/tools/index.html" },
+    { "source": "/tools/:slug", "destination": "/tools/:slug/index.html" },
+    { "source": "/pricing", "destination": "/pricing/index.html" },
+    { "source": "/community", "destination": "/community/index.html" },
+    { "source": "/compare", "destination": "/compare/index.html" },
+    { "source": "/dat-academy", "destination": "/dat-academy/index.html" },
+    { "source": "/pat-academy", "destination": "/pat-academy/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -14,19 +25,39 @@
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/fN7sZWQuibYlW1zVGQPG5vq7jmvrPdxt6wKyWQeoNM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; manifest-src 'self'" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/fN7sZWQuibYlW1zVGQPG5vq7jmvrPdxt6wKyWQeoNM='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.posthog.com https://*.posthogusercontent.com https://*.sentry.io; worker-src 'self' blob:; manifest-src 'self'"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
         { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
       ]
     }
   ],
   "crons": [
     {
+      "path": "/api/cron/outbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/notify",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/billing",
+      "schedule": "30 14 * * *"
     }
   ]
 }

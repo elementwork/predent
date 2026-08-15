@@ -20,6 +20,10 @@ release owner and rollback owner must be named before deployment.
 6. Confirm a recent database backup or provider recovery point and record its
    timestamp. Never release an irreversible migration without a tested restore
    path.
+7. The `Deploy Production` workflow runs only after the exact main-branch CI
+   SHA passes. Configure the protected `production` GitHub environment with
+   `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` and require reviewer
+   approval where appropriate.
 
 ## Deployment order
 
@@ -52,6 +56,19 @@ users may need to sign in again. Production sessions now use the
   or multiple subscriptions, then explicitly apply safe drift corrections.
 - Re-run smoke checks and record the rollback reason, data-loss window, and
   follow-up owner in the incident timeline.
+- For Vercel, dispatch `Roll Back Production`; leave the deployment input blank
+  for the immediately prior release or provide an eligible production URL.
+
+## Session key rotation
+
+1. Generate a new 32+ character secret and a new unique key ID.
+2. Move the current key into `SESSION_PREVIOUS_SECRETS` as JSON, set
+   `APP_SECRET` to the new value, and update `SESSION_KEY_ID` atomically.
+3. Deploy and verify both new and existing sessions. Tokens with unknown key
+   IDs are rejected.
+4. After the 30-day maximum token lifetime plus clock tolerance, remove the old
+   key. An emergency compromise response may remove it immediately and sign all
+   users out.
 
 ## Release record
 

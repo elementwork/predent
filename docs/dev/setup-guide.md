@@ -47,14 +47,14 @@ PreDent Canada is a full-stack app: React frontend + Hono/tRPC backend, deployed
 
 ### Free Tier Limits Summary
 
-| Service | Plan | Limits |
-|---------|------|--------|
-| **Supabase** | Free | 500MB DB, 5GB egress, 2 projects, pauses after 1 week inactivity |
-| **Vercel** | Hobby | 100GB transfer, 1M function invocations, 100 deploys/day, non-commercial only |
-| **Cloudflare** | Free | 100K requests/day, 10ms CPU/invocation |
-| **Resend** | Free | 3,000 emails/month, 100/day limit, 1 domain |
-| **Stripe** | Standard | No monthly fee, 2.9% + $0.30 per transaction |
-| **Google OAuth** | Free | Unlimited (no cost for OAuth) |
+| Service          | Plan     | Limits                                                                        |
+| ---------------- | -------- | ----------------------------------------------------------------------------- |
+| **Supabase**     | Free     | 500MB DB, 5GB egress, 2 projects, pauses after 1 week inactivity              |
+| **Vercel**       | Hobby    | 100GB transfer, 1M function invocations, 100 deploys/day, non-commercial only |
+| **Cloudflare**   | Free     | 100K requests/day, 10ms CPU/invocation                                        |
+| **Resend**       | Free     | 3,000 emails/month, 100/day limit, 1 domain                                   |
+| **Stripe**       | Standard | No monthly fee, 2.9% + $0.30 per transaction                                  |
+| **Google OAuth** | Free     | Unlimited (no cost for OAuth)                                                 |
 
 ---
 
@@ -62,14 +62,14 @@ PreDent Canada is a full-stack app: React frontend + Hono/tRPC backend, deployed
 
 Before you begin, create accounts on all these platforms:
 
-| Platform | URL | Purpose |
-|----------|-----|---------|
-| **GitHub** | https://github.com | Source code hosting + CI/CD |
-| **Supabase** | https://supabase.com | PostgreSQL database |
-| **Vercel** OR **Cloudflare** | https://vercel.com / https://cloudflare.com | App hosting |
-| **Google Cloud Console** | https://console.cloud.google.com | Google OAuth (required) |
-| **Resend** | https://resend.com | Transactional email |
-| **Stripe** | https://dashboard.stripe.com | Payments |
+| Platform                     | URL                                         | Purpose                     |
+| ---------------------------- | ------------------------------------------- | --------------------------- |
+| **GitHub**                   | https://github.com                          | Source code hosting + CI/CD |
+| **Supabase**                 | https://supabase.com                        | PostgreSQL database         |
+| **Vercel** OR **Cloudflare** | https://vercel.com / https://cloudflare.com | App hosting                 |
+| **Google Cloud Console**     | https://console.cloud.google.com            | Google OAuth (required)     |
+| **Resend**                   | https://resend.com                          | Transactional email         |
+| **Stripe**                   | https://dashboard.stripe.com                | Payments                    |
 
 ### Local Setup
 
@@ -159,6 +159,7 @@ SELECT 'interview_questions', COUNT(*) FROM interview_questions;
 ```
 
 Expected output:
+
 ```
        tbl        | count
 ------------------+------
@@ -191,6 +192,7 @@ https://your-domain.com/api/oauth/callback
 ```
 
 For local development:
+
 ```
 http://localhost:3000/api/oauth/callback
 ```
@@ -387,6 +389,7 @@ INSTAGRAM_CLIENT_SECRET=your-app-secret
 The first user whose Google `sub` (user ID) matches `OWNER_UNION_ID` is automatically promoted to `admin` on first login.
 
 To find your Google `sub`:
+
 1. Log in with Google
 2. Check the database: `SELECT unionId FROM users WHERE provider = 'google' LIMIT 1;`
 3. Set that value as `OWNER_UNION_ID` in `.env`
@@ -418,11 +421,11 @@ OWNER_UNION_ID=your-google-sub-id
 
 Go to your domain registrar (Namecheap, Cloudflare DNS, etc.) and add the DNS records Resend provides:
 
-| Type | Name | Value |
-|------|------|-------|
-| TXT | `resend._domainkey` | `p=MIGfMA0GCSq...` (DKIM key) |
-| TXT | `_dmarc` | `v=DMARC1; p=none;` |
-| TXT | `@` | `v=spf1 include:resend.com ~all` |
+| Type | Name                | Value                            |
+| ---- | ------------------- | -------------------------------- |
+| TXT  | `resend._domainkey` | `p=MIGfMA0GCSq...` (DKIM key)    |
+| TXT  | `_dmarc`            | `v=DMARC1; p=none;`              |
+| TXT  | `@`                 | `v=spf1 include:resend.com ~all` |
 
 > **Note:** DNS propagation takes 5-30 minutes. Click "Verify" in Resend after waiting.
 
@@ -484,17 +487,20 @@ STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxx
 Create 3 products in Stripe Dashboard:
 
 **Product 1: Premium Monthly**
+
 1. Go to **Products → Add product**
 2. Name: `Premium Monthly`
 3. Add price: `$29.00` / month, recurring
 4. Save and copy the **Price ID** (`price_xxx`)
 
 **Product 2: Premium Yearly**
+
 1. Name: `Premium Yearly`
 2. Add price: `$249.00` / year, recurring
 3. Save and copy the **Price ID**
 
 **Product 3: Premium Plus Lifetime**
+
 1. Name: `Premium Plus`
 2. Add price: `$149.00` / one-time
 3. Save and copy the **Price ID**
@@ -517,8 +523,15 @@ STRIPE_PRICE_PLUS_LIFETIME=price_xxxxxxxxxxxxxxxx
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-   - `invoice.payment_succeeded`
+   - `customer.subscription.paused`
+   - `customer.subscription.resumed`
+   - `invoice.paid`
    - `invoice.payment_failed`
+   - `invoice.marked_uncollectible`
+   - `invoice.voided`
+   - `charge.refunded`
+   - `charge.dispute.created`
+   - `charge.dispute.closed`
 5. Click **Add endpoint**
 6. Copy the **Signing secret** (`whsec_xxx`)
 
@@ -531,6 +544,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxx
 ### 6.5 Stripe Billing Portal
 
 The Stripe billing portal is pre-configured in the codebase. Users can:
+
 - View subscription status
 - Update payment method
 - Cancel subscription
@@ -540,12 +554,12 @@ No additional setup needed — the portal is created automatically via the API.
 
 ### 6.6 Test Mode vs Live Mode
 
-| Feature | Test Mode | Live Mode |
-|---------|-----------|-----------|
-| API keys | `sk_test_...` | `sk_live_...` |
-| Test cards | 4242 4242 4242 4242 | Real cards |
-| Webhooks | Use Stripe CLI for local testing | Real webhooks |
-| Transactions | No real charges | Real charges |
+| Feature      | Test Mode                        | Live Mode     |
+| ------------ | -------------------------------- | ------------- |
+| API keys     | `sk_test_...`                    | `sk_live_...` |
+| Test cards   | 4242 4242 4242 4242              | Real cards    |
+| Webhooks     | Use Stripe CLI for local testing | Real webhooks |
+| Transactions | No real charges                  | Real charges  |
 
 To test locally with Stripe:
 
@@ -569,15 +583,15 @@ stripe trigger checkout.session.completed
 
 ### 7.1 Free Tier Limits (Hobby Plan)
 
-| Resource | Limit |
-|----------|-------|
-| Fast Data Transfer | 100 GB/month |
+| Resource             | Limit           |
+| -------------------- | --------------- |
+| Fast Data Transfer   | 100 GB/month    |
 | Function invocations | 1,000,000/month |
-| Edge requests | 1,000,000/month |
-| Deployments/day | 100 |
-| Build time | 45 minutes |
-| Projects | 200 |
-| Custom domains | 50 |
+| Edge requests        | 1,000,000/month |
+| Deployments/day      | 100             |
+| Build time           | 45 minutes      |
+| Projects             | 200             |
+| Custom domains       | 50              |
 
 > **Note:** Vercel Hobby plan is **non-commercial only**. For commercial use, upgrade to Pro ($20/month).
 
@@ -598,24 +612,24 @@ stripe trigger checkout.session.completed
 1. Go to **Project Settings → Environment Variables**
 2. Add all variables from your `.env`:
 
-| Variable | Value | Environment |
-|----------|-------|-------------|
-| `APP_SECRET` | your-secret | Production, Preview, Development |
-| `DATABASE_URL` | postgresql://... | Production, Preview, Development |
-| `VITE_GOOGLE_CLIENT_ID` | your-client-id | Production, Preview, Development |
-| `GOOGLE_CLIENT_ID` | your-client-id | Production, Preview, Development |
-| `GOOGLE_CLIENT_SECRET` | your-secret | Production, Preview, Development |
-| `OWNER_UNION_ID` | your-google-sub | Production, Preview, Development |
-| `PUBLIC_APP_URL` | https://your-domain.vercel.app | Production |
-| `EMAIL_PROVIDER` | resend | Production |
-| `EMAIL_FROM` | noreply@predent.ca | Production |
-| `RESEND_API_KEY` | re_xxx | Production |
-| `STRIPE_SECRET_KEY` | sk_live_xxx | Production |
-| `STRIPE_WEBHOOK_SECRET` | whsec_xxx | Production |
-| `STRIPE_PRICE_PREMIUM_MONTHLY` | price_xxx | Production |
-| `STRIPE_PRICE_PREMIUM_YEARLY` | price_xxx | Production |
-| `STRIPE_PRICE_PLUS_LIFETIME` | price_xxx | Production |
-| `CRON_SECRET` | random-string | Production |
+| Variable                       | Value                          | Environment                      |
+| ------------------------------ | ------------------------------ | -------------------------------- |
+| `APP_SECRET`                   | your-secret                    | Production, Preview, Development |
+| `DATABASE_URL`                 | postgresql://...               | Production, Preview, Development |
+| `VITE_GOOGLE_CLIENT_ID`        | your-client-id                 | Production, Preview, Development |
+| `GOOGLE_CLIENT_ID`             | your-client-id                 | Production, Preview, Development |
+| `GOOGLE_CLIENT_SECRET`         | your-secret                    | Production, Preview, Development |
+| `OWNER_UNION_ID`               | your-google-sub                | Production, Preview, Development |
+| `PUBLIC_APP_URL`               | https://your-domain.vercel.app | Production                       |
+| `EMAIL_PROVIDER`               | resend                         | Production                       |
+| `EMAIL_FROM`                   | noreply@predent.ca             | Production                       |
+| `RESEND_API_KEY`               | re_xxx                         | Production                       |
+| `STRIPE_SECRET_KEY`            | sk_live_xxx                    | Production                       |
+| `STRIPE_WEBHOOK_SECRET`        | whsec_xxx                      | Production                       |
+| `STRIPE_PRICE_PREMIUM_MONTHLY` | price_xxx                      | Production                       |
+| `STRIPE_PRICE_PREMIUM_YEARLY`  | price_xxx                      | Production                       |
+| `STRIPE_PRICE_PLUS_LIFETIME`   | price_xxx                      | Production                       |
+| `CRON_SECRET`                  | random-string                  | Production                       |
 
 3. Click **"Save"**
 
@@ -630,9 +644,9 @@ stripe trigger checkout.session.completed
 2. Add your domain: `predent.ca`
 3. Vercel provides **2 DNS records** to add:
 
-| Type | Name | Value |
-|------|------|-------|
-| A | `@` | `76.76.21.21` |
+| Type  | Name  | Value                  |
+| ----- | ----- | ---------------------- |
+| A     | `@`   | `76.76.21.21`          |
 | CNAME | `www` | `cname.vercel-dns.com` |
 
 4. Update your domain registrar's DNS
@@ -661,13 +675,13 @@ Set `CRON_SECRET` in environment variables (any random string).
 
 ### 8.1 Free Tier Limits
 
-| Resource | Limit |
-|----------|-------|
-| Requests | 100,000/day |
-| CPU time | 10ms per invocation |
-| Workers | 100 per account |
-| KV storage | 1 GB |
-| R2 storage | 10 GB |
+| Resource   | Limit               |
+| ---------- | ------------------- |
+| Requests   | 100,000/day         |
+| CPU time   | 10ms per invocation |
+| Workers    | 100 per account     |
+| KV storage | 1 GB                |
+| R2 storage | 10 GB               |
 
 ### 8.2 Install Wrangler CLI
 
@@ -835,13 +849,13 @@ npm run build
 
 ### 10.4 Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| OAuth callback error | Verify redirect URI matches exactly in provider console |
-| Email not sending | Check `EMAIL_PROVIDER=resend`, verify API key, check Resend logs |
-| Stripe webhook fails | Verify `STRIPE_WEBHOOK_SECRET`, check webhook endpoint URL |
-| Database connection error | Verify `DATABASE_URL`, check Supabase project is not paused |
-| DAT questions show 0 | Run `npm run db:seed:dat:full` |
+| Issue                          | Solution                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| OAuth callback error           | Verify redirect URI matches exactly in provider console                    |
+| Email not sending              | Check `EMAIL_PROVIDER=resend`, verify API key, check Resend logs           |
+| Stripe webhook fails           | Verify `STRIPE_WEBHOOK_SECRET`, check webhook endpoint URL                 |
+| Database connection error      | Verify `DATABASE_URL`, check Supabase project is not paused                |
+| DAT questions show 0           | Run `npm run db:seed:dat:full`                                             |
 | PAT Academy shows no questions | Expected — PAT questions are generated on the fly from seeds, never stored |
 
 ### 10.5 Supabase Inactivity Pause
@@ -853,6 +867,7 @@ Free Supabase projects pause after 1 week of inactivity. To unpause:
 3. Wait 1-2 minutes
 
 To prevent pausing, consider:
+
 - Upgrading to Supabase Pro ($25/mo)
 - Using a cron job to ping the database daily
 - Visiting the dashboard weekly
@@ -908,4 +923,4 @@ CRON_SECRET=                         # Random string for cron authentication
 
 ---
 
-*Last updated: 2026-08-03T22:40:00-04:00*
+_Last updated: 2026-08-03T22:40:00-04:00_

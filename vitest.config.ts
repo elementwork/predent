@@ -17,5 +17,11 @@ export default defineConfig({
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
     setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      reportsDirectory: "coverage/server",
+      thresholds: { lines: 25, functions: 25, branches: 20, statements: 25 },
+    },
   },
 });

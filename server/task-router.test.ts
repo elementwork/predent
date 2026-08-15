@@ -9,7 +9,7 @@ import { hasDb } from "./test-db-flag";
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   taskRouter.createCaller(mockContext(user));
 
-describe.skipIf(!hasDb)("taskRouter.list", () => {
+describe.skipIf(!hasDb)("taskRouter.listPage", () => {
   it("returns only the current user's tasks", async () => {
     const user = await createTestUser();
     const other = await createTestUser();
@@ -17,7 +17,7 @@ describe.skipIf(!hasDb)("taskRouter.list", () => {
     await seedTask(other.id, { title: "Other" });
 
     const caller = createCaller(user);
-    const tasks = await caller.list();
+    const { items: tasks } = await caller.listPage({});
 
     expect(tasks).toHaveLength(1);
     expect(tasks[0].title).toBe("Mine");
@@ -25,7 +25,9 @@ describe.skipIf(!hasDb)("taskRouter.list", () => {
 
   it("throws UNAUTHORIZED when no user", async () => {
     const caller = createCaller();
-    await expect(caller.list()).rejects.toThrow("Authentication required");
+    await expect(caller.listPage({})).rejects.toThrow(
+      "Authentication required"
+    );
   });
 });
 
@@ -43,7 +45,7 @@ describe.skipIf(!hasDb)("taskRouter.create", () => {
     expect(result.success).toBe(true);
     expect(result.id).toBeDefined();
 
-    const tasks = await caller.list();
+    const { items: tasks } = await caller.listPage({});
     expect(tasks).toHaveLength(1);
     expect(tasks[0].title).toBe("Write DAT");
   });
@@ -57,7 +59,7 @@ describe.skipIf(!hasDb)("taskRouter.update", () => {
 
     await caller.update({ id: task.id, title: "New" });
 
-    const tasks = await caller.list();
+    const { items: tasks } = await caller.listPage({});
     expect(tasks[0].title).toBe("New");
   });
 
@@ -70,7 +72,7 @@ describe.skipIf(!hasDb)("taskRouter.update", () => {
     await caller.update({ id: task.id, title: "Hacked" });
 
     const callerOther = createCaller(other);
-    const tasks = await callerOther.list();
+    const { items: tasks } = await callerOther.listPage({});
     expect(tasks[0].title).toBe("Other");
   });
 });
@@ -83,22 +85,22 @@ describe.skipIf(!hasDb)("taskRouter.delete", () => {
 
     await caller.delete({ id: task.id });
 
-    const tasks = await caller.list();
+    const { items: tasks } = await caller.listPage({});
     expect(tasks).toHaveLength(0);
   });
 });
 
-describe.skipIf(!hasDb)("taskRouter.listFiltered", () => {
+describe.skipIf(!hasDb)("taskRouter.listPage filters", () => {
   it("filters by status", async () => {
     const user = await createTestUser();
     await seedTask(user.id, { title: "Open", status: "not_started" });
     await seedTask(user.id, { title: "Done", status: "complete" });
 
     const caller = createCaller(user);
-    const result = await caller.listFiltered({ status: "not_started" });
+    const result = await caller.listPage({ status: "not_started" });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Open");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].title).toBe("Open");
   });
 
   it("filters by category", async () => {
@@ -107,10 +109,10 @@ describe.skipIf(!hasDb)("taskRouter.listFiltered", () => {
     await seedTask(user.id, { title: "Academic", category: "academic" });
 
     const caller = createCaller(user);
-    const result = await caller.listFiltered({ category: "dat" });
+    const result = await caller.listPage({ category: "dat" });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("DAT");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].title).toBe("DAT");
   });
 
   it("filters by priority", async () => {
@@ -119,24 +121,27 @@ describe.skipIf(!hasDb)("taskRouter.listFiltered", () => {
     await seedTask(user.id, { title: "Low", priority: "low" });
 
     const caller = createCaller(user);
-    const result = await caller.listFiltered({ priority: "high" });
+    const result = await caller.listPage({ priority: "high" });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("High");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].title).toBe("High");
   });
 
-  it("paginates with limit and offset", async () => {
+  it("paginates with a stable cursor", async () => {
     const user = await createTestUser();
     await seedTask(user.id, { title: "A" });
     await seedTask(user.id, { title: "B" });
     await seedTask(user.id, { title: "C" });
 
     const caller = createCaller(user);
-    const page1 = await caller.listFiltered({ limit: 2, offset: 0 });
-    const page2 = await caller.listFiltered({ limit: 2, offset: 2 });
+    const page1 = await caller.listPage({ limit: 2 });
+    const page2 = await caller.listPage({
+      limit: 2,
+      cursor: page1.nextCursor ?? undefined,
+    });
 
-    expect(page1).toHaveLength(2);
-    expect(page2).toHaveLength(1);
+    expect(page1.items).toHaveLength(2);
+    expect(page2.items).toHaveLength(1);
   });
 });
 

@@ -306,7 +306,9 @@ always flagged for manual review and are never changed automatically.
 After reviewing the full result set, use the explicit confirmation control to
 apply deterministic drift corrections. Every applied user change is written to
 `admin_actions` with previous and recommended state. Lifetime Premium Plus is
-never downgraded by subscription reconciliation. Run this after webhook
+verified against its stored Payment Intent and is revoked when the charge is
+refunded, disputed, or no longer paid; legacy lifetime rows without an intent
+are sent to manual review. Run this after webhook
 outages, Stripe price changes, restores, and before/after billing migrations.
 
 ---

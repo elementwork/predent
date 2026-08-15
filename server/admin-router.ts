@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, desc, count, isNull } from "drizzle-orm";
+import { and, eq, desc, count, isNull, lt, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -13,6 +13,7 @@ import {
   adminActions,
 } from "@db/schema";
 import { reconcileStripeEntitlements } from "./services/stripe-reconciliation-service";
+import { cursorSchema, nextCursor } from "@contracts/pagination";
 
 export const adminRouter = createRouter({
   stats: adminQuery.query(async () => {
@@ -38,15 +39,24 @@ export const adminRouter = createRouter({
     };
   }),
 
-  listUsers: adminQuery
+  listUsersPage: adminQuery
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(50),
-        offset: z.number().min(0).default(0),
+        cursor: cursorSchema,
       })
     )
     .query(async ({ input }) => {
       const db = getDb();
+      const cursorCondition = input.cursor
+        ? or(
+            lt(users.createdAt, new Date(input.cursor.createdAt)),
+            and(
+              eq(users.createdAt, new Date(input.cursor.createdAt)),
+              lt(users.id, input.cursor.id)
+            )
+          )
+        : undefined;
       const rows = await db
         .select({
           id: users.id,
@@ -58,10 +68,13 @@ export const adminRouter = createRouter({
           lastSignInAt: users.lastSignInAt,
         })
         .from(users)
-        .orderBy(desc(users.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      return rows;
+        .where(cursorCondition)
+        .orderBy(desc(users.createdAt), desc(users.id))
+        .limit(input.limit + 1);
+      return {
+        items: rows.slice(0, input.limit),
+        nextCursor: nextCursor(rows, input.limit),
+      };
     }),
 
   updateUserRole: adminQuery
@@ -118,20 +131,29 @@ export const adminRouter = createRouter({
       return { success: true };
     }),
 
-  listQuestions: adminQuery
+  listQuestionsPage: adminQuery
     .input(
       z.object({
         type: z.enum(["pat", "dat"]),
         limit: z.number().min(1).max(100).default(50),
-        offset: z.number().min(0).default(0),
+        cursor: cursorSchema,
       })
     )
     .query(async ({ input }) => {
       const db = getDb();
       if (input.type === "pat") {
-        return [];
+        return { items: [], nextCursor: null };
       }
 
+      const cursorCondition = input.cursor
+        ? or(
+            lt(datQuestions.createdAt, new Date(input.cursor.createdAt)),
+            and(
+              eq(datQuestions.createdAt, new Date(input.cursor.createdAt)),
+              lt(datQuestions.id, input.cursor.id)
+            )
+          )
+        : undefined;
       const rows = await db
         .select({
           id: datQuestions.id,
@@ -142,11 +164,16 @@ export const adminRouter = createRouter({
           createdAt: datQuestions.createdAt,
         })
         .from(datQuestions)
-        .where(isNull(datQuestions.deletedAt))
-        .orderBy(desc(datQuestions.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      return rows.map(r => ({ ...r, type: "dat" as const }));
+        .where(and(isNull(datQuestions.deletedAt), cursorCondition))
+        .orderBy(desc(datQuestions.createdAt), desc(datQuestions.id))
+        .limit(input.limit + 1);
+      return {
+        items: rows.slice(0, input.limit).map(r => ({
+          ...r,
+          type: "dat" as const,
+        })),
+        nextCursor: nextCursor(rows, input.limit),
+      };
     }),
 
   deleteQuestion: adminQuery

@@ -19,5 +19,12 @@ export default defineConfig({
     include: ["src/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.spec.tsx"],
     setupFiles: ["./vitest.setup.frontend.ts"],
     css: false,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      reportsDirectory: "coverage/frontend",
+      // Ratchet from the measured legacy baseline; raise with each feature.
+      thresholds: { lines: 6, functions: 5, branches: 1, statements: 6 },
+    },
   },
 });

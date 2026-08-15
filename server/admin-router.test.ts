@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { adminRouter } from "./admin-router";
-import {
-  createTestUser,
-  mockContext,
-  seedDatQuestion,
-} from "./test-helpers";
+import { createTestUser, mockContext, seedDatQuestion } from "./test-helpers";
 import { getDb } from "./queries/connection";
 import { datQuestions } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -38,16 +34,16 @@ describe.skipIf(!hasDb)("adminRouter.stats", () => {
   });
 });
 
-describe.skipIf(!hasDb)("adminRouter.listUsers", () => {
+describe.skipIf(!hasDb)("adminRouter.listUsersPage", () => {
   it("lists users with pagination", async () => {
     const admin = await createTestUser({ role: "admin" });
     await createTestUser();
     await createTestUser();
 
     const caller = createCaller(admin);
-    const rows = await caller.listUsers({ limit: 2, offset: 0 });
+    const page = await caller.listUsersPage({ limit: 2 });
 
-    expect(rows.length).toBeLessThanOrEqual(2);
+    expect(page.items.length).toBeLessThanOrEqual(2);
   });
 });
 
@@ -66,13 +62,13 @@ describe.skipIf(!hasDb)("adminRouter.updateUserRole", () => {
   });
 });
 
-describe.skipIf(!hasDb)("adminRouter.listQuestions", () => {
+describe.skipIf(!hasDb)("adminRouter.listQuestionsPage", () => {
   it("returns empty PAT list (generated on the fly)", async () => {
     const admin = await createTestUser({ role: "admin" });
     const caller = createCaller(admin);
-    const rows = await caller.listQuestions({ type: "pat" });
+    const page = await caller.listQuestionsPage({ type: "pat" });
 
-    expect(rows).toEqual([]);
+    expect(page.items).toEqual([]);
   });
 
   it("lists DAT questions", async () => {
@@ -80,10 +76,10 @@ describe.skipIf(!hasDb)("adminRouter.listQuestions", () => {
     await seedDatQuestion();
 
     const caller = createCaller(admin);
-    const rows = await caller.listQuestions({ type: "dat" });
+    const page = await caller.listQuestionsPage({ type: "dat" });
 
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows[0].type).toBe("dat");
+    expect(page.items.length).toBeGreaterThan(0);
+    expect(page.items[0].type).toBe("dat");
   });
 });
 
@@ -92,9 +88,9 @@ describe.skipIf(!hasDb)("adminRouter.deleteQuestion", () => {
     const admin = await createTestUser({ role: "admin" });
     const caller = createCaller(admin);
 
-    await expect(
-      caller.deleteQuestion({ type: "pat", id: 1 })
-    ).rejects.toThrow("generated on the fly");
+    await expect(caller.deleteQuestion({ type: "pat", id: 1 })).rejects.toThrow(
+      "generated on the fly"
+    );
   });
 
   it("soft-deletes a DAT question and logs the action", async () => {
@@ -112,8 +108,8 @@ describe.skipIf(!hasDb)("adminRouter.deleteQuestion", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].deletedAt).not.toBeNull();
 
-    const listed = await caller.listQuestions({ type: "dat" });
-    expect(listed.find(q => q.id === question.id)).toBeUndefined();
+    const listed = await caller.listQuestionsPage({ type: "dat" });
+    expect(listed.items.find(q => q.id === question.id)).toBeUndefined();
   });
 });
 
@@ -131,7 +127,10 @@ describe.skipIf(!hasDb)("adminRouter.updateUserRole", () => {
     const admin = await createTestUser({ role: "admin" });
     const ownerUnionId = `owner-${Math.random().toString(36).slice(2)}`;
     process.env.OWNER_UNION_ID = ownerUnionId;
-    const owner = await createTestUser({ role: "admin", unionId: ownerUnionId });
+    const owner = await createTestUser({
+      role: "admin",
+      unionId: ownerUnionId,
+    });
     const caller = createCaller(admin);
 
     await expect(

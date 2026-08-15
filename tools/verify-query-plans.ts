@@ -23,7 +23,7 @@ try {
   const inserted = await sql`
     INSERT INTO users (provider, "unionId", name)
     SELECT 'google', ${prefix} || '-' || n, 'Plan fixture'
-    FROM generate_series(1, 12) n
+    FROM generate_series(1, 40) n
     RETURNING id
   `;
   const userIds = inserted.map(row => Number(row.id));
@@ -57,7 +57,6 @@ try {
   await sql`ANALYZE pat_attempts`;
   await sql`ANALYZE notifications`;
   await sql`ANALYZE tasks`;
-  await sql`SET enable_seqscan = off`;
   const userId = userIds[0]!;
 
   await expectIndex(

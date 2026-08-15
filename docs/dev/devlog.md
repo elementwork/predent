@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-08-07T21:55:00-04:00
+> Last updated: 2026-08-14T00:00:00-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -840,10 +840,33 @@ PostgreSQL/container runtime was available.
 
 ### Remaining strategic work
 
-- Pre-render or server-render public SEO content routes.
 - Rewrite PAT generation as a separately scoped domain package.
-- Run representative load tests and review production SLOs with real traffic.
-- Execute and record the first quarterly disaster-recovery restore drill.
+- Run the quarterly managed-Supabase restore drill; the repository now runs a
+  synthetic PostgreSQL backup/restore drill monthly and on migration changes.
+
+### 38. Due-diligence closure — remaining items 1–16
+
+- Completed Stripe subscription and lifetime-payment lifecycle processing,
+  persisted reconciliation identifiers/status, covered refunds/disputes, and
+  added a scheduled source-of-truth reconciliation path plus integration tests.
+- Added bounded five-minute serverless outbox draining, push delivery failure
+  propagation, expired-subscription cleanup, and Web Push host/DNS/private-IP
+  egress controls. Channel retries now suppress already-delivered emails.
+- Added Prometheus histograms and billing/push/outbox gauges, alert rules, a
+  Grafana dashboard, Sentry span support, GitHub readiness alerts, serverless
+  pool limits, graceful shutdown, load testing, and database capacity checks.
+- Added build-time pre-rendering for all sitemap routes and ten school pages,
+  stricter CSP, local system fonts, session key IDs/rotation, shared Planner
+  DTOs, and cursor pagination for users, DAT questions, and moderation reports.
+- Added authenticated accessibility gates, server/frontend coverage thresholds,
+  CI-gated immutable Vercel deployments, manual rollback, and monthly plus
+  migration-triggered PostgreSQL backup/restore drills. Dialogs are viewport-
+  bounded and scrollable so onboarding remains operable at 200% zoom.
+- Removed the superseded offset collection procedures after migrating all
+  Planner, notification, community, admin-user, DAT-question, and moderation
+  consumers to bounded cursor pagination.
+
+PAT generation was not modified because its rewrite remains separately scoped.
 
 ---
 

@@ -37,7 +37,7 @@
     --surface: #f1f5f9;
     --text-primary: #0f172a;
     --text-secondary: #475569;
-    --text-tertiary: #64748b;
+    --text-tertiary: #526176;
     --border-color: #e2e8f0;
     --page-bg: #f8fafc;
     --page-surface: #ffffff;
@@ -99,7 +99,6 @@
   body {
     @apply bg-background text-foreground;
     font-family:
-      "Inter",
       system-ui,
       -apple-system,
       sans-serif;
@@ -110,11 +109,15 @@
   h4,
   h5,
   h6 {
-    font-family: "Inter", system-ui, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
   code,
   pre {
-    font-family: "JetBrains Mono", monospace;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 }
 

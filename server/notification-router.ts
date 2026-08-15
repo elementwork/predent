@@ -5,57 +5,11 @@ import { getDb } from "./queries/connection";
 import { notifications, users, pushSubscriptions } from "@db/schema";
 import { TRPCError } from "@trpc/server";
 import { cursorSchema, nextCursor } from "@contracts/pagination";
+import { assertSafePushEndpoint } from "./lib/url-security";
 
-const pushEndpointSchema = z
-  .string()
-  .url()
-  .max(2048)
-  .superRefine((value, ctx) => {
-    const url = new URL(value);
-    const hostname = url.hostname.toLowerCase();
-    if (
-      url.protocol !== "https:" ||
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1" ||
-      hostname.endsWith(".local") ||
-      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "A public HTTPS push endpoint is required",
-      });
-    }
-  });
+const pushEndpointSchema = z.string().url().max(2048);
 
 export const notificationRouter = createRouter({
-  list: authedQuery
-    .input(
-      z.object({
-        limit: z.number().min(1).max(50).default(20),
-        offset: z.number().min(0).default(0),
-        unreadOnly: z.boolean().default(false),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const db = getDb();
-      const user = ctx.user;
-      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      const conditions = [eq(notifications.userId, user.id)];
-      if (input.unreadOnly) conditions.push(eq(notifications.read, false));
-
-      const rows = await db
-        .select()
-        .from(notifications)
-        .where(and(...conditions))
-        .orderBy(desc(notifications.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-
-      return rows;
-    }),
-
   unreadCount: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
     const user = ctx.user;
@@ -176,7 +130,6 @@ export const notificationRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
       await db.update(users).set(input).where(eq(users.id, ctx.user.id));
 
       return { success: true };
@@ -194,6 +147,14 @@ export const notificationRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      try {
+        await assertSafePushEndpoint(input.endpoint);
+      } catch {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A trusted public HTTPS push endpoint is required",
+        });
+      }
 
       const [existing] = await db
         .select({ userId: pushSubscriptions.userId })

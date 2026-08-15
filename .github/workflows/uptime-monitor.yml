@@ -1,0 +1,40 @@
+name: Production Uptime Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEALTH_URL: https://predent.ca/api/health/ready
+      ISSUE_TITLE: "[monitor] Production readiness probe is failing"
+    steps:
+      - name: Probe readiness with retries
+        id: probe
+        continue-on-error: true
+        run: curl --fail --silent --show-error --retry 2 --retry-delay 10 --max-time 10 "$HEALTH_URL"
+      - name: Open or update incident issue
+        if: steps.probe.outcome == 'failure'
+        run: |
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "Readiness failed again at $(date -u +%FT%TZ). Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --body "The production readiness endpoint failed at $(date -u +%FT%TZ). Follow docs/dev/incident-response.md. Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+          exit 1
+      - name: Close recovered incident issue
+        if: steps.probe.outcome == 'success'
+        run: |
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "Readiness recovered at $(date -u +%FT%TZ)."
+          fi

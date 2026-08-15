@@ -31,4 +31,12 @@ export function sentryMiddleware() {
   };
 }
 
+export function traced<T>(
+  name: string,
+  operation: string,
+  callback: () => T
+): T {
+  return Sentry.startSpan({ name, op: operation }, callback);
+}
+
 export { Sentry };

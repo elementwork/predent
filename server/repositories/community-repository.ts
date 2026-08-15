@@ -9,7 +9,6 @@ export async function listVisiblePosts(input: {
   type?: PostType;
   limit: number;
   cursor?: PageCursor;
-  offset?: number;
   viewerId?: number;
 }) {
   const conditions = [
@@ -65,6 +64,5 @@ export async function listVisiblePosts(input: {
     .leftJoin(users, eq(communityPosts.userId, users.id))
     .where(and(...conditions))
     .orderBy(desc(communityPosts.createdAt), desc(communityPosts.id))
-    .limit(input.limit)
-    .offset(input.offset ?? 0);
+    .limit(input.limit);
 }

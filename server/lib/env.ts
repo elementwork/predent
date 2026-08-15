@@ -147,4 +147,36 @@ export const env = {
   get trustCloudflareProxy() {
     return process.env.TRUST_CLOUDFLARE_PROXY === "true";
   },
+  get pushEndpointAllowedHosts() {
+    return (process.env.PUSH_ENDPOINT_ALLOWED_HOSTS ?? "")
+      .split(",")
+      .map(value => value.trim().toLowerCase())
+      .filter(Boolean);
+  },
+  get databasePoolMax() {
+    const configured = Number(process.env.DATABASE_POOL_MAX);
+    if (Number.isInteger(configured) && configured >= 1 && configured <= 50) {
+      return configured;
+    }
+    return process.env.VERCEL === "1" ? 3 : 10;
+  },
+  get sessionKeyId() {
+    return process.env.SESSION_KEY_ID ?? "current";
+  },
+  get sessionPreviousSecrets() {
+    const raw = process.env.SESSION_PREVIOUS_SECRETS ?? "{}";
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] =>
+            entry[0].length > 0 &&
+            typeof entry[1] === "string" &&
+            entry[1].length >= 32
+        )
+      );
+    } catch {
+      throw new Error("SESSION_PREVIOUS_SECRETS must be a JSON object");
+    }
+  },
 };

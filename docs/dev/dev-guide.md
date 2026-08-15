@@ -105,7 +105,7 @@ npm run dev
 
 ### Backend
 
-- `server/app.ts` creates the Hono app and registers tRPC, OAuth, Stripe webhooks, and the cron endpoint.
+- `server/app.ts` creates the Hono transport app; Stripe lifecycle decisions live in `server/services/stripe-webhook-service.ts`, while cron endpoints invoke bounded worker/reconciliation services.
 - `server/boot.ts` serves static files and starts the Node production server.
 - `server/router.ts` composes 13 routers: `auth`, `profile`, `task`, `pat`, `tools`, `interview`, `payment`, `dat`, `admin`, `community`, `notification`, `saved`, `flash`, plus a `ping` endpoint.
 - `server/middleware.ts` defines `publicQuery`, `authedQuery`, `authedMutation`, `adminQuery`, and `createRouter`.

@@ -112,7 +112,7 @@ export default function DashboardPage() {
                     <span
                       className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
                         user.role === "admin"
-                          ? "bg-[#F59E0B]/20 text-[#F59E0B]"
+                          ? "bg-[#F59E0B]/20 text-[#92400E]"
                           : "bg-[#2563EB]/20 text-[#2563EB]"
                       }`}
                     >
@@ -127,7 +127,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-[var(--text-tertiary)]">
                       Profile Completion
                     </span>
-                    <span className="text-xs font-medium text-[#10B981]">
+                    <span className="text-xs font-medium text-[#047857]">
                       {completionPercent}%
                     </span>
                   </div>
@@ -142,7 +142,7 @@ export default function DashboardPage() {
                 {user.role === "admin" && (
                   <Link
                     to="/admin"
-                    className="mt-4 flex items-center gap-2 text-xs font-medium text-[#F59E0B] hover:underline"
+                    className="mt-4 flex items-center gap-2 text-xs font-medium text-[#92400E] hover:underline"
                   >
                     <Shield className="w-3.5 h-3.5" /> Admin Dashboard
                   </Link>
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                     My Profile
                   </h2>
                   {saved && (
-                    <span className="flex items-center gap-1 text-xs text-[#10B981]">
+                    <span className="flex items-center gap-1 text-xs text-[#047857]">
                       <Check className="w-3.5 h-3.5" /> Saved
                     </span>
                   )}

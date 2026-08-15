@@ -65,16 +65,18 @@ export default function AdminDashboardPage() {
   const statsQuery = trpc.admin.stats.useQuery(undefined, {
     enabled: user?.role === "admin",
   });
-  const usersQuery = trpc.admin.listUsers.useQuery(
+  const usersQuery = trpc.admin.listUsersPage.useInfiniteQuery(
     { limit: 25 },
     {
       enabled: user?.role === "admin" && activeTab === "users",
+      getNextPageParam: page => page.nextCursor ?? undefined,
     }
   );
-  const questionsQuery = trpc.admin.listQuestions.useQuery(
+  const questionsQuery = trpc.admin.listQuestionsPage.useInfiniteQuery(
     { type: "dat", limit: 25 },
     {
       enabled: user?.role === "admin" && activeTab === "questions",
+      getNextPageParam: page => page.nextCursor ?? undefined,
     }
   );
   const stripeAuditQuery = trpc.admin.auditStripeEntitlements.useQuery(
@@ -138,6 +140,9 @@ export default function AdminDashboardPage() {
   }
 
   const stats = statsQuery.data;
+  const listedUsers = usersQuery.data?.pages.flatMap(page => page.items) ?? [];
+  const listedQuestions =
+    questionsQuery.data?.pages.flatMap(page => page.items) ?? [];
 
   return (
     <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-12">
@@ -218,7 +223,7 @@ export default function AdminDashboardPage() {
                 <Button
                   onClick={() => seedDat.mutate()}
                   disabled={seedDat.isPending}
-                  className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white"
+                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white"
                 >
                   {seedDat.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-1" />
@@ -277,7 +282,7 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {usersQuery.data?.map(u => (
+                      {listedUsers.map(u => (
                         <tr
                           key={u.id}
                           className="border-b border-[var(--border-color)]/50"
@@ -292,7 +297,7 @@ export default function AdminDashboardPage() {
                             <Badge
                               className={
                                 u.role === "admin"
-                                  ? "bg-[#F59E0B] text-white"
+                                  ? "bg-[#92400E] text-white"
                                   : "bg-[var(--page-muted)] text-[var(--text-secondary)]"
                               }
                             >
@@ -330,6 +335,18 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
+                {usersQuery.hasNextPage && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => usersQuery.fetchNextPage()}
+                    disabled={usersQuery.isFetchingNextPage}
+                  >
+                    {usersQuery.isFetchingNextPage
+                      ? "Loading…"
+                      : "Load more users"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -364,7 +381,7 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {questionsQuery.data?.map(q => (
+                      {listedQuestions.map(q => (
                         <tr
                           key={q.id}
                           className="border-b border-[var(--border-color)]/50"
@@ -401,6 +418,18 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
+                {questionsQuery.hasNextPage && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => questionsQuery.fetchNextPage()}
+                    disabled={questionsQuery.isFetchingNextPage}
+                  >
+                    {questionsQuery.isFetchingNextPage
+                      ? "Loading…"
+                      : "Load more questions"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

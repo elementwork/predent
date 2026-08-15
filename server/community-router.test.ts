@@ -13,15 +13,15 @@ import { hasDb } from "./test-db-flag";
 const createCaller = (user?: Awaited<ReturnType<typeof createTestUser>>) =>
   communityRouter.createCaller(mockContext(user));
 
-describe.skipIf(!hasDb)("communityRouter.listPosts", () => {
+describe.skipIf(!hasDb)("communityRouter.listPostsPage", () => {
   it("returns posts", async () => {
     const user = await createTestUser();
     await seedCommunityPost(user.id);
 
     const caller = createCaller();
-    const posts = await caller.listPosts({});
+    const page = await caller.listPostsPage({});
 
-    expect(posts.length).toBeGreaterThan(0);
+    expect(page.items.length).toBeGreaterThan(0);
   });
 
   it("filters by type", async () => {
@@ -30,9 +30,9 @@ describe.skipIf(!hasDb)("communityRouter.listPosts", () => {
     await seedCommunityPost(user.id, { type: "question" });
 
     const caller = createCaller();
-    const posts = await caller.listPosts({ type: "result" });
+    const page = await caller.listPostsPage({ type: "result" });
 
-    expect(posts.every(p => p.type === "result")).toBe(true);
+    expect(page.items.every(p => p.type === "result")).toBe(true);
   });
 });
 

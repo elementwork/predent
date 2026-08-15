@@ -11,7 +11,7 @@ export async function signSessionToken(
 ): Promise<string> {
   const secret = new TextEncoder().encode(env.appSecret);
   return new jose.SignJWT(payload)
-    .setProtectedHeader({ alg: JWT_ALG })
+    .setProtectedHeader({ alg: JWT_ALG, kid: env.sessionKeyId })
     .setIssuedAt()
     .setIssuer(JWT_ISSUER)
     .setAudience(JWT_AUDIENCE)
@@ -28,7 +28,21 @@ export async function verifySessionToken(
     return null;
   }
   try {
-    const secret = new TextEncoder().encode(env.appSecret);
+    const header = jose.decodeProtectedHeader(token);
+    if (!header.kid || typeof header.kid !== "string") {
+      console.warn("[session] JWT is missing a key identifier.");
+      return null;
+    }
+    const keyring = {
+      [env.sessionKeyId]: env.appSecret,
+      ...env.sessionPreviousSecrets,
+    };
+    const selected = keyring[header.kid];
+    if (!selected) {
+      console.warn("[session] JWT uses an unknown key identifier.");
+      return null;
+    }
+    const secret = new TextEncoder().encode(selected);
     const { payload } = await jose.jwtVerify(token, secret, {
       algorithms: [JWT_ALG],
       issuer: JWT_ISSUER,

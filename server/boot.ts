@@ -11,13 +11,32 @@ if (env.isProduction && !isVercel) {
   const { startTaskNotificationScheduler } =
     await import("./lib/tasks/notifications");
   const { startOutboxWorker } = await import("./lib/outbox/worker");
+  const { closeDb } = await import("./queries/connection");
+  const { Sentry } = await import("./lib/sentry");
 
   serveStaticFiles(app);
-  startTaskNotificationScheduler();
-  startOutboxWorker();
+  const taskScheduler = startTaskNotificationScheduler();
+  const outboxWorker = startOutboxWorker();
 
   const port = parseInt(process.env.PORT || "3000");
-  serve({ fetch: app.fetch, port }, () => {
+  const server = serve({ fetch: app.fetch, port }, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[shutdown] ${signal} received; draining resources`);
+    taskScheduler.stop();
+    outboxWorker.stop();
+    const forceTimer = setTimeout(() => process.exit(1), 15_000);
+    forceTimer.unref();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await closeDb();
+    await Sentry.flush(2_000);
+    clearTimeout(forceTimer);
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 }

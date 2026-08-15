@@ -2,7 +2,7 @@
 
 This file is a concise, factual reference for AI coding agents working on this project. It describes the technology stack, project layout, build/runtime behavior, conventions, and security model as they actually exist in the codebase.
 
-> Last updated: 2026-08-08
+> Last updated: 2026-08-14
 
 ---
 
@@ -427,7 +427,10 @@ Some older pages (Dashboard, Login, parts of LandingPage) still use hardcoded co
 
 ```bash
 APP_SECRET=              # Used to sign session JWTs
+SESSION_KEY_ID=current   # Active JWT signing-key identifier
+SESSION_PREVIOUS_SECRETS={} # JSON map of previous key IDs to secrets
 DATABASE_URL=            # Supabase PostgreSQL connection string
+DATABASE_POOL_MAX=       # Per-instance pool cap; defaults 3 Vercel / 10 Node
                           # e.g. postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 UPSTASH_REDIS_REST_URL=   # Required in production for shared rate limiting
 UPSTASH_REDIS_REST_TOKEN= # Required in production for shared rate limiting
@@ -506,7 +509,7 @@ RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
 - `vercel.json` is configured to build the Vite frontend and route `/api/*` requests to the serverless function.
 - The Node server block in `server/boot.ts` is skipped when `VERCEL=1`.
 - Database is hosted on Supabase (PostgreSQL). No local database file needed.
-- The background task-reminder scheduler does not run on Vercel; `vercel.json` defines a Vercel Cron job that calls `/api/cron/notify` once daily. Set `CRON_SECRET` to authenticate the cron requests.
+- The background task-reminder scheduler does not run on Vercel; `vercel.json` defines daily reminder/billing reconciliation jobs and a five-minute outbox drain. The five-minute schedule requires Vercel Pro/Enterprise or an external scheduler. Set `CRON_SECRET` to authenticate cron requests.
 
 ---
 
@@ -541,8 +544,8 @@ RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
 ## 15. Known limitations and TODOs
 
 - Database is hosted on Supabase (PostgreSQL).
-- Public SEO pages remain a client-rendered SPA rather than per-route SSR or
-  pre-rendered HTML.
+- Public sitemap routes are pre-rendered during `npm run build`; authenticated
+  and other dynamic routes remain client-rendered.
 - Restore objectives depend on the production Supabase plan and must be proven
   through the quarterly drill in `docs/dev/disaster-recovery.md`.
 - PAT generation is intentionally awaiting a separate rewrite; do not couple

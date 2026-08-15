@@ -1,0 +1,45 @@
+groups:
+  - name: predent-slos
+    interval: 30s
+    rules:
+      - alert: PreDentHighApiErrorRate
+        expr: rate(predent_trpc_errors_total[10m]) / clamp_min(rate(predent_trpc_requests_total[10m]), 0.001) > 0.01
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: "PreDent API error rate exceeds 1%"
+          runbook: "docs/dev/incident-response.md#api-errors"
+      - alert: PreDentHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(predent_operation_duration_ms_bucket{operation="http"}[10m]))) > 1500
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: "PreDent HTTP p95 latency exceeds 1.5 seconds"
+          runbook: "docs/dev/incident-response.md#latency"
+      - alert: PreDentOutboxDelayed
+        expr: predent_outbox_oldest_pending_age_seconds > 300
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "Oldest notification outbox job is over five minutes old"
+          runbook: "docs/dev/incident-response.md#outbox"
+      - alert: PreDentOutboxDeadLetters
+        expr: predent_outbox_jobs{status="failed"} > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: "PreDent has failed notification outbox jobs"
+          runbook: "docs/dev/incident-response.md#outbox"
+      - alert: PreDentStripeWebhookFailures
+        expr: increase(predent_stripe_webhook_failed_total[10m]) >= 5
+        labels: { severity: page }
+        annotations:
+          summary: "Five or more Stripe webhooks failed in ten minutes"
+          runbook: "docs/dev/incident-response.md#stripe"
+      - alert: PreDentReadinessFailed
+        expr: probe_success{job="predent-readiness"} == 0
+        for: 3m
+        labels: { severity: page }
+        annotations:
+          summary: "PreDent readiness endpoint is unavailable"
+          runbook: "docs/dev/incident-response.md#availability"

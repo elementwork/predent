@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, count, sql, and, ne, isNull } from "drizzle-orm";
+import { eq, desc, count, sql, and, ne, isNull, lt, or } from "drizzle-orm";
 import {
   createRouter,
   publicQuery,
@@ -42,21 +42,6 @@ const reactionCount = sql<number>`(
 )`;
 
 export const communityRouter = createRouter({
-  listPosts: publicQuery
-    .input(
-      z.object({
-        type: postTypeSchema.optional(),
-        limit: z.number().min(1).max(50).default(20),
-        offset: z.number().min(0).default(0),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      return listVisiblePosts({
-        ...input,
-        viewerId: ctx.user?.id,
-      });
-    }),
-
   listPostsPage: publicQuery
     .input(
       z.object({
@@ -75,51 +60,6 @@ export const communityRouter = createRouter({
         items: rows.slice(0, input.limit),
         nextCursor: nextCursor(rows, input.limit),
       };
-    }),
-
-  listAllPosts: authedQuery
-    .input(
-      z.object({
-        type: postTypeSchema.optional(),
-        limit: z.number().min(1).max(50).default(20),
-        offset: z.number().min(0).default(0),
-      })
-    )
-    .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [
-        isNull(communityPosts.deletedAt),
-        isNull(communityPosts.hiddenAt),
-      ];
-      if (input.type) conditions.push(eq(communityPosts.type, input.type));
-
-      const rows = await db
-        .select({
-          id: communityPosts.id,
-          userId: communityPosts.userId,
-          type: communityPosts.type,
-          title: communityPosts.title,
-          content: communityPosts.content,
-          school: communityPosts.school,
-          program: communityPosts.program,
-          result: communityPosts.result,
-          gpa: communityPosts.gpa,
-          datAa: communityPosts.datAa,
-          datPat: communityPosts.datPat,
-          province: communityPosts.province,
-          likes: reactionCount,
-          createdAt: communityPosts.createdAt,
-          authorName: users.name,
-          authorAvatar: users.avatar,
-        })
-        .from(communityPosts)
-        .leftJoin(users, eq(communityPosts.userId, users.id))
-        .where(and(...conditions))
-        .orderBy(desc(communityPosts.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-
-      return rows;
     }),
 
   getPostCount: publicQuery
@@ -639,14 +579,14 @@ export const communityRouter = createRouter({
 
   // ─── Admin procedures ───
 
-  listReports: adminQuery
+  listReportsPage: adminQuery
     .input(
       z.object({
         status: z
           .enum(["pending", "reviewed", "dismissed", "actioned"])
           .optional(),
         limit: z.number().min(1).max(50).default(20),
-        offset: z.number().min(0).default(0),
+        cursor: cursorSchema,
       })
     )
     .query(async ({ input }) => {
@@ -654,6 +594,18 @@ export const communityRouter = createRouter({
       const conditions = [];
       if (input.status)
         conditions.push(eq(communityReports.status, input.status));
+      if (input.cursor) {
+        const date = new Date(input.cursor.createdAt);
+        conditions.push(
+          or(
+            lt(communityReports.createdAt, date),
+            and(
+              eq(communityReports.createdAt, date),
+              lt(communityReports.id, input.cursor.id)
+            )
+          )!
+        );
+      }
 
       const rows = await db
         .select({
@@ -684,11 +636,13 @@ export const communityRouter = createRouter({
           eq(communityReports.commentId, communityComments.id)
         )
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(communityReports.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
+        .orderBy(desc(communityReports.createdAt), desc(communityReports.id))
+        .limit(input.limit + 1);
 
-      return rows;
+      return {
+        items: rows.slice(0, input.limit),
+        nextCursor: nextCursor(rows, input.limit),
+      };
     }),
 
   reviewReport: adminQuery

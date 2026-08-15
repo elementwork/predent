@@ -1,6 +1,6 @@
 # Session Resume — PreDent Canada
 
-> Last updated: 2026-08-03T22:40:00-04:00
+> Last updated: 2026-08-14T00:00:00-04:00
 
 Use this file to quickly get up to speed when continuing work on PreDent Canada.
 
@@ -10,7 +10,7 @@ Use this file to quickly get up to speed when continuing work on PreDent Canada.
 - **Database:** PostgreSQL on Supabase, accessed via `postgres` driver. DAT (500) + interview (24) questions are seeded; PAT questions are never stored — generated on the fly from numeric seeds.
 - **Build:** All checks pass (`npm run check`, `npm run lint`, `npm test` = 140 tests, `npm run build`).
 - **Recent work:** Authentic recent-DAT (ADA) PAT format rewrite — all 6 generators, B&W technical renderers (app + CLI + flashcards), option-count-aware validation, 16 new generator tests (commit `9646430`). See `docs/design/pat-research.md`.
-- **Deployment:** Dockerfile (Node 24), docker-compose.yml, and GitHub Actions CI workflow are in place.
+- **Deployment:** CI-gated Vercel deployment, manual rollback, Docker build/scan, uptime monitoring, Prometheus/Grafana definitions, and backup/restore drill workflows are in place.
 - **17 DB tables:** users, profiles, tasks, patAttempts, datQuestions, datAttempts, communityPosts, communityComments, communityReports, notifications, pushSubscriptions, schoolStats, stripeWebhookEvents, adminActions, interviewQuestions, savedQuestions, flashcardReviews.
 
 ## Environment
@@ -45,7 +45,7 @@ npm run dev
 5. **DAT Academy** — module overviews, study schedule generator, 500-question bank.
 6. **PAT Generators** — all 6 categories implemented as interactive SVG prototypes.
 7. **PWA** — manifest, icons, service worker.
-8. **SEO** — sitemap, robots, page titles.
+8. **SEO** — sitemap, robots, page titles, and build-time pre-rendered public routes.
 9. **DevOps** — Docker, CI, test suite (140 tests).
 10. **Light Theme Toggle** — theme provider, CSS variables, toggle in navbar.
 11. **Dental School Hub** — school detail pages, comparison tool, centralized `contracts/schools.ts` data.
@@ -75,6 +75,7 @@ npm run dev
 35. **Dockerfile** — updated to Node 24 (required by engines field).
 36. **PAT CLI Toolset + Question Bank Removal** — `tools/pat-cli.ts` (generate/render/convert/validate/stats/benchmark/standalone), HTML renderer templates, standalone browser bundle with `window.PAT_ENGINE`; deleted `patQuestions` table (migration `0007_handy_nomad`); seed-based flashcards, saved-questions PAT branch; `db/seed.ts` removed.
 37. **Authentic PAT Format Rewrite** — ADA-aligned generators: keyholes 5 options, TFE 4 with dashed hidden edges, angle ranking permutation answers, hole punching 4×4 half-folds, cube counting never-zero answers, pattern folding visible-face marks; B&W technical renderers shared by app + CLI; `server/pat-router.ts` accepts answers 0–4; new `server/pat-generation.test.ts` (16 tests); artifacts `test-output/pat-360/` + `pat-standalone.html` (gitignored). Research in `docs/design/pat-research.md`.
+38. **Due-Diligence Closure** — full Stripe lifecycle/reconciliation, bounded serverless outbox, push egress policy, SLO histograms/alerts, capacity gates, pre-rendering, cursor-admin APIs, authenticated accessibility, session key rotation, deploy/rollback automation, and restore drills. PAT generation intentionally unchanged.
 
 ## Key Files
 
@@ -118,6 +119,10 @@ See `docs/design/plans/comprehensive-todo.md` for the full list. Remaining P2 it
 4. Flashcards (#28) — basic SRS implemented, could add more features
 5. Mock DAT Exam (#29) — implemented, could add more analytics
 6. Personalized Dashboard (#30) — implemented, could add more recommendations
+
+The only deferred due-diligence scope is the separately planned PAT generation
+rewrite plus a quarterly managed-Supabase restore drill using production backup
+retention; the synthetic repository drill is automated.
 
 ## Conventions to Follow
 

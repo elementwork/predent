@@ -1,0 +1,64 @@
+{
+  "title": "PreDent Production SLOs",
+  "uid": "predent-slos",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP request rate",
+      "targets": [{ "expr": "rate(predent_http_requests_total[5m])" }],
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP p95 / p99 latency (ms)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(predent_operation_duration_ms_bucket{operation=\"http\"}[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(predent_operation_duration_ms_bucket{operation=\"http\"}[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Oldest pending notification (seconds)",
+      "targets": [{ "expr": "predent_outbox_oldest_pending_age_seconds" }],
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Stripe webhook failures",
+      "targets": [
+        { "expr": "increase(predent_stripe_webhook_failed_total[5m])" }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Push delivery outcomes",
+      "targets": [
+        {
+          "expr": "rate(predent_push_delivered_total[5m])",
+          "legendFormat": "delivered"
+        },
+        {
+          "expr": "rate(predent_push_failed_total[5m])",
+          "legendFormat": "failed"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    }
+  ]
+}

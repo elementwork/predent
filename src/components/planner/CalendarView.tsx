@@ -3,7 +3,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Edit3 } from "lucide-react";
-import type { Task } from "@db/schema";
+import type { PlannerTask as Task } from "@contracts/task";
 
 const priorityColors: Record<string, string> = {
   critical: "bg-red-500",

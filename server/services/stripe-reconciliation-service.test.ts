@@ -48,6 +48,8 @@ describe("Stripe entitlement reconciliation policy", () => {
       tier: "premium",
       subscriptionId: "sub_123",
       premiumUntil: new Date(2_000_000_000 * 1000),
+      priceId: "price_monthly",
+      subscriptionStatus: "active",
     });
   });
 
@@ -92,6 +94,23 @@ describe("Stripe entitlement reconciliation policy", () => {
       tier: "free",
       subscriptionId: null,
       premiumUntil: null,
+      priceId: null,
+      subscriptionStatus: "canceled",
     });
+  });
+
+  it("preserves access during a bounded past-due grace period", () => {
+    const result = deriveStripeEntitlement({
+      localTier: "premium",
+      localSubscriptionId: "sub_123",
+      localPremiumUntil: new Date(2_000_000_000 * 1000),
+      localPriceId: "price_monthly",
+      localSubscriptionStatus: "past_due",
+      subscription: subscription({ status: "past_due" }),
+    });
+
+    expect(result.status).toBe("in_sync");
+    expect(result.recommended?.tier).toBe("premium");
+    expect(result.recommended?.subscriptionStatus).toBe("past_due");
   });
 });

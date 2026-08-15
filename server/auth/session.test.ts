@@ -28,4 +28,22 @@ describe("session tokens", () => {
       .sign(new TextEncoder().encode(process.env.APP_SECRET));
     await expect(verifySessionToken(token)).resolves.toBeNull();
   });
+
+  it("accepts a named previous key during a rotation window", async () => {
+    const previousSecret = "previous-session-secret-at-least-32-characters";
+    process.env.SESSION_PREVIOUS_SECRETS = JSON.stringify({
+      old: previousSecret,
+    });
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: "HS256", kid: "old" })
+      .setIssuedAt()
+      .setIssuer("predent-canada")
+      .setAudience("predent-web")
+      .setJti(crypto.randomUUID())
+      .setExpirationTime("30 days")
+      .sign(new TextEncoder().encode(previousSecret));
+
+    await expect(verifySessionToken(token)).resolves.toEqual(payload);
+    delete process.env.SESSION_PREVIOUS_SECRETS;
+  });
 });

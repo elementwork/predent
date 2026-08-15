@@ -83,6 +83,10 @@ export const paymentRouter = createRouter({
           mode === "subscription"
             ? { metadata: { userId: String(ctx.user.id), plan: input.plan } }
             : undefined,
+        payment_intent_data:
+          mode === "payment"
+            ? { metadata: { userId: String(ctx.user.id), plan: input.plan } }
+            : undefined,
       });
 
       return { url: session.url };

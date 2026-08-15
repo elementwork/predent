@@ -9,10 +9,10 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "script-src 'self' 'sha256-/fN7sZWQuibYlW1zVGQPG5vq7jmvrPdxt6wKyWQeoNM='",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https:",
+  "connect-src 'self' https://*.posthog.com https://*.posthogusercontent.com https://*.sentry.io",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
 ].join("; ");

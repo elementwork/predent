@@ -30,7 +30,7 @@ import {
 } from "@/components/planner/types";
 import { CalendarView } from "@/components/planner/CalendarView";
 import { SchedulingSuggestions } from "@/components/planner/SchedulingSuggestions";
-import type { Task } from "@db/schema";
+import type { PlannerTask as Task } from "@contracts/task";
 
 const columns = [
   { id: "not_started", name: "Not Started", color: "#94A3B8" },
