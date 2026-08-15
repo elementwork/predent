@@ -509,7 +509,7 @@ RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
 - `vercel.json` is configured to build the Vite frontend and route `/api/*` requests to the serverless function.
 - The Node server block in `server/boot.ts` is skipped when `VERCEL=1`.
 - Database is hosted on Supabase (PostgreSQL). No local database file needed.
-- The background task-reminder scheduler does not run on Vercel; `vercel.json` defines daily reminder/billing reconciliation jobs and a five-minute outbox drain. The five-minute schedule requires Vercel Pro/Enterprise or an external scheduler. Set `CRON_SECRET` to authenticate cron requests.
+- The background task-reminder scheduler does not run on Vercel; `vercel.json` invokes `/api/cron/notify` once daily. That endpoint processes reminders, study reminders, the outbox, and billing reconciliation, which is compatible with Vercel Hobby. Set `CRON_SECRET` to authenticate cron requests.
 
 ---
 
@@ -558,3 +558,10 @@ RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
 3. **Always run 'npm run check' and 'npm run lint'** before pushing to remote - both must pass.
 4. **Squash before push**: merge all local commits into one single commit, then push.
 5. **User**: use elementwork <elementworkinc@gmail.com> to commit and push to github
+
+## 17. Global Guardrails
+Never run full tests, create a git commit, push to a remote repository, or generate pull requests unless explicitly authorized by the user in the immediate message. 
+* Do not auto-commit or auto-push after implementing changes, fixing bugs, or completing tasks.
+* Always wait for the user to review code in the console and request a commit explicitly.
+* A commit or push instruction from a previous message never carries over to a new task.
+* If a task is finished, halt and wait for manual approval.

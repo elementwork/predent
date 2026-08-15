@@ -1,19 +1,4 @@
--- Remove unused 'kimi' from provider enum
--- Safe because no users have provider = 'kimi' (no Kimi OAuth implementation exists)
-
-ALTER TABLE "users" ALTER COLUMN "provider" DROP DEFAULT;
-
-CREATE TYPE "provider_new" AS ENUM (
-  'google', 'x', 'instagram', 'linkedin',
-  'apple', 'discord', 'microsoft', 'facebook'
-);
-
-ALTER TABLE "users"
-  ALTER COLUMN "provider" TYPE "provider_new"
-  USING "provider"::text::"provider_new";
-
+-- `users.provider` was created as varchar in 0000, not as a PostgreSQL enum.
+-- Removing an app-level provider therefore requires no type migration. Keeping
+-- the column varchar also matches db/schema.ts and preserves existing users.
 ALTER TABLE "users" ALTER COLUMN "provider" SET DEFAULT 'google';
-
-DROP TYPE "provider";
-
-ALTER TYPE "provider_new" RENAME TO "provider";

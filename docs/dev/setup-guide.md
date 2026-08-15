@@ -654,7 +654,9 @@ stripe trigger checkout.session.completed
 
 ### 7.6 Vercel Cron (Task Reminders)
 
-The app uses a cron job for task due-date reminders. Configure in `vercel.json`:
+The app uses one daily cron job for task and study reminders, notification
+outbox delivery, and Stripe entitlement reconciliation. This single schedule is
+compatible with Vercel Hobby. Configure it in `vercel.json`:
 
 ```json
 {

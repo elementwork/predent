@@ -191,10 +191,14 @@ app.get("/api/cron/notify", async c => {
   const taskResult = await notifyUpcomingTasks();
   const studyResult = await sendStudyReminders();
   const outboxResult = await drainOutbox();
+  const billingResult = env.stripeSecretKey
+    ? await reconcileAllStripeEntitlements()
+    : { skipped: true, reason: "Stripe is not configured" };
   return c.json({
     tasks: taskResult,
     study: studyResult,
     outbox: outboxResult,
+    reconciliation: billingResult,
   });
 });
 

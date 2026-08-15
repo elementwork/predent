@@ -48,16 +48,8 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/outbox",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/notify",
       "schedule": "0 14 * * *"
-    },
-    {
-      "path": "/api/cron/billing",
-      "schedule": "30 14 * * *"
     }
   ]
 }

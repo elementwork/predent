@@ -42,5 +42,7 @@ describe.skipIf(!hasDb)("GET /api/cron/notify", () => {
     const body = await res.json();
     expect(body).toHaveProperty("tasks");
     expect(body).toHaveProperty("study");
+    expect(body).toHaveProperty("outbox");
+    expect(body).toHaveProperty("reconciliation");
   });
 });

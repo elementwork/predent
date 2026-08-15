@@ -45,9 +45,10 @@ those only after resolving the underlying cause.
    unhealthy instance from traffic.
 3. Verify alert delivery in staging and quarterly thereafter.
 4. Apply database migrations before starting workers.
-5. On Vercel Pro or Enterprise, keep `/api/cron/outbox` on its five-minute
-   schedule. Vercel Hobby only permits daily cron jobs and cannot meet the
-   five-minute notification SLO; use a Pro plan or an external scheduler.
+5. On Vercel Hobby, `/api/cron/notify` runs all scheduled work once daily:
+   reminders, the outbox drain, and billing reconciliation. Upgrade or use an
+   external scheduler if the product requires an outbox-delivery SLO below one
+   day.
 6. GitHub's `Production Uptime Monitor` probes readiness every five minutes and
    opens/updates an incident issue. Treat it as an independent availability
    check, not a replacement for metrics and paging.
