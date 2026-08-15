@@ -1,6 +1,6 @@
 # PreDent Canada — Development Log (DEVLOG)
 
-> Last updated: 2026-08-14T00:00:00-04:00
+> Last updated: 2026-08-15T00:00:00-04:00
 
 A chronological summary of all major work completed on the PreDent Canada platform, derived from `git log`, GitHub history, and project milestones.
 
@@ -919,6 +919,22 @@ Full documentation sweep to match the current codebase after the authentic PAT f
   - Both artifacts are gitignored; regenerated via `tools/pat-cli.ts generate -n 60 -s 101 -f both --explanation-depth full --show-answers --answer-key --validate` and `standalone -n 60 -s 101 --show-answers`.
 
 **Verification:** `npm run check` ✓, `npm run lint` ✓ (0 errors, 2 pre-existing warnings), `npm test` ✓ (140 tests / 16 files).
+
+---
+
+### 37. CI Database Capacity Guardrail Fix
+
+Fixed a CI-only failure in the `Verify database connection capacity` step (`npm run db:capacity`):
+
+- The CI disposable Postgres container reports `max_connections=100`, `superuser_reserved_connections=3` → 97 usable connections.
+- The 10% guardrail in `tools/check-db-capacity.ts` floors to `floor(97 * 0.1) = 9`, but the default Node pool (`DATABASE_POOL_MAX` unset → 10) exceeded it, failing the job.
+- Set `DATABASE_POOL_MAX: 8` (≈8.2% of usable) on the capacity-check step in `.github/workflows/ci.yml`, keeping the check meaningful while staying under the guardrail.
+
+**Files changed:**
+
+- `.github/workflows/ci.yml` — `DATABASE_POOL_MAX: 8` on the capacity check step.
+
+**Verification:** guardrail math re-checked (pool 8 ≤ 9 passes; pool 10 > 9 fails), matching the CI failure exactly.
 
 ---
 

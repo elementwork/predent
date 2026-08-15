@@ -87,6 +87,9 @@ jobs:
         run: npm run db:capacity
         env:
           TEST_DATABASE_URL: postgresql://predent:predent_test_password@localhost:5432/predent_test
+          # CI disposable Postgres has 100 max_connections (97 usable); a pool of
+          # 8 stays under the 10% guardrail the capacity check enforces.
+          DATABASE_POOL_MAX: 8
 
       - name: Run frontend tests with coverage thresholds
         run: npm run test:frontend -- --coverage
