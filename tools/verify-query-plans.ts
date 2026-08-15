@@ -59,9 +59,9 @@ try {
   await sql`ANALYZE tasks`;
   const userId = userIds[0]!;
 
-  // The compact fixture can make a user-only index plus an in-memory sort
-  // cheaper than the composite index. Disable sorts for this assertion so it
-  // verifies that the index serving the filter and ordering actually exists.
+  // The compact fixture can make a single-column index plus an in-memory sort
+  // cheaper than the composite indexes. Disable sorts for these assertions so
+  // they verify the indexes serving each filter-and-ordering pattern exist.
   await sql`SET enable_sort TO off`;
   try {
     await expectIndex(
@@ -72,25 +72,25 @@ try {
         WHERE user_id = ${userId} AND category = 'keyholes'
         ORDER BY created_at DESC LIMIT 50`
     );
+    await expectIndex(
+      "unread notifications",
+      "notifications_user_read_created_idx",
+      sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+        SELECT * FROM notifications
+        WHERE user_id = ${userId} AND read = false
+        ORDER BY created_at DESC LIMIT 50`
+    );
+    await expectIndex(
+      "planner due tasks",
+      "tasks_user_status_due_idx",
+      sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+        SELECT * FROM tasks
+        WHERE user_id = ${userId} AND status = 'in_progress'
+        ORDER BY due_date LIMIT 50`
+    );
   } finally {
     await sql`RESET enable_sort`;
   }
-  await expectIndex(
-    "unread notifications",
-    "notifications_user_read_created_idx",
-    sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-      SELECT * FROM notifications
-      WHERE user_id = ${userId} AND read = false
-      ORDER BY created_at DESC LIMIT 50`
-  );
-  await expectIndex(
-    "planner due tasks",
-    "tasks_user_status_due_idx",
-    sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-      SELECT * FROM tasks
-      WHERE user_id = ${userId} AND status = 'in_progress'
-      ORDER BY due_date LIMIT 50`
-  );
 } finally {
   await sql`DELETE FROM users WHERE "unionId" LIKE ${`${prefix}%`}`;
   await sql.end();
