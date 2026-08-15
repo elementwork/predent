@@ -517,6 +517,7 @@ export const communityRouter = createRouter({
           id: communityPosts.id,
           userId: communityPosts.userId,
           title: communityPosts.title,
+          likes: communityPosts.likes,
         })
         .from(communityPosts)
         .where(eq(communityPosts.id, input.postId))
@@ -556,11 +557,16 @@ export const communityRouter = createRouter({
         }
       }
 
-      const [{ likes }] = await db
-        .select({ likes: reactionCount })
-        .from(communityPosts)
-        .where(eq(communityPosts.id, input.postId));
-      return { success: true, liked: true, created: Boolean(reaction), likes };
+      const [{ total: reactionTotal }] = await db
+        .select({ total: count() })
+        .from(communityReactions)
+        .where(eq(communityReactions.postId, input.postId));
+      return {
+        success: true,
+        liked: true,
+        created: Boolean(reaction),
+        likes: post.likes + reactionTotal,
+      };
     }),
 
   unlikePost: authedQuery

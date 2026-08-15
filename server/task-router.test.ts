@@ -69,7 +69,9 @@ describe.skipIf(!hasDb)("taskRouter.update", () => {
     const task = await seedTask(other.id, { title: "Other" });
     const caller = createCaller(user);
 
-    await caller.update({ id: task.id, title: "Hacked" });
+    await expect(
+      caller.update({ id: task.id, title: "Hacked" })
+    ).rejects.toThrow("NOT_FOUND");
 
     const callerOther = createCaller(other);
     const { items: tasks } = await callerOther.listPage({});
