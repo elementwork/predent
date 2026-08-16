@@ -979,6 +979,20 @@ The `Scan image for high-severity vulnerabilities` CI step failed on every push 
 
 ---
 
+### 41. Trivy Image Scan Findings (Node bundled-npm CVEs) + `.trivyignore`
+
+After switching the Trivy CI step to `scan-type: image`, the image scan still failed with HIGH/CRITICAL findings — all confined to Node's bundled npm distribution in the `node:24-alpine` base image:
+
+- `brace-expansion` (CVE-2026-13149, CVE-2026-14257, CVE-2026-69152), `ip-address` (CVE-2026-69192), `tar` (CVE-2026-59873 CRITICAL, CVE-2026-59874), `undici` (CVE-2026-12151) under `/usr/local/lib/node_modules/npm/node_modules/`.
+- Verified these are not in the application dependency tree: `npm audit --omit=dev` and a Trivy lockfile scan report 0 findings. They are unreachable at runtime (`node dist/boot.js` never invokes npm's bundled CLI modules) and not resolvable upstream — the latest npm still bundles vulnerable `brace-expansion@5.0.7` and `ip-address@10.2.0`.
+- Fix: added `.trivyignore` (documented exemptions for the 7 CVEs with a revisit note) and wired it via `trivyignores: .trivyignore` in the CI step. Reproduced locally with `trivy image --severity HIGH,CRITICAL --ignore-unfixed --ignorefile .trivyignore node:24-alpine` → exit 0, all targets clean.
+
+**Files changed:** `.trivyignore` (new), `.github/workflows/ci.yml`.
+
+**Verification:** Trivy v0.74.0 (same version the action installs) confirms the ignorefile clears the base image scan; workflow YAML valid.
+
+---
+
 After each significant feature or milestone:
 
 1. Summarize the work in a new entry above.

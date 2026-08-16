@@ -137,6 +137,7 @@ jobs:
           # built image instead (`.dockerignore` keeps `.env` out of it).
           scan-type: image
           image-ref: predent:latest
+          trivyignores: .trivyignore
           format: table
           exit-code: "1"
           ignore-unfixed: true

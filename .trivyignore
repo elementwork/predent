@@ -1,0 +1,22 @@
+# Accepted base-image vulnerabilities (Trivy).
+#
+# These CVEs are all in Node's own bundled npm distribution that ships inside
+# the `node:24-alpine` base image under
+# /usr/local/lib/node_modules/npm/node_modules/ (brace-expansion, ip-address,
+# tar, undici). They are:
+#   - NOT part of the application dependency tree: `npm audit --omit=dev` and a
+#     Trivy scan of the lockfile report 0 findings for the app's production deps.
+#   - NOT reachable at runtime: the app starts with `node dist/boot.js` and never
+#     invokes npm's bundled CLI modules with untrusted input.
+#   - NOT resolvable upstream today: the latest npm still bundles vulnerable
+#     brace-expansion@5.0.7 (fix 5.0.9) and ip-address@10.2.0 (fix 10.3.1).
+#
+# Revisit on every Node/npm minor update and remove entries that the updated
+# base image has fixed.
+CVE-2026-13149
+CVE-2026-14257
+CVE-2026-69152
+CVE-2026-69192
+CVE-2026-59873
+CVE-2026-59874
+CVE-2026-12151
