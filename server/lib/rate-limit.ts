@@ -129,19 +129,18 @@ async function consume(
     env.upstashRedisRestUrl && env.upstashRedisRestToken
   );
   if (hasRedis) {
-    return consumeRedis(key, options, now);
-  }
-
-  if (env.isProduction && !env.allowInMemoryRateLimit) {
-    throw new Error(
-      "Distributed rate limiting is not configured for production"
-    );
-  }
-
-  if (env.isProduction && !warnedAboutLocalProductionStore) {
+    try {
+      return await consumeRedis(key, options, now);
+    } catch (error) {
+      console.error(
+        "[rate-limit] Redis store unavailable; falling back to local store:",
+        error
+      );
+    }
+  } else if (env.isProduction && !warnedAboutLocalProductionStore) {
     warnedAboutLocalProductionStore = true;
     console.warn(
-      "[rate-limit] RATE_LIMIT_ALLOW_IN_MEMORY is enabled; limits are not shared across instances."
+      "[rate-limit] Redis rate limiting is not configured; using the local store. Limits are not shared across instances."
     );
   }
   return consumeLocal(key, options, now);

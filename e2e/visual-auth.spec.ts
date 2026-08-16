@@ -1,10 +1,16 @@
 import { test, expect } from "@playwright/test";
+import { waitForStableLayout } from "./visual-helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("predent_telemetry_consent", "denied");
   });
 });
+
+async function settled(page: import("@playwright/test").Page) {
+  await page.waitForLoadState("networkidle");
+  await waitForStableLayout(page);
+}
 
 // Helper to mock authenticated user via route interception
 async function mockAuthenticatedUser(
@@ -39,7 +45,7 @@ async function mockAuthenticatedUser(
 test.describe("Visual Regression - Auth Flow", () => {
   test("login page - all OAuth providers", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("login-providers.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.02,
@@ -48,7 +54,7 @@ test.describe("Visual Regression - Auth Flow", () => {
 
   test("login page - Google OAuth button visible", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const googleBtn = page.getByRole("link", { name: /Google/i });
     await expect(googleBtn).toBeVisible();
     await expect(googleBtn).toHaveScreenshot("google-oauth-button.png", {
@@ -58,7 +64,7 @@ test.describe("Visual Regression - Auth Flow", () => {
 
   test("login page - Apple OAuth button visible", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const appleBtn = page.getByRole("link", { name: /Apple/i });
     await expect(appleBtn).toBeVisible();
     await expect(appleBtn).toHaveScreenshot("apple-oauth-button.png", {
@@ -68,7 +74,7 @@ test.describe("Visual Regression - Auth Flow", () => {
 
   test("login page dark mode", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await page.evaluate(() => {
       document.documentElement.classList.add("dark");
     });
@@ -83,7 +89,7 @@ test.describe("Visual Regression - Auth Flow", () => {
 test.describe("Visual Regression - Unauthenticated State", () => {
   test("dashboard redirects to login", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveURL(/\/login/);
     await expect(page).toHaveScreenshot("dashboard-redirect-login.png", {
       fullPage: true,
@@ -93,7 +99,7 @@ test.describe("Visual Regression - Unauthenticated State", () => {
 
   test("planner redirects to login", async ({ page }) => {
     await page.goto("/dashboard/planner");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveURL(/\/login/);
     await expect(page).toHaveScreenshot("planner-redirect-login.png", {
       fullPage: true,
@@ -105,7 +111,7 @@ test.describe("Visual Regression - Unauthenticated State", () => {
     page,
   }) => {
     await page.goto("/pat-academy/practice");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("pat-practice-unauth.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -116,7 +122,7 @@ test.describe("Visual Regression - Unauthenticated State", () => {
     page,
   }) => {
     await page.goto("/dat-academy/practice");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("dat-practice-unauth.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -134,8 +140,7 @@ test.describe("Visual Regression - Free Tier User", () => {
       role: "user",
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toHaveScreenshot("navbar-free-user.png", {
       maxDiffPixelRatio: 0.01,
@@ -151,8 +156,7 @@ test.describe("Visual Regression - Free Tier User", () => {
       role: "user",
     });
     await page.goto("/pat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("pat-practice-free-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -168,8 +172,7 @@ test.describe("Visual Regression - Free Tier User", () => {
       role: "user",
     });
     await page.goto("/dat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("dat-practice-free-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -185,8 +188,7 @@ test.describe("Visual Regression - Free Tier User", () => {
       role: "user",
     });
     await page.goto("/pricing");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("pricing-free-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -204,8 +206,7 @@ test.describe("Visual Regression - Premium User", () => {
       role: "user",
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toHaveScreenshot("navbar-premium-user.png", {
       maxDiffPixelRatio: 0.01,
@@ -221,8 +222,7 @@ test.describe("Visual Regression - Premium User", () => {
       role: "user",
     });
     await page.goto("/pat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("pat-practice-premium-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -238,8 +238,7 @@ test.describe("Visual Regression - Premium User", () => {
       role: "user",
     });
     await page.goto("/dat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("dat-practice-premium-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -255,8 +254,7 @@ test.describe("Visual Regression - Premium User", () => {
       role: "user",
     });
     await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("dashboard-premium-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -274,8 +272,7 @@ test.describe("Visual Regression - Premium Plus User", () => {
       role: "user",
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toHaveScreenshot("navbar-premium-plus-user.png", {
       maxDiffPixelRatio: 0.01,
@@ -291,8 +288,7 @@ test.describe("Visual Regression - Premium Plus User", () => {
       role: "user",
     });
     await page.goto("/pat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("pat-practice-premium-plus-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -308,8 +304,7 @@ test.describe("Visual Regression - Premium Plus User", () => {
       role: "user",
     });
     await page.goto("/dat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("dat-practice-premium-plus-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -325,8 +320,7 @@ test.describe("Visual Regression - Premium Plus User", () => {
       role: "user",
     });
     await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("dashboard-premium-plus-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -344,8 +338,7 @@ test.describe("Visual Regression - Admin User", () => {
       role: "admin",
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toHaveScreenshot("navbar-admin-user.png", {
       maxDiffPixelRatio: 0.01,
@@ -361,8 +354,7 @@ test.describe("Visual Regression - Admin User", () => {
       role: "admin",
     });
     await page.goto("/admin");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("admin-dashboard.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -373,7 +365,7 @@ test.describe("Visual Regression - Admin User", () => {
 test.describe("Visual Regression - Tier Comparison", () => {
   test("pricing cards - all tiers side by side", async ({ page }) => {
     await page.goto("/pricing");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("pricing-cards-comparison.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -382,7 +374,7 @@ test.describe("Visual Regression - Tier Comparison", () => {
 
   test("pricing page - feature comparison table", async ({ page }) => {
     await page.goto("/pricing");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const featureTable = page.getByText(/Feature Comparison/i);
     if (await featureTable.isVisible()) {
       await expect(featureTable.locator("..")).toHaveScreenshot(
@@ -406,8 +398,7 @@ test.describe("Visual Regression - Limits & Restrictions", () => {
       role: "user",
     });
     await page.goto("/pat-academy/practice");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     // Check if quota display is visible
     const quotaDisplay = page.getByText(/quota/i);
     if (await quotaDisplay.isVisible()) {
@@ -429,8 +420,7 @@ test.describe("Visual Regression - Limits & Restrictions", () => {
       role: "user",
     });
     await page.goto("/flashcards");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("flashcards-free-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -446,8 +436,7 @@ test.describe("Visual Regression - Limits & Restrictions", () => {
       role: "user",
     });
     await page.goto("/flashcards");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await settled(page);
     await expect(page).toHaveScreenshot("flashcards-premium-user.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,

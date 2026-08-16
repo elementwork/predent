@@ -23,7 +23,7 @@ describe.skipIf(!hasDb)("paymentRouter", () => {
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_monthly";
     process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_yearly";
     process.env.STRIPE_PRICE_PLUS_LIFETIME = "price_lifetime";
-    process.env.PUBLIC_APP_URL = "https://predent.ca";
+    process.env.PUBLIC_APP_URL = "https://predent.vercel.app";
 
     // Import after env vars are set so PLAN_PRICES is populated.
     const mod = await import("./payment-router");

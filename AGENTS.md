@@ -419,8 +419,10 @@ Some older pages (Dashboard, Login, parts of LandingPage) still use hardcoded co
   `(provider, unionId)`; both fields are required for lookup and upsert.
 - **Entitlements**: Paid access is derived from both `tier` and an unexpired
   `premiumUntil`. Use `premiumQuery`/`premiumPlusQuery` for paid procedures.
-- **Rate limiting**: Production uses shared Redis REST counters and fails closed
-  when they are unavailable. Proxy IP headers are trusted only through the
+- **Rate limiting**: Production uses shared Redis REST counters. When the shared
+  store is unavailable or not configured it falls back to the local in-process
+  store with a loud warning (limits are not shared across instances) rather than
+  blacking out the whole service. Proxy IP headers are trusted only through the
   explicit platform/proxy configuration.
 
 ### Required environment variables
@@ -434,7 +436,7 @@ DATABASE_POOL_MAX=       # Per-instance pool cap; defaults 3 Vercel / 10 Node
                           # e.g. postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 UPSTASH_REDIS_REST_URL=   # Required in production for shared rate limiting
 UPSTASH_REDIS_REST_TOKEN= # Required in production for shared rate limiting
-RATE_LIMIT_ALLOW_IN_MEMORY=false # Single-instance production escape hatch only
+RATE_LIMIT_ALLOW_IN_MEMORY=false # Retained for explicit local-only operation; the runtime now falls back automatically when Redis is unavailable
 TRUST_PROXY=false        # Only for a proxy that sanitizes X-Forwarded-For
 TRUST_CLOUDFLARE_PROXY=false # Only when Cloudflare directly fronts the origin
 VITE_GOOGLE_CLIENT_ID=   # Browser-facing Google OAuth client ID
@@ -479,7 +481,7 @@ STRIPE_WEBHOOK_SECRET=            # whsec_... for webhook signature verification
 STRIPE_PRICE_PREMIUM_MONTHLY=     # price_... for Premium monthly plan
 STRIPE_PRICE_PREMIUM_YEARLY=      # price_... for Premium yearly plan
 STRIPE_PRICE_PLUS_LIFETIME=       # price_... for Premium Plus lifetime plan
-PUBLIC_APP_URL=                   # Public origin, e.g. https://predent.ca
+PUBLIC_APP_URL=                   # Public origin, e.g. https://predent.vercel.app
 
 # Vercel Cron (required only on Vercel for scheduled reminders)
 CRON_SECRET=              # Random secret Vercel sends in the Authorization header
@@ -487,7 +489,7 @@ METRICS_SECRET=           # Bearer token protecting /api/metrics
 
 # Email / Notifications (required only when sending real emails)
 EMAIL_PROVIDER=           # "console" (default) or "resend"; SendGrid is unsupported
-EMAIL_FROM=               # Sender address (e.g. noreply@predent.ca)
+EMAIL_FROM=               # Sender address (e.g. noreply@predent.vercel.app)
 RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
 ```
 

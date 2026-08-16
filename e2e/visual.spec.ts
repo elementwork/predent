@@ -1,10 +1,16 @@
 import { test, expect } from "@playwright/test";
+import { waitForStableLayout } from "./visual-helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("predent_telemetry_consent", "denied");
   });
 });
+
+async function settled(page: import("@playwright/test").Page) {
+  await page.waitForLoadState("networkidle");
+  await waitForStableLayout(page);
+}
 
 async function mockCommunityFeed(page: import("@playwright/test").Page) {
   const createdAt = new Date().toISOString();
@@ -101,7 +107,7 @@ async function mockCommunityFeed(page: import("@playwright/test").Page) {
 test.describe("Visual Regression - Landing Page", () => {
   test("landing page full screenshot", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("landing-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -110,7 +116,7 @@ test.describe("Visual Regression - Landing Page", () => {
 
   test("landing page hero section", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const hero = page.getByRole("heading", { name: /Canadian DAT Prep/i });
     await expect(hero).toBeVisible();
     await expect(hero).toHaveScreenshot("hero-section.png", {
@@ -120,7 +126,7 @@ test.describe("Visual Regression - Landing Page", () => {
 
   test("landing page pricing section", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const pricing = page.getByRole("heading", { name: /DAT Prep Plans/i });
     await expect(pricing).toBeVisible();
     await expect(pricing.locator("..")).toHaveScreenshot(
@@ -135,7 +141,7 @@ test.describe("Visual Regression - Landing Page", () => {
 test.describe("Visual Regression - Public Pages", () => {
   test("schools hub page", async ({ page }) => {
     await page.goto("/schools");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("schools-hub.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -144,7 +150,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("login page", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("login-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -153,7 +159,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("pricing page", async ({ page }) => {
     await page.goto("/pricing");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("pricing-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -162,7 +168,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("about page", async ({ page }) => {
     await page.goto("/about");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("about-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -171,7 +177,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("contact page", async ({ page }) => {
     await page.goto("/contact");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("contact-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -180,7 +186,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("guides index page", async ({ page }) => {
     await page.goto("/guides");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("guides-index.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -189,7 +195,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("DAT academy page", async ({ page }) => {
     await page.goto("/dat-academy");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("dat-academy.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -198,7 +204,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("PAT academy page", async ({ page }) => {
     await page.goto("/pat-academy");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("pat-academy.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -208,7 +214,7 @@ test.describe("Visual Regression - Public Pages", () => {
   test("community hub page", async ({ page }) => {
     await mockCommunityFeed(page);
     await page.goto("/community");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("community-hub.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -217,7 +223,7 @@ test.describe("Visual Regression - Public Pages", () => {
 
   test("404 page", async ({ page }) => {
     await page.goto("/nonexistent-page");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("404-page.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -228,7 +234,7 @@ test.describe("Visual Regression - Public Pages", () => {
 test.describe("Visual Regression - Dark Mode", () => {
   test("landing page dark mode", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(
       page.getByRole("heading", { name: /Canadian DAT Prep/i })
     ).toBeVisible();
@@ -247,7 +253,7 @@ test.describe("Visual Regression - Dark Mode", () => {
 
   test("schools hub dark mode", async ({ page }) => {
     await page.goto("/schools");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await page.evaluate(() => {
       document.documentElement.classList.add("dark");
     });
@@ -260,7 +266,7 @@ test.describe("Visual Regression - Dark Mode", () => {
 
   test("login page dark mode", async ({ page }) => {
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await page.evaluate(() => {
       document.documentElement.classList.add("dark");
     });
@@ -275,7 +281,7 @@ test.describe("Visual Regression - Dark Mode", () => {
 test.describe("Visual Regression - Navigation", () => {
   test("navbar desktop", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toBeVisible();
     await expect(navbar).toHaveScreenshot("navbar-desktop.png", {
@@ -286,7 +292,7 @@ test.describe("Visual Regression - Navigation", () => {
   test("navbar mobile", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const navbar = page.getByRole("navigation");
     await expect(navbar).toBeVisible();
     await expect(navbar).toHaveScreenshot("navbar-mobile.png", {
@@ -299,7 +305,7 @@ test.describe("Visual Regression - Responsive", () => {
   test("landing page mobile", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("landing-page-mobile.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -309,7 +315,7 @@ test.describe("Visual Regression - Responsive", () => {
   test("schools hub mobile", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/schools");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("schools-hub-mobile.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,
@@ -319,7 +325,7 @@ test.describe("Visual Regression - Responsive", () => {
   test("login page mobile", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await expect(page).toHaveScreenshot("login-page-mobile.png", {
       fullPage: true,
       maxDiffPixelRatio: 0.01,

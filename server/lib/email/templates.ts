@@ -1,4 +1,4 @@
-const APP_URL = process.env.PUBLIC_APP_URL || "https://predent.ca";
+const APP_URL = process.env.PUBLIC_APP_URL || "https://predent.vercel.app";
 
 export function studyReminderEmail(
   userName: string,

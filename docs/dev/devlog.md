@@ -938,6 +938,33 @@ Fixed a CI-only failure in the `Verify database connection capacity` step (`npm 
 
 ---
 
+### 38. Production Domain + Readiness/Rate-Limiter 503 Fixes
+
+Resolved the production deployment failures caused by stale `predent.ca` references and site-wide 503s:
+
+- **Domain correction:** the live site is `predent.vercel.app` (README); `predent.ca` does not resolve (DNS, curl 000). Replaced every `predent.ca` reference across the repo: `index.html` (og:url, canonical, JSON-LD, og:image), `public/sitemap.xml`, `public/robots.txt`, `tools/prerender.mjs` (canonical + sitemap regex kept in sync), `server/lib/email/templates.ts` (APP_URL fallback), `server/lib/push.ts` (VAPID email), the `uptime-monitor.yml` health probe, docs (`AGENTS.md`, `.env.example`, `setup-guide`, `admin-guide`), and test fixtures.
+- **Readiness 503:** `/api/health/ready` raced the DB check against 3s, which is shorter than the Postgres `connect_timeout` (10s) — cold serverless starts were misreported as not ready. Raised the budget to 10s (`server/app.ts`).
+- **Rate-limit 503:** `rateLimit` failed closed with 503 ("Request protection is temporarily unavailable.") on every API request when the shared Upstash store was unavailable or not configured, blacking out the whole site. It now falls back to the local in-process store with a loud error/warning instead (`server/lib/rate-limit.ts`), keeping the service up while limits are not shared across instances.
+
+**Files changed:** `index.html`, `public/sitemap.xml`, `public/robots.txt`, `tools/prerender.mjs`, `server/app.ts`, `server/lib/rate-limit.ts`, `server/lib/email/templates.ts`, `server/lib/push.ts`, `server/lib/origin.test.ts`, `server/payment-router.test.ts`, `.github/workflows/uptime-monitor.yml`, `AGENTS.md`, `.env.example`, `docs/dev/setup-guide.md`, `docs/dev/admin-guide.md`, `docs/dev/dev-guide.md`, `docs/dev/devlog.md`.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓, `npm test` ✓; confirmed `predent.vercel.app` serves 200 and the Supabase pooler DB answers `select 1` in ~340ms locally.
+
+---
+
+### 39. E2E Visual Regression Stability + Snapshot Refresh
+
+Fixed the Playwright visual regression suite (35 failing, 1 flaky of 80):
+
+- **Load flakiness:** under parallel workers the Vite dev server compiles routes on first request, so `waitForLoadState("networkidle")` could resolve mid-render and full-page screenshots captured transient heights (720/1055/2014px) that oscillated until timeout. Added `e2e/visual-helpers.ts` (`waitForStableLayout` — polls `document.documentElement.scrollHeight` until unchanged across reads, then lets entrance animations finish) and a `settled()` helper applied in `e2e/visual.spec.ts` and `e2e/visual-auth.spec.ts`, replacing the inconsistent `waitForTimeout(1000)` calls.
+- **Stale baselines:** after settling, 35 tests still failed on deterministic 14–20px diffs against snapshots committed 2026-08-08 (later theme/header/UI changes). Regenerated those snapshots against the settled renders; `landing-page-mobile` also reverted to its stable 14219px height instead of oscillating.
+
+**Files changed:** `e2e/visual-helpers.ts` (new), `e2e/visual.spec.ts`, `e2e/visual-auth.spec.ts`, 35 snapshot PNGs under `e2e/__snapshots__/`.
+
+**Verification:** `npx playwright test` ✓ (80/80 passed), `npm run check` ✓, `npm run lint` ✓.
+
+---
+
 After each significant feature or milestone:
 
 1. Summarize the work in a new entry above.

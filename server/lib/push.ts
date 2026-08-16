@@ -6,7 +6,7 @@ import { incrementCounter, log } from "./observability";
 
 const VAPID_PUBLIC = process.env.VITE_VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "";
-const VAPID_EMAIL = process.env.VAPID_EMAIL || "mailto:admin@predent.ca";
+const VAPID_EMAIL = process.env.VAPID_EMAIL || "mailto:admin@predent.vercel.app";
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webPush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);

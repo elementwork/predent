@@ -268,11 +268,12 @@ All page content containers use `section-container max-w-7xl mx-auto` for a cons
 - **Sessions:** Store a `tokenVersion` in the `users` table, include it in the JWT, and verify it on every request. Increment on logout to revoke existing tokens.
 - **Rate limiting:** Public API groups use Hono middleware backed by atomic
   Upstash Redis REST counters in production. Configure
-  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; requests fail closed
-  with 503 if the shared store is unavailable. Local development uses the
-  in-process store. `RATE_LIMIT_ALLOW_IN_MEMORY=true` is an explicit
-  single-instance production escape hatch and must not be used on Vercel or a
-  horizontally scaled deployment.
+  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. When the shared store
+  is unavailable or not configured, requests fall back to the local in-process
+  store with a loud warning (limits are not shared across instances) so the
+  service stays up. Local development uses the in-process store.
+  `RATE_LIMIT_ALLOW_IN_MEMORY=true` is an explicit single-instance mode and must
+  not be used on a horizontally scaled deployment.
 - **Trusted client IPs:** Vercel uses its sanitized
   `X-Vercel-Forwarded-For`. Traditional deployments use the socket address
   unless `TRUST_PROXY=true`; Cloudflare origins may opt into

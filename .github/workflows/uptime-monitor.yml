@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      HEALTH_URL: https://predent.ca/api/health/ready
+      HEALTH_URL: https://predent.vercel.app/api/health/ready
       ISSUE_TITLE: "[monitor] Production readiness probe is failing"
     steps:
       - name: Probe readiness with retries

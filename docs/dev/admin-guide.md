@@ -36,7 +36,7 @@ DATABASE_URL=             # Supabase PostgreSQL connection string
 # ── Distributed rate limiting (required in production) ─────────
 UPSTASH_REDIS_REST_URL=    # Shared Redis REST endpoint
 UPSTASH_REDIS_REST_TOKEN=  # Shared Redis REST bearer token
-RATE_LIMIT_ALLOW_IN_MEMORY=false # Single-instance emergency escape hatch only
+RATE_LIMIT_ALLOW_IN_MEMORY=false # Retained for explicit local-only operation; the runtime falls back automatically when Redis is unavailable
 TRUST_PROXY=false          # Only for a controlled proxy that sanitizes XFF
 TRUST_CLOUDFLARE_PROXY=false # Only when Cloudflare directly fronts the origin
 
@@ -88,9 +88,9 @@ STRIPE_PRICE_PLUS_LIFETIME=      # price_... for $149 one-time Plus plan
 
 # ── Email / Notifications ───────────────────────────────────────
 EMAIL_PROVIDER=           # "console" (default) or "resend"; SendGrid is unsupported
-EMAIL_FROM=               # Sender address (e.g. noreply@predent.ca)
+EMAIL_FROM=               # Sender address (e.g. noreply@predent.vercel.app)
 RESEND_API_KEY=           # re_... (required when EMAIL_PROVIDER=resend)
-PUBLIC_APP_URL=           # Public origin for links (e.g. https://predent.ca)
+PUBLIC_APP_URL=           # Public origin for links (e.g. https://predent.vercel.app)
 
 # ── Vercel Cron ─────────────────────────────────────────────────
 CRON_SECRET=              # Random secret Vercel sends for cron auth
@@ -412,7 +412,7 @@ The project includes a `vercel.json` configuration for serverless deployment:
    - `https://your-domain.com/api/oauth/callback`
 6. Configure Stripe webhook endpoint to `https://your-domain.com/api/webhooks/stripe` (if using payments).
 7. Configure email provider (Resend or SendGrid) for real notifications.
-8. Set `PUBLIC_APP_URL` to the production origin (e.g. `https://predent.ca`).
+8. Set `PUBLIC_APP_URL` to the production origin (e.g. `https://predent.vercel.app`).
 9. Set `CRON_SECRET` for Vercel cron authentication (Vercel only).
 10. Configure the shared Redis REST rate-limit store. Do not enable the
     in-memory escape hatch on Vercel or multi-instance deployments.
@@ -425,8 +425,10 @@ The project includes a `vercel.json` configuration for serverless deployment:
 - The production build bundles the frontend into `dist/public/` and the backend into `dist/boot.js`.
 - The server serves static files and tRPC API routes from `/api/trpc`.
 - Migrations are **not** run automatically on startup; run them during deploy.
-- Production API requests fail closed with 503 when the shared rate-limit store
-  is missing or unavailable. Monitor this response rate and Redis health.
+- Production API requests fall back to the local in-process rate-limit store
+  when the shared store is missing or unavailable, logging a loud warning.
+  Limits are not shared across instances during the fallback; monitor Redis
+  health so the shared limiter is always available.
 
 ---
 
@@ -526,7 +528,7 @@ Example Resend configuration:
 
 ```env
 EMAIL_PROVIDER=resend
-EMAIL_FROM=noreply@predent.ca
+EMAIL_FROM=noreply@predent.vercel.app
 RESEND_API_KEY=re_xxxxxxxx
 ```
 

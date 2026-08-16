@@ -5,7 +5,7 @@ const outputRoot = path.resolve("dist/public");
 const baseHtml = await fs.readFile(path.join(outputRoot, "index.html"), "utf8");
 const sitemap = await fs.readFile(path.resolve("public/sitemap.xml"), "utf8");
 const sitemapRoutes = [
-  ...sitemap.matchAll(/<loc>https:\/\/predent\.ca([^<]*)<\/loc>/g),
+  ...sitemap.matchAll(/<loc>https:\/\/predent\.vercel\.app([^<]*)<\/loc>/g),
 ].map(match => match[1] || "/");
 const schoolIds = [
   "uoft",
@@ -65,7 +65,7 @@ function titleFor(route) {
 
 for (const route of routes) {
   const [title, description] = titleFor(route);
-  const canonical = `https://predent.ca${route === "/" ? "" : route}`;
+  const canonical = `https://predent.vercel.app${route === "/" ? "" : route}`;
   let html = baseHtml
     .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
     .replace(

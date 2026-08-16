@@ -414,7 +414,7 @@ OWNER_UNION_ID=your-google-sub-id
 
 1. In Resend dashboard, go to **Domains**
 2. Click **"Add Domain"**
-3. Enter your domain: `predent.ca`
+3. Enter your domain: `predent.vercel.app`
 4. Resend will provide **3 DNS records** to add (DKIM, SPF, DMARC)
 
 ### 5.3 Configure DNS
@@ -440,7 +440,7 @@ Go to your domain registrar (Namecheap, Cloudflare DNS, etc.) and add the DNS re
 
 ```bash
 EMAIL_PROVIDER=resend
-EMAIL_FROM=noreply@predent.ca
+EMAIL_FROM=noreply@predent.vercel.app
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxx
 PUBLIC_APP_URL=https://your-domain.com
 ```
@@ -622,7 +622,7 @@ stripe trigger checkout.session.completed
 | `OWNER_UNION_ID`               | your-google-sub                | Production, Preview, Development |
 | `PUBLIC_APP_URL`               | https://your-domain.vercel.app | Production                       |
 | `EMAIL_PROVIDER`               | resend                         | Production                       |
-| `EMAIL_FROM`                   | noreply@predent.ca             | Production                       |
+| `EMAIL_FROM`                   | noreply@predent.vercel.app             | Production                       |
 | `RESEND_API_KEY`               | re_xxx                         | Production                       |
 | `STRIPE_SECRET_KEY`            | sk_live_xxx                    | Production                       |
 | `STRIPE_WEBHOOK_SECRET`        | whsec_xxx                      | Production                       |
@@ -641,7 +641,7 @@ stripe trigger checkout.session.completed
 ### 7.5 Custom Domain
 
 1. Go to **Settings → Domains**
-2. Add your domain: `predent.ca`
+2. Add your domain: `predent.vercel.app`
 3. Vercel provides **2 DNS records** to add:
 
 | Type  | Name  | Value                  |
@@ -746,7 +746,7 @@ wrangler deploy
 
 1. Go to Cloudflare Dashboard → **Workers & Pages**
 2. Click your worker → **Settings → Triggers**
-3. Add a custom domain: `predent.ca`
+3. Add a custom domain: `predent.vercel.app`
 4. If your domain is already on Cloudflare DNS, it works instantly
 5. If not, add a CNAME record pointing to your worker
 

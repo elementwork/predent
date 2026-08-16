@@ -25,26 +25,26 @@ describe("public application origin", () => {
 
   it("requires an HTTPS configured origin in production", () => {
     process.env.NODE_ENV = "production";
-    process.env.PUBLIC_APP_URL = "https://predent.ca";
+    process.env.PUBLIC_APP_URL = "https://predent.vercel.app";
     expect(getPublicAppOrigin("https://attacker.example/path")).toBe(
-      "https://predent.ca"
+      "https://predent.vercel.app"
     );
     expect(
       isTrustedRequestOrigin({
-        origin: "https://predent.ca",
+        origin: "https://predent.vercel.app",
         requestUrl: "https://attacker.example/api/trpc/task.create",
       })
     ).toBe(true);
     expect(
       isTrustedRequestOrigin({
         origin: "https://attacker.example",
-        requestUrl: "https://predent.ca/api/trpc/task.create",
+        requestUrl: "https://predent.vercel.app/api/trpc/task.create",
       })
     ).toBe(false);
     expect(
       isTrustedRequestOrigin({
         origin: undefined,
-        requestUrl: "https://predent.ca/api/trpc/task.create",
+        requestUrl: "https://predent.vercel.app/api/trpc/task.create",
       })
     ).toBe(false);
   });

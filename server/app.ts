@@ -53,8 +53,11 @@ app.get("/api/health/ready", async c => {
       traced("database.readiness", "db.query", () =>
         getDb().execute(sql`select 1`)
       ),
+      // Allow the same budget as the postgres connect_timeout (10s) so a
+      // cold serverless start establishing a fresh pool connection is not
+      // misreported as not ready.
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Database readiness timeout")), 3_000)
+        setTimeout(() => reject(new Error("Database readiness timeout")), 10_000)
       ),
     ]);
     return c.json({ status: "ready", requestId: c.get("requestId") });
