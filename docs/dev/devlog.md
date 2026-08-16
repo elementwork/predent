@@ -965,6 +965,20 @@ Fixed the Playwright visual regression suite (35 failing, 1 flaky of 80):
 
 ---
 
+### 40. Trivy CI Scan Fix (scan the image, not the repo filesystem)
+
+The `Scan image for high-severity vulnerabilities` CI step failed on every push to `main`:
+
+- `aquasecurity/trivy-action` defaults `scan-type` to `fs`, so the step ignored `image-ref` and ran `trivy fs .` over the whole repository.
+- The repo contains an untracked local `.env` (gitignored, but present on disk) whose secrets (`APP_SECRET`, `DATABASE_URL`, OAuth credentials) were flagged, failing the build. Removing `.env` made the step pass.
+- Fix: set `scan-type: image` so Trivy scans the built `predent:latest` image instead. `.dockerignore` already excludes `.env`, so the image is secret-free.
+
+**Files changed:** `.github/workflows/ci.yml`.
+
+**Verification:** workflow YAML valid; `.env` confirmed gitignored, untracked, and excluded from the Docker build context.
+
+---
+
 After each significant feature or milestone:
 
 1. Summarize the work in a new entry above.
