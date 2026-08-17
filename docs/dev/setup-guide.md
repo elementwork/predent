@@ -647,8 +647,15 @@ stripe trigger checkout.session.completed
 
 ### 7.4 Deploy
 
-1. Go to **Deployments** and click **"Redeploy"**
-2. Or push to GitHub — Vercel auto-deploys on push to `main`
+1. Before deploying, apply any pending migrations against production:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+   (Migrations are not run automatically on startup.)
+2. Go to **Deployments** and click **"Redeploy"**
+3. Or push to GitHub — Vercel auto-deploys on push to `main`
 
 ### 7.5 Custom Domain
 

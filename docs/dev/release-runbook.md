@@ -16,7 +16,9 @@ release owner and rollback owner must be named before deployment.
    DB-gated test suite with `TEST_DATABASE_URL`, and `npm run db:verify-plans`.
 4. Run `npm run test:e2e` against the release build or preview environment.
 5. Confirm production secrets, OAuth callback URLs, Stripe webhook endpoint,
-   shared Redis rate limiting, metrics scraping, and alert routing.
+   shared Redis rate limiting, metrics scraping, and alert routing. When the
+   pricing plans changed, confirm all six `STRIPE_PRICE_*` env vars are
+   provisioned (see [admin guide — Provisioning Stripe Plans & Prices](./admin-guide.md#provisioning-stripe-plans--prices)).
 6. Confirm a recent database backup or provider recovery point and record its
    timestamp. Never release an irreversible migration without a tested restore
    path.

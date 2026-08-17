@@ -379,7 +379,7 @@ PAGES TO GENERATE:
 3. GENERATORS PAGE (/pat-academy/generators — Premium teaser):
    - "Unlimited PAT Generators" header
    - 6 generator cards showing "10M+ variations" etc. (from PRD)
-   - "Upgrade to Premium" CTA with $29/mo pricing
+   - "Upgrade to Premium" CTA with $39/mo pricing
    - Sample generated question (1 per category) with "Generate New" button disabled
 
 4. VISUAL LESSONS (/pat-academy/lessons):
@@ -508,7 +508,7 @@ SUBSCRIPTION TIERS:
    - Basic application tracker (3 schools)
    - Read-only community content
 
-2. PREMIUM ($29/month or $249/year):
+2. PREMIUM ($39/month, $99/3-month, or $249/year):
    - Unlimited PAT question bank
    - All 6 PAT generators (unlimited)
    - Full 3D model access
@@ -1622,7 +1622,7 @@ After initial generation, use these natural language prompts to refine:
 | Feature              | DATCrusher   | DAT Bootcamp | PATBooster  | PreDent Canada          |
 | -------------------- | ------------ | ------------ | ----------- | ----------------------- |
 | Primary Focus        | Canadian DAT | American DAT | PAT Section | Full admissions journey |
-| Price                | $499–849     | $519–919     | $299–499    | Free–$149               |
+| Price                | $499–849     | $519–919     | $299–499    | Free–$249               |
 | School Database      | No           | No           | No          | Yes                     |
 | Admissions Tools     | No           | No           | No          | Yes                     |
 | Interview Prep       | No           | No           | No          | Yes                     |

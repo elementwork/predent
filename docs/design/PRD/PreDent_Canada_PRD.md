@@ -1159,7 +1159,7 @@ The database schema is designed to support all six product pillars with normaliz
 │  │  │  [🔒 Upgrade to see detailed breakdown and improvement plan]│    │   │
 │  │  └─────────────────────────────────────────────────────────────┘    │   │
 │  │                                                                     │   │
-│  │  [Upgrade to Premium — $29/month]                                   │   │
+│  │  [Upgrade to Premium — from $39/month]                                   │   │
 │  │  ✓ Full competitiveness analysis for all 10 schools                 │   │
 │  │  ✓ Personalized improvement plan                                    │   │
 │  │  ✓ PAT generators and unlimited practice                            │   │
@@ -1294,7 +1294,7 @@ The database schema is designed to support all six product pillars with normaliz
 │  │  [🔒 PREMIUM] FULL APPLICANT CALCULATOR                             │   │
 │  │  See how competitive you are + get personalized improvement plan    │   │
 │  │                                                                     │   │
-│  │  [Upgrade to Premium — $29/month]                                   │   │
+│  │  [Upgrade to Premium — from $39/month]                                   │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -1642,7 +1642,7 @@ Based on 4px grid:
 | ------------------------ | -------------------- | -------------------- | --------------- | ----------------------- |
 | **Primary Focus**        | Canadian DAT         | American DAT         | PAT Section     | Full admissions journey |
 | **Content Depth**        | Excellent (Canadian) | Excellent (American) | Excellent (PAT) | Good (all areas)        |
-| **Price Point**          | $499–849             | $519–919             | $299–499        | Free–$149               |
+| **Price Point**          | $499–849             | $519–919             | $299–499        | Free–$249               |
 | **School Database**      | ❌ None              | ❌ None              | ❌ None         | ✅ Full (10 schools)    |
 | **Admissions Tools**     | ❌ None              | ❌ None              | ❌ None         | ✅ Comprehensive        |
 | **Community**            | Basic study group    | Forum                | ❌ None         | ✅ Curated intelligence |

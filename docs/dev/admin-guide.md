@@ -399,6 +399,62 @@ The project includes a `vercel.json` configuration for serverless deployment:
    vercel --prod
    ```
 
+#### Provisioning Stripe Plans & Prices
+
+The app expects **six** Stripe price IDs (all priced in CAD). Create them once
+in the Stripe Dashboard, then set the matching environment variables.
+
+| Env var                                         | Stripe product                 | Price  | Type           |
+| ----------------------------------------------- | ------------------------------ | ------ | -------------- |
+| `STRIPE_PRICE_PREMIUM_MONTHLY`                  | Premium Monthly                | $39.00 | Recurring/mo   |
+| `STRIPE_PRICE_PREMIUM_3MONTH`                   | Premium 3-Month                | $99.00 | One-time       |
+| `STRIPE_PRICE_PREMIUM_YEARLY`                   | Premium Yearly                 | $249.00| Recurring/yr   |
+| `STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH`        | Upgrade Monthly → 3-Month      | $60.00 | One-time       |
+| `STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY`        | Upgrade Monthly → Yearly       | $210.00| One-time       |
+| `STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY`         | Upgrade 3-Month → Yearly       | $150.00| One-time       |
+
+Steps:
+
+1. Stripe Dashboard → **Products → Add product**. Create `Premium Monthly`,
+   `Premium 3-Month`, `Premium Yearly`, plus the three upgrade products, each
+   with the price above. Recurring products use a monthly/yearly interval;
+   the 3-Month plan and upgrade top-ups are one-time prices.
+2. Copy each **Price ID** (`price_...`) and set the matching env var
+   (`STRIPE_PRICE_*`). The upgrade products are resolved by Price ID via
+   `getUpgradeKeyFromPrice` — if one is missing, checkout returns
+   `"Upgrade price is not configured"`.
+3. Configure a Stripe webhook endpoint at
+   `https://your-domain.com/api/webhooks/stripe` and subscribe to:
+
+   - `checkout.session.completed`
+   - `invoice.paid`, `invoice.payment_failed`, `invoice.marked_uncollectible`, `invoice.voided`
+   - `customer.subscription.created`, `.updated`, `.deleted`, `.paused`, `.resumed`
+
+   Verify the webhook signing secret matches `STRIPE_WEBHOOK_SECRET`.
+
+#### Applying the pricing migration (`0013_equal_wong`)
+
+Migrations are **not** applied automatically on startup — run them during
+deploy. The pricing release includes one migration that removes the legacy
+lifetime column and its unique index:
+
+- `db/migrations/0013_equal_wong.sql`
+  - `DROP INDEX "users_stripe_lifetime_payment_intent_unique";`
+  - `ALTER TABLE "users" DROP COLUMN "stripe_lifetime_payment_intent_id";`
+
+Apply it to the target database:
+
+```bash
+npm run db:migrate
+```
+
+CI safety net: the `check` job in `.github/workflows/ci.yml` runs
+`npm run db:generate` and fails if the committed migration files drift, then
+applies all migrations to a disposable PostgreSQL before the test suite runs.
+Always run `npm run db:migrate` against staging first, verify no data loss (the
+dropped column was unused — no lifetime customers existed), then apply to
+production.
+
 #### Vercel Limitations
 
 - The **background task-reminder scheduler does not run** on serverless. `vercel.json` defines a Vercel Cron job that calls `/api/cron/notify` once daily. Set `CRON_SECRET` in the Vercel dashboard to authenticate cron requests.
@@ -407,19 +463,21 @@ The project includes a `vercel.json` configuration for serverless deployment:
 
 1. Set all required environment variables.
 2. Ensure `DATABASE_URL` points to a persistent PostgreSQL database.
-3. Run `npm run db:migrate`.
-4. Run `npm run db:seed:dat:full` and/or `npm run db:seed:dat` on a fresh database (PAT needs no seeding).
-5. Configure OAuth redirect URIs for every enabled provider:
+3. Run `npm run db:migrate` (includes the pricing migration `0013_equal_wong`).
+4. Provision the six Stripe price IDs and set `STRIPE_PRICE_*` env vars
+   (see [Provisioning Stripe Plans & Prices](#provisioning-stripe-plans--prices)).
+5. Run `npm run db:seed:dat:full` and/or `npm run db:seed:dat` on a fresh database (PAT needs no seeding).
+6. Configure OAuth redirect URIs for every enabled provider:
    - `https://your-domain.com/api/oauth/callback`
-6. Configure Stripe webhook endpoint to `https://your-domain.com/api/webhooks/stripe` (if using payments).
-7. Configure email provider (Resend or SendGrid) for real notifications.
-8. Set `PUBLIC_APP_URL` to the production origin (e.g. `https://predent.vercel.app`).
-9. Set `CRON_SECRET` for Vercel cron authentication (Vercel only).
-10. Configure the shared Redis REST rate-limit store. Do not enable the
+7. Configure Stripe webhook endpoint to `https://your-domain.com/api/webhooks/stripe` (if using payments).
+8. Configure email provider (Resend or SendGrid) for real notifications.
+9. Set `PUBLIC_APP_URL` to the production origin (e.g. `https://predent.vercel.app`).
+10. Set `CRON_SECRET` for Vercel cron authentication (Vercel only).
+11. Configure the shared Redis REST rate-limit store. Do not enable the
     in-memory escape hatch on Vercel or multi-instance deployments.
-11. Follow the [release runbook](./release-runbook.md), including disposable
+12. Follow the [release runbook](./release-runbook.md), including disposable
     database migration validation and a verified recovery point.
-12. Run a dry Stripe entitlement audit and resolve all manual-review rows.
+13. Run a dry Stripe entitlement audit and resolve all manual-review rows.
 
 ### Environment Notes
 

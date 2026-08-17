@@ -249,15 +249,19 @@ Manage notification settings at **Dashboard → Settings → Notifications**:
 
 ## Premium & Pricing
 
-Visit **Pricing** to see subscription tiers:
+Visit **Pricing** to see subscription tiers (prices in CAD):
 
-| Tier | Price | Features |
+| Plan | Price | Features |
 |------|-------|----------|
-| **Free** | $0 | PAT practice, DAT preview, school profiles, competitiveness calculator, community |
-| **Premium** | $29/mo or $249/yr | Everything in Free + unlimited generators, L2/L3 explanations, all PAT generators, full analytics |
-| **Premium Plus** | $149 one-time | Everything in Premium, lifetime access |
+| **Free** | $0 | PAT practice (20 questions), DAT preview, school profiles, competitiveness calculator, community |
+| **Monthly** | $39/mo | Everything in Free + unlimited generators, all 6 PAT generators, full analytics |
+| **3-Month** | $99 one-time | Full Premium access for a 90-day exam-window sprint |
+| **Annual** | $249/yr | Best value, full test + application cycle, Higher Score Guarantee |
 
-Checkout is powered by Stripe. Manage your subscription via the billing portal.
+All paid plans are upgradable anytime by paying only the price difference
+(Monthly → 3-Month +$60, Monthly → Annual +$210, 3-Month → Annual +$150), and
+remaining access time carries over. Checkout is powered by Stripe. Manage your
+subscription via the billing portal.
 
 ---
 
