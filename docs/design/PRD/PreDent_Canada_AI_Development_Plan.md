@@ -176,7 +176,7 @@ PAGE STRUCTURE:
 3. SOCIAL PROOF: "900+ applications for 96 UofT seats" — animated counter stats
 4. COMPETITIVE COMPARISON: Side-by-side table vs DATCrusher vs DAT Bootcamp
 5. TESTIMONIALS: 3 student quotes with photos
-6. PRICING: Free / Premium $29/mo / Premium Plus $149 one-time tiers
+6. PRICING: Free / Monthly $39 / 3-Month $99 / Annual $249 CAD (upgradable)
 7. FAQ: 5 accordion questions
 8. FOOTER: Links to all 10 Canadian dental schools
 
@@ -523,22 +523,16 @@ SUBSCRIPTION TIERS:
    - Anki export
    - Priority email support
 
-3. PREMIUM PLUS ($149 one-time):
-   - Everything in Premium
-   - 1 personal statement review
-   - 1-on-1 admissions strategy consultation
-   - Advanced AI tutor
-   - Application document review
-   - Lifetime access (no recurring)
+3. ANNUAL ($249/year): Everything in Monthly + Higher Score Guarantee.
+   All paid plans are upgradable by paying the price difference.
 
 FEATURES TO IMPLEMENT:
 
 1. PRICING PAGE (/pricing):
-   - 3-tier comparison table (feature matrix from above)
-   - Monthly/Annual toggle (show savings)
+   - 4-plan cards: Free, Monthly, 3-Month, Annual (CAD)
    - "Higher Score Guarantee" badge (money-back if DAT doesn't improve)
    - FAQ accordion about billing
-   - CTA buttons: "Start Free", "Get Premium", "Get Premium Plus"
+   - CTA buttons: "Start Free", "Get Monthly", "Get 3-Month", "Get Annual"
 
 2. STRIPE CHECKOUT:
    - /api/stripe/checkout-session — creates Stripe Checkout session
@@ -1608,10 +1602,10 @@ After initial generation, use these natural language prompts to refine:
 
 | Tier            | Price   | Duration  | Key Features                                             |
 | --------------- | ------- | --------- | -------------------------------------------------------- |
-| Free            | $0      | Unlimited | School DB, basic GPA calc, 500 PAT Qs, 10 generators/day |
-| Premium Monthly | $29/mo  | Recurring | Unlimited everything, full generators, AI tutor (basic)  |
-| Premium Annual  | $249/yr | 12 months | 28% savings, Higher Score Guarantee                      |
-| Premium Plus    | $149    | One-time  | Everything + PS review + 1-on-1 consultation             |
+| Free            | $0      | Unlimited | School DB, basic GPA calc, 20 PAT Qs, angle generator   |
+| Premium Monthly | $39/mo  | Recurring | Unlimited everything, full generators, progress analytics|
+| Premium 3-Month | $99     | 90 days  | One-time exam-window access                             |
+| Premium Annual  | $249/yr | 365 days | Best value, Higher Score Guarantee                      |
 
 ### 10.4 DAT Format Reference
 

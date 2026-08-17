@@ -82,9 +82,12 @@ OWNER_UNION_ID=           # OAuth "sub"/id of the app creator; gets role "admin"
 # ── Payments (Stripe) ──────────────────────────────────────────
 STRIPE_SECRET_KEY=        # sk_test_... or sk_live_...
 STRIPE_WEBHOOK_SECRET=    # whsec_... for webhook signature verification
-STRIPE_PRICE_PREMIUM_MONTHLY=     # price_... for $29/mo Premium plan
+STRIPE_PRICE_PREMIUM_MONTHLY=     # price_... for $39/mo Premium plan
+STRIPE_PRICE_PREMIUM_3MONTH=      # price_... for $99 one-time 3-Month window
 STRIPE_PRICE_PREMIUM_YEARLY=      # price_... for $249/yr Premium plan
-STRIPE_PRICE_PLUS_LIFETIME=      # price_... for $149 one-time Plus plan
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH=   # price_... top-up ($60)
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY=   # price_... top-up ($210)
+STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY=    # price_... top-up ($150)
 
 # ── Email / Notifications ───────────────────────────────────────
 EMAIL_PROVIDER=           # "console" (default) or "resend"; SendGrid is unsupported
@@ -305,10 +308,7 @@ always flagged for manual review and are never changed automatically.
 
 After reviewing the full result set, use the explicit confirmation control to
 apply deterministic drift corrections. Every applied user change is written to
-`admin_actions` with previous and recommended state. Lifetime Premium Plus is
-verified against its stored Payment Intent and is revoked when the charge is
-refunded, disputed, or no longer paid; legacy lifetime rows without an intent
-are sent to manual review. Run this after webhook
+`admin_actions` with previous and recommended state. Run this after webhook
 outages, Stripe price changes, restores, and before/after billing migrations.
 
 ---
@@ -377,7 +377,8 @@ The project includes a `vercel.json` configuration for serverless deployment:
 
    Payments (if using Stripe):
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-   - `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_PREMIUM_YEARLY`, `STRIPE_PRICE_PLUS_LIFETIME`
+   - `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_PREMIUM_3MONTH`, `STRIPE_PRICE_PREMIUM_YEARLY`
+   - Upgrade top-ups: `STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH`, `STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY`, `STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY`
 
    Email/notifications (if sending real emails):
    - `EMAIL_PROVIDER`, `EMAIL_FROM`, `RESEND_API_KEY`

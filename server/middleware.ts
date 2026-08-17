@@ -94,7 +94,7 @@ function requireTier(requiredTier: Tier) {
     if (!hasTierAccess(effectiveTier, requiredTier)) {
       throw new TRPCError({
         code: "FORBIDDEN",
-        message: `${requiredTier === "premium_plus" ? "Premium Plus" : "Premium"} subscription required.`,
+        message: "Premium subscription required.",
       });
     }
 
@@ -105,4 +105,3 @@ function requireTier(requiredTier: Tier) {
 export const authedQuery = publicQuery.use(requireAuth);
 export const adminQuery = authedQuery.use(requireRole("admin"));
 export const premiumQuery = authedQuery.use(requireTier("premium"));
-export const premiumPlusQuery = authedQuery.use(requireTier("premium_plus"));

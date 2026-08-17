@@ -49,7 +49,6 @@ const CATEGORY_META: Record<
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
   premium: "Premium",
-  premium_plus: "Premium Plus",
 };
 
 function CircularProgress({

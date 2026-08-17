@@ -17,8 +17,7 @@ export function useTier() {
       tier,
       isAuthenticated,
       isFree: tier === "free",
-      isPremium: tier === "premium" || tier === "premium_plus",
-      isPlus: tier === "premium_plus",
+      isPremium: tier === "premium",
       hasAccess(required: Tier) {
         return hasTierAccess(tier, required);
       },

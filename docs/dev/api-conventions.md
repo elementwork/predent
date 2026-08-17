@@ -24,9 +24,9 @@ migrated to cursor pagination.
 | Admin         | `admin.*` and community moderation/report-review procedures                                                                                                                           |
 
 The middleware builders in `server/middleware.ts` are the source of truth:
-`publicQuery`, `authedQuery`, `premiumQuery`, `premiumPlusQuery`, and
-`adminQuery`. Any newly sensitive procedure must select the builder before its
-implementation is reviewed.
+`publicQuery`, `authedQuery`, `premiumQuery`, and `adminQuery`. Any newly
+sensitive procedure must select the builder before its implementation is
+reviewed.
 
 External HTTP endpoints use JSON status semantics: OAuth endpoints redirect,
 Stripe webhooks return 4xx for invalid events and 5xx for retryable processing

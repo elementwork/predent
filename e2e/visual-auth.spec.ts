@@ -19,7 +19,7 @@ async function mockAuthenticatedUser(
     id: number;
     name: string;
     email: string;
-    tier: "free" | "premium" | "premium_plus";
+    tier: "free" | "premium";
     role: "user" | "admin";
   }
 ) {
@@ -262,79 +262,13 @@ test.describe("Visual Regression - Premium User", () => {
   });
 });
 
-test.describe("Visual Regression - Premium Plus User", () => {
-  test("navbar - premium plus user shows tier badge", async ({ page }) => {
-    await mockAuthenticatedUser(page, {
-      id: 3,
-      name: "Premium Plus User",
-      email: "plus@example.com",
-      tier: "premium_plus",
-      role: "user",
-    });
-    await page.goto("/");
-    await settled(page);
-    const navbar = page.getByRole("navigation");
-    await expect(navbar).toHaveScreenshot("navbar-premium-plus-user.png", {
-      maxDiffPixelRatio: 0.01,
-    });
-  });
-
-  test("PAT practice - premium plus user full quota", async ({ page }) => {
-    await mockAuthenticatedUser(page, {
-      id: 3,
-      name: "Premium Plus User",
-      email: "plus@example.com",
-      tier: "premium_plus",
-      role: "user",
-    });
-    await page.goto("/pat-academy/practice");
-    await settled(page);
-    await expect(page).toHaveScreenshot("pat-practice-premium-plus-user.png", {
-      fullPage: true,
-      maxDiffPixelRatio: 0.01,
-    });
-  });
-
-  test("DAT practice - premium plus user full quota", async ({ page }) => {
-    await mockAuthenticatedUser(page, {
-      id: 3,
-      name: "Premium Plus User",
-      email: "plus@example.com",
-      tier: "premium_plus",
-      role: "user",
-    });
-    await page.goto("/dat-academy/practice");
-    await settled(page);
-    await expect(page).toHaveScreenshot("dat-practice-premium-plus-user.png", {
-      fullPage: true,
-      maxDiffPixelRatio: 0.01,
-    });
-  });
-
-  test("dashboard - premium plus user full stats", async ({ page }) => {
-    await mockAuthenticatedUser(page, {
-      id: 3,
-      name: "Premium Plus User",
-      email: "plus@example.com",
-      tier: "premium_plus",
-      role: "user",
-    });
-    await page.goto("/dashboard");
-    await settled(page);
-    await expect(page).toHaveScreenshot("dashboard-premium-plus-user.png", {
-      fullPage: true,
-      maxDiffPixelRatio: 0.01,
-    });
-  });
-});
-
 test.describe("Visual Regression - Admin User", () => {
   test("navbar - admin user shows admin link", async ({ page }) => {
     await mockAuthenticatedUser(page, {
       id: 4,
       name: "Admin User",
       email: "admin@example.com",
-      tier: "premium_plus",
+      tier: "premium",
       role: "admin",
     });
     await page.goto("/");
@@ -350,7 +284,7 @@ test.describe("Visual Regression - Admin User", () => {
       id: 4,
       name: "Admin User",
       email: "admin@example.com",
-      tier: "premium_plus",
+      tier: "premium",
       role: "admin",
     });
     await page.goto("/admin");

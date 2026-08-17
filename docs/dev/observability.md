@@ -7,7 +7,8 @@ OAuth tokens, session cookies, email addresses, or outbox payloads.
 ## Endpoints
 
 - `GET /api/health/live` checks that the process can serve requests.
-- `GET /api/health/ready` performs a three-second PostgreSQL dependency check.
+- `GET /api/health/ready` performs a PostgreSQL dependency check (10s budget,
+  aligned with the connection `connect_timeout`).
 - `GET /api/metrics` returns Prometheus text and requires
   `Authorization: Bearer $METRICS_SECRET`.
 
@@ -49,6 +50,3 @@ those only after resolving the underlying cause.
    reminders, the outbox drain, and billing reconciliation. Upgrade or use an
    external scheduler if the product requires an outbox-delivery SLO below one
    day.
-6. GitHub's `Production Uptime Monitor` probes readiness every five minutes and
-   opens/updates an incident issue. Treat it as an independent availability
-   check, not a replacement for metrics and paging.

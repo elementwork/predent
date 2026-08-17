@@ -190,7 +190,7 @@ export default function PATGeneratorsPage() {
             {activeLocked && activeGenerator && (
               <PremiumLock
                 title={`${activeGenerator.category} Generator`}
-                description="Upgrade to Premium to unlock this generator and 4 more."
+                description="Upgrade to Premium to unlock this generator and 5 more."
               />
             )}
             {!activeLocked && active === "angle_ranking" && (

@@ -37,8 +37,9 @@ test.describe("Landing page", () => {
     await expect(
       page.getByRole("heading", { name: /DAT Prep Plans/i })
     ).toBeVisible();
-    await expect(page.getByText("$29")).toBeVisible();
-    await expect(page.getByText("$149")).toBeVisible();
+    await expect(page.getByText("$39")).toBeVisible();
+    await expect(page.getByText("$99")).toBeVisible();
+    await expect(page.getByText("$249")).toBeVisible();
   });
 
   test("displays FAQ section", async ({ page }) => {
@@ -94,7 +95,7 @@ test.describe("Public pages", () => {
   test("pricing page loads", async ({ page }) => {
     await page.goto("/pricing");
     await expect(
-      page.getByRole("heading", { name: "Premium", exact: true })
+      page.getByRole("heading", { name: "Annual", exact: true })
     ).toBeVisible();
   });
 

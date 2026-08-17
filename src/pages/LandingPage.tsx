@@ -601,9 +601,9 @@ const comparisonFeatures = [
   },
   {
     name: "Price (Starting)",
-    predent: "$0",
-    crusher: "$499",
-    bootcamp: "$519",
+    predent: "$0 CAD",
+    crusher: "$499 USD",
+    bootcamp: "$519 USD",
   },
 ];
 
@@ -867,10 +867,10 @@ const pricingTiers = [
     href: "/login",
   },
   {
-    name: "Premium",
-    price: "$29",
+    name: "Monthly",
+    price: "$39",
     period: "/month",
-    description: "Everything you need for serious DAT prep.",
+    description: "Full access, month to month. Cancel anytime.",
     features: [
       "Unlimited PAT question bank",
       "All 6 PAT generators (unlimited)",
@@ -883,31 +883,44 @@ const pricingTiers = [
       "Progress analytics",
       "Priority email support",
     ],
-    cta: "Get Premium",
-    ctaStyle: "filled" as const,
-    popular: true,
+    cta: "Get Monthly",
+    ctaStyle: "outline" as const,
+    popular: false,
     href: "/pricing",
   },
   {
-    name: "Premium Plus",
-    price: "$149",
-    period: "one-time",
-    description: "Lifetime access + personal coaching.",
+    name: "3-Month",
+    price: "$99",
+    period: "90 days",
+    description: "One payment for an exam-window sprint.",
     features: [
-      "Everything in Premium",
-      "Lifetime access (no recurring)",
-      "Early access to new features",
+      "Everything in Monthly",
+      "Single payment — no renewal",
+      "Covers one DAT exam window",
     ],
-    cta: "Get Premium Plus",
+    cta: "Get 3-Month",
     ctaStyle: "outline" as const,
     popular: false,
+    href: "/pricing",
+  },
+  {
+    name: "Annual",
+    price: "$249",
+    period: "/year",
+    description: "Best value for a full test + application cycle.",
+    features: [
+      "Everything in Monthly",
+      "Save vs. paying monthly",
+      "Higher Score Guarantee",
+    ],
+    cta: "Get Annual",
+    ctaStyle: "filled" as const,
+    popular: true,
     href: "/pricing",
   },
 ];
 
 function PricingSection() {
-  const [isAnnual, setIsAnnual] = useState(false);
-
   return (
     <section className="py-20 lg:py-28 bg-[var(--page-surface)]">
       <div className="section-container max-w-7xl mx-auto">
@@ -917,35 +930,17 @@ function PricingSection() {
               Pricing
             </p>
             <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
-              DAT Prep Plans: Free, Premium & Premium Plus
+              DAT Prep Plans: Free, Monthly, 3-Month & Annual
             </h2>
-            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto mb-8">
+            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto">
               Start free. Upgrade to unlock unlimited PAT generators, DAT
-              practice, and the school competitiveness calculator.
+              practice, and the school competitiveness calculator. All prices
+              in CAD.
             </p>
-
-            {/* Toggle */}
-            <div className="inline-flex items-center gap-3 p-1 rounded-lg bg-[var(--page-muted)]">
-              <button
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] ${!isAnnual ? "bg-[var(--page-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)]"}`}
-                onClick={() => setIsAnnual(false)}
-              >
-                Monthly
-              </button>
-              <button
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] ${isAnnual ? "bg-[var(--page-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)]"}`}
-                onClick={() => setIsAnnual(true)}
-              >
-                Annual
-                <span className="px-1.5 py-0.5 rounded bg-[#10B981] text-white text-[10px] font-bold">
-                  SAVE 28%
-                </span>
-              </button>
-            </div>
           </div>
         </FadeIn>
 
-        <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {pricingTiers.map((tier, i) => (
             <FadeIn key={tier.name} delay={i * 0.1}>
               <Card
@@ -970,14 +965,10 @@ function PricingSection() {
                     </p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-extrabold text-[var(--text-primary)]">
-                        {tier.name === "Premium" && isAnnual
-                          ? "$249"
-                          : tier.price}
+                        {tier.price}
                       </span>
                       <span className="text-sm text-[var(--text-secondary)]">
-                        {tier.name === "Premium" && isAnnual
-                          ? "/year"
-                          : tier.period}
+                        {tier.period}
                       </span>
                     </div>
                   </div>

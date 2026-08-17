@@ -111,7 +111,7 @@ The backend and frontend are built together and served from the same Node proces
 │   └── lib/                # Frontend utilities (cn, prng.ts for seeded PRNG)
 ├── contracts/              # Shared constants, error types, re-exports from db
 │   ├── schools.ts          # Normalized Canadian dental school data
-│   ├── tiers.ts            # Tier quota definitions (free, premium, premium_plus)
+│   ├── tiers.ts            # Tier quota definitions (free, premium)
 │   └── pat-stats.ts        # Static PAT counts (60 per category, 360 total)
 ├── db/                     # Database schema, relations, seeds
 │   ├── schema.ts           # Drizzle PostgreSQL schema
@@ -418,7 +418,8 @@ Some older pages (Dashboard, Login, parts of LandingPage) still use hardcoded co
 - **OAuth identity key**: Users are uniquely identified by
   `(provider, unionId)`; both fields are required for lookup and upsert.
 - **Entitlements**: Paid access is derived from both `tier` and an unexpired
-  `premiumUntil`. Use `premiumQuery`/`premiumPlusQuery` for paid procedures.
+  `premiumUntil`. Use `premiumQuery` for paid procedures. All paid plans
+  (Monthly, 3-Month, Annual) map to the `premium` tier.
 - **Rate limiting**: Production uses shared Redis REST counters. When the shared
   store is unavailable or not configured it falls back to the local in-process
   store with a loud warning (limits are not shared across instances) rather than
@@ -478,9 +479,12 @@ FACEBOOK_CLIENT_SECRET=   # Facebook app secret
 # Payments (Stripe) — required only if checkout is enabled
 STRIPE_SECRET_KEY=                # sk_test_... or sk_live_...
 STRIPE_WEBHOOK_SECRET=            # whsec_... for webhook signature verification
-STRIPE_PRICE_PREMIUM_MONTHLY=     # price_... for Premium monthly plan
-STRIPE_PRICE_PREMIUM_YEARLY=      # price_... for Premium yearly plan
-STRIPE_PRICE_PLUS_LIFETIME=       # price_... for Premium Plus lifetime plan
+STRIPE_PRICE_PREMIUM_MONTHLY=     # price_... for Premium monthly plan ($39/mo)
+STRIPE_PRICE_PREMIUM_3MONTH=      # price_... for Premium 3-Month window ($99)
+STRIPE_PRICE_PREMIUM_YEARLY=      # price_... for Premium yearly plan ($249/yr)
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH=   # price_... upgrade top-up ($60)
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY=   # price_... upgrade top-up ($210)
+STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY=    # price_... upgrade top-up ($150)
 PUBLIC_APP_URL=                   # Public origin, e.g. https://predent.vercel.app
 
 # Vercel Cron (required only on Vercel for scheduled reminders)

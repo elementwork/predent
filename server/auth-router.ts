@@ -8,6 +8,7 @@ import {
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
+import { getPlanFromPrice } from "./lib/stripe";
 
 export const authRouter = createRouter({
   me: authedQuery.query(({ ctx }) => ({
@@ -18,6 +19,9 @@ export const authRouter = createRouter({
     role: ctx.user.role,
     tier: ctx.user.tier,
     premiumUntil: ctx.user.premiumUntil,
+    plan: ctx.user.stripePriceId
+      ? getPlanFromPrice(ctx.user.stripePriceId)
+      : null,
   })),
   logout: authedQuery.mutation(async ({ ctx }) => {
     const db = getDb();

@@ -1,29 +1,28 @@
 import type Stripe from "stripe";
-import { and, eq, isNull, lte, ne, or } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { stripeWebhookEvents, users } from "@db/schema";
 import { getDb } from "../queries/connection";
 import {
   getInvoiceSubscriptionId,
+  getPlanDurationMs,
   getPlanFromPrice,
   getPlanPrices,
   getSubscriptionPeriodEnd,
-  getTierFromPlan,
+  getUpgradeKeyFromPrice,
+  UPGRADE_DEFINITIONS,
 } from "../lib/stripe";
 import { incrementCounter, log, observeDuration } from "../lib/observability";
 
-type Tier = "free" | "premium" | "premium_plus";
+type Tier = "free" | "premium";
 
 type EntitlementUpdate = {
   userId: number;
   expectedSubscriptionId?: string;
-  expectedLifetimePaymentIntentId?: string;
-  allowLifetimeReplacement?: boolean;
   values: {
     tier: Tier;
     stripeSubscriptionId?: string | null;
     stripePriceId?: string | null;
     stripeSubscriptionStatus?: string | null;
-    stripeLifetimePaymentIntentId?: string | null;
     premiumUntil?: Date | null;
   };
 };
@@ -37,19 +36,16 @@ export function parseStripeUserId(value: string | undefined): number | null {
   return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
 }
 
-async function findLifetimeUserId(
-  paymentIntentId: string | null,
-  metadataUserId?: string
-) {
-  if (paymentIntentId) {
-    const [row] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.stripeLifetimePaymentIntentId, paymentIntentId))
-      .limit(1);
-    if (row) return row.id;
-  }
-  return parseStripeUserId(metadataUserId);
+function stackWindow(
+  current: Date | null | undefined,
+  durationMs: number
+): Date {
+  const now = Date.now();
+  const base =
+    current && new Date(current).getTime() > now
+      ? new Date(current).getTime()
+      : now;
+  return new Date(base + durationMs);
 }
 
 function subscriptionUpdate(subscription: Stripe.Subscription) {
@@ -57,7 +53,7 @@ function subscriptionUpdate(subscription: Stripe.Subscription) {
   if (!userId) return null;
   const priceId = subscription.items.data[0]?.price.id ?? null;
   const plan = priceId ? getPlanFromPrice(priceId) : null;
-  if (!plan || plan === "plus_lifetime") {
+  if (!plan) {
     throw new Error(`Subscription ${subscription.id} uses an unknown price`);
   }
   const periodEnd = getSubscriptionPeriodEnd(subscription);
@@ -76,7 +72,7 @@ function subscriptionUpdate(subscription: Stripe.Subscription) {
     values:
       paid || grace
         ? {
-            tier: getTierFromPlan(plan),
+            tier: "premium" as const,
             stripeSubscriptionId: subscription.id,
             stripePriceId: priceId,
             stripeSubscriptionStatus: subscription.status,
@@ -92,6 +88,96 @@ function subscriptionUpdate(subscription: Stripe.Subscription) {
   } satisfies EntitlementUpdate;
 }
 
+async function applyWindowPurchase(
+  session: Stripe.Checkout.Session,
+  stripe: Stripe
+): Promise<EntitlementUpdate> {
+  const userId = parseStripeUserId(session.metadata?.userId);
+  if (!userId)
+    throw new Error("Checkout session is missing userId metadata");
+  const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+    limit: 1,
+  });
+  const priceId = lineItems.data[0]?.price?.id ?? null;
+  const plan = priceId ? getPlanFromPrice(priceId) : null;
+  if (!plan) {
+    throw new Error("Checkout uses an unknown plan price");
+  }
+  return {
+    userId,
+    values: {
+      tier: "premium" as const,
+      stripeSubscriptionId: null,
+      stripePriceId: priceId,
+      stripeSubscriptionStatus: null,
+      premiumUntil: stackWindow(null, getPlanDurationMs(plan)),
+    },
+  };
+}
+
+async function applyUpgradePayment(
+  session: Stripe.Checkout.Session,
+  stripe: Stripe
+): Promise<EntitlementUpdate> {
+  const userId = parseStripeUserId(session.metadata?.userId);
+  if (!userId)
+    throw new Error("Checkout session is missing userId metadata");
+  const upgradeKey = getUpgradeKeyFromPrice(
+    session.metadata?.upgrade ?? ""
+  );
+  if (!upgradeKey || !UPGRADE_DEFINITIONS[upgradeKey]) {
+    throw new Error("Checkout uses an unknown upgrade price");
+  }
+  const def = UPGRADE_DEFINITIONS[upgradeKey];
+
+  const db = getDb();
+  const [user] = await db
+    .select({
+      tier: users.tier,
+      premiumUntil: users.premiumUntil,
+      stripePriceId: users.stripePriceId,
+      stripeSubscriptionId: users.stripeSubscriptionId,
+      stripeCustomerId: users.stripeCustomerId,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) throw new Error(`Stripe upgrade references missing user ${userId}`);
+
+  const currentPlan = user.stripePriceId
+    ? getPlanFromPrice(user.stripePriceId)
+    : null;
+  if (currentPlan !== def.from) {
+    throw new Error(
+      `Upgrade ${upgradeKey} does not match the user's current plan`
+    );
+  }
+
+  // Cancel any active subscription so it stops auto-renewing after the upgrade.
+  if (user.stripeSubscriptionId) {
+    try {
+      await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+    } catch (error) {
+      log("warn", "stripe.upgrade_cancel_failed", {
+        userId,
+        subscriptionId: user.stripeSubscriptionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    userId,
+    values: {
+      tier: "premium",
+      stripeSubscriptionId: null,
+      stripePriceId: getPlanPrices()[def.to],
+      stripeSubscriptionStatus: null,
+      premiumUntil: stackWindow(user.premiumUntil, getPlanDurationMs(def.to)),
+    },
+  };
+}
+
 async function deriveEntitlementUpdate(
   event: Stripe.Event,
   stripe: Stripe
@@ -102,6 +188,7 @@ async function deriveEntitlementUpdate(
       const userId = parseStripeUserId(session.metadata?.userId);
       if (!userId)
         throw new Error("Checkout session is missing userId metadata");
+
       if (session.mode === "subscription") {
         const subscriptionId = objectId(session.subscription);
         if (!subscriptionId)
@@ -113,38 +200,20 @@ async function deriveEntitlementUpdate(
         }
         return subscriptionUpdate(subscription);
       }
-      if (
-        session.mode !== "payment" ||
-        session.payment_status !== "paid" ||
-        session.metadata?.plan !== "plus_lifetime"
-      ) {
-        throw new Error("Invalid lifetime checkout state");
+
+      if (session.mode !== "payment" || session.payment_status !== "paid") {
+        throw new Error("Invalid checkout state");
       }
-      const lineItems = await stripe.checkout.sessions.listLineItems(
-        session.id,
-        {
-          limit: 1,
-        }
-      );
-      const priceId = lineItems.data[0]?.price?.id ?? null;
-      if (!priceId || getPlanFromPrice(priceId) !== "plus_lifetime") {
-        throw new Error("Lifetime checkout uses an unknown price");
+
+      if (session.metadata?.upgrade) {
+        return applyUpgradePayment(session, stripe);
       }
-      const paymentIntentId = objectId(session.payment_intent);
-      if (!paymentIntentId)
-        throw new Error("Lifetime checkout is missing payment intent");
-      return {
-        userId,
-        allowLifetimeReplacement: true,
-        values: {
-          tier: "premium_plus",
-          stripeSubscriptionId: null,
-          stripePriceId: priceId,
-          stripeSubscriptionStatus: null,
-          stripeLifetimePaymentIntentId: paymentIntentId,
-          premiumUntil: null,
-        },
-      };
+
+      if (session.metadata?.plan === "premium_3month") {
+        return applyWindowPurchase(session, stripe);
+      }
+
+      throw new Error("Checkout is missing a valid plan or upgrade");
     }
 
     case "invoice.paid":
@@ -164,69 +233,6 @@ async function deriveEntitlementUpdate(
     case "customer.subscription.paused":
     case "customer.subscription.resumed":
       return subscriptionUpdate(event.data.object);
-
-    case "charge.refunded": {
-      const charge = event.data.object;
-      if (!charge.refunded && charge.amount_refunded <= 0) return null;
-      const paymentIntentId = objectId(charge.payment_intent);
-      const userId = await findLifetimeUserId(
-        paymentIntentId,
-        charge.metadata?.userId
-      );
-      if (!userId || !paymentIntentId) return null;
-      return {
-        userId,
-        expectedLifetimePaymentIntentId: paymentIntentId,
-        values: {
-          tier: "free",
-          stripePriceId: null,
-          stripeLifetimePaymentIntentId: null,
-          premiumUntil: null,
-        },
-      };
-    }
-
-    case "charge.dispute.created":
-    case "charge.dispute.closed": {
-      const dispute = event.data.object;
-      const charge =
-        typeof dispute.charge === "string"
-          ? await stripe.charges.retrieve(dispute.charge)
-          : dispute.charge;
-      if (!charge) return null;
-      const paymentIntentId = objectId(charge.payment_intent);
-      const userId = await findLifetimeUserId(
-        paymentIntentId,
-        charge.metadata?.userId
-      );
-      if (!userId || !paymentIntentId) return null;
-      const restored =
-        event.type === "charge.dispute.closed" &&
-        dispute.status === "won" &&
-        !charge.refunded &&
-        charge.amount_refunded === 0;
-      return restored
-        ? {
-            userId,
-            allowLifetimeReplacement: true,
-            values: {
-              tier: "premium_plus",
-              stripePriceId: getPlanPrices().plus_lifetime,
-              stripeLifetimePaymentIntentId: paymentIntentId,
-              premiumUntil: null,
-            },
-          }
-        : {
-            userId,
-            expectedLifetimePaymentIntentId: paymentIntentId,
-            values: {
-              tier: "free",
-              stripePriceId: null,
-              stripeLifetimePaymentIntentId: null,
-              premiumUntil: null,
-            },
-          };
-    }
 
     default:
       return null;
@@ -265,12 +271,6 @@ export async function processStripeWebhookEvent(
         isNull(users.stripeEntitlementUpdatedAt),
         lte(users.stripeEntitlementUpdatedAt, eventCreatedAt)
       );
-      const preserveLifetime =
-        update.values.tier === "premium_plus" || update.allowLifetimeReplacement
-          ? undefined
-          : update.expectedLifetimePaymentIntentId
-            ? undefined
-            : ne(users.tier, "premium_plus");
 
       await tx
         .update(users)
@@ -279,15 +279,8 @@ export async function processStripeWebhookEvent(
           and(
             eq(users.id, update.userId),
             orderCondition,
-            preserveLifetime,
             update.expectedSubscriptionId
               ? eq(users.stripeSubscriptionId, update.expectedSubscriptionId)
-              : undefined,
-            update.expectedLifetimePaymentIntentId
-              ? eq(
-                  users.stripeLifetimePaymentIntentId,
-                  update.expectedLifetimePaymentIntentId
-                )
               : undefined
           )
         );

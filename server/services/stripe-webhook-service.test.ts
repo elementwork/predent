@@ -8,7 +8,8 @@ import { hasDb } from "../test-db-flag";
 import { processStripeWebhookEvent } from "./stripe-webhook-service";
 
 process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_monthly_test";
-process.env.STRIPE_PRICE_PLUS_LIFETIME = "price_lifetime_test";
+process.env.STRIPE_PRICE_PREMIUM_3MONTH = "price_3month_test";
+process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_yearly_test";
 
 function event(type: Stripe.Event.Type, object: unknown): Stripe.Event {
   return {
@@ -60,14 +61,13 @@ describe.skipIf(!hasDb)("Stripe webhook lifecycle", () => {
     expect(row.stripeSubscriptionId).toBeNull();
   });
 
-  it("records a lifetime payment and revokes it after a refund", async () => {
+  it("grants a 90-day window for a 3-Month one-time purchase", async () => {
     const user = await createTestUser();
-    const paymentIntentId = `pi_${user.id}`;
     const stripe = {
       checkout: {
         sessions: {
           listLineItems: async () => ({
-            data: [{ price: { id: "price_lifetime_test" } }],
+            data: [{ price: { id: "price_3month_test" } }],
           }),
         },
       },
@@ -77,27 +77,19 @@ describe.skipIf(!hasDb)("Stripe webhook lifecycle", () => {
         id: `cs_${user.id}`,
         mode: "payment",
         payment_status: "paid",
-        payment_intent: paymentIntentId,
-        metadata: { userId: String(user.id), plan: "plus_lifetime" },
+        metadata: { userId: String(user.id), plan: "premium_3month" },
       }),
       stripe
     );
-    let [row] = await getDb().select().from(users).where(eq(users.id, user.id));
-    expect(row.tier).toBe("premium_plus");
-
-    await processStripeWebhookEvent(
-      event("charge.refunded", {
-        id: `ch_${user.id}`,
-        refunded: true,
-        amount_refunded: 14_900,
-        payment_intent: paymentIntentId,
-        metadata: {},
-      }),
-      stripe
-    );
-    [row] = await getDb().select().from(users).where(eq(users.id, user.id));
-    expect(row.tier).toBe("free");
-    expect(row.stripeLifetimePaymentIntentId).toBeNull();
+    const [row] = await getDb()
+      .select()
+      .from(users)
+      .where(eq(users.id, user.id));
+    expect(row.tier).toBe("premium");
+    expect(row.stripeSubscriptionId).toBeNull();
+    const windowMs = new Date(row.premiumUntil!).getTime() - Date.now();
+    expect(windowMs).toBeGreaterThan(85 * 24 * 60 * 60 * 1000);
+    expect(windowMs).toBeLessThanOrEqual(91 * 24 * 60 * 60 * 1000);
   });
 
   it("is idempotent for duplicate event IDs", async () => {

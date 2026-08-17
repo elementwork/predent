@@ -69,18 +69,6 @@ describe("Stripe entitlement reconciliation policy", () => {
     expect(result.recommended).toBeNull();
   });
 
-  it("never downgrades lifetime access", () => {
-    const result = deriveStripeEntitlement({
-      localTier: "premium_plus",
-      localSubscriptionId: null,
-      localPremiumUntil: new Date("2099-01-01T00:00:00.000Z"),
-      subscription: null,
-    });
-
-    expect(result.status).toBe("in_sync");
-    expect(result.recommended).toBeNull();
-  });
-
   it("removes an inactive subscription entitlement", () => {
     const result = deriveStripeEntitlement({
       localTier: "premium",

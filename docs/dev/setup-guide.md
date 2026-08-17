@@ -484,33 +484,42 @@ STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxx
 
 ### 6.3 Create Products & Prices
 
-Create 3 products in Stripe Dashboard:
+Create products in Stripe Dashboard (prices in CAD):
 
 **Product 1: Premium Monthly**
 
 1. Go to **Products → Add product**
 2. Name: `Premium Monthly`
-3. Add price: `$29.00` / month, recurring
+3. Add price: `$39.00` / month, recurring
 4. Save and copy the **Price ID** (`price_xxx`)
 
-**Product 2: Premium Yearly**
+**Product 2: Premium 3-Month**
+
+1. Name: `Premium 3-Month`
+2. Add price: `$99.00` / one-time (grants a 90-day access window)
+3. Save and copy the **Price ID**
+
+**Product 3: Premium Yearly**
 
 1. Name: `Premium Yearly`
 2. Add price: `$249.00` / year, recurring
 3. Save and copy the **Price ID**
 
-**Product 3: Premium Plus Lifetime**
+**Upgrade top-up products** (one-time, pay-the-difference plan upgrades):
 
-1. Name: `Premium Plus`
-2. Add price: `$149.00` / one-time
-3. Save and copy the **Price ID**
+- `Upgrade Monthly → 3-Month`: `$60.00`
+- `Upgrade Monthly → Yearly`: `$210.00`
+- `Upgrade 3-Month → Yearly`: `$150.00`
 
 Add to `.env`:
 
 ```bash
 STRIPE_PRICE_PREMIUM_MONTHLY=price_xxxxxxxxxxxxxxxx
+STRIPE_PRICE_PREMIUM_3MONTH=price_xxxxxxxxxxxxxxxx
 STRIPE_PRICE_PREMIUM_YEARLY=price_xxxxxxxxxxxxxxxx
-STRIPE_PRICE_PLUS_LIFETIME=price_xxxxxxxxxxxxxxxx
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH=price_xxxxxxxxxxxxxxxx
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY=price_xxxxxxxxxxxxxxxx
+STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY=price_xxxxxxxxxxxxxxxx
 ```
 
 ### 6.4 Configure Webhook
@@ -627,8 +636,11 @@ stripe trigger checkout.session.completed
 | `STRIPE_SECRET_KEY`            | sk_live_xxx                    | Production                       |
 | `STRIPE_WEBHOOK_SECRET`        | whsec_xxx                      | Production                       |
 | `STRIPE_PRICE_PREMIUM_MONTHLY` | price_xxx                      | Production                       |
+| `STRIPE_PRICE_PREMIUM_3MONTH`  | price_xxx                      | Production                       |
 | `STRIPE_PRICE_PREMIUM_YEARLY`  | price_xxx                      | Production                       |
-| `STRIPE_PRICE_PLUS_LIFETIME`   | price_xxx                      | Production                       |
+| `STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH` | price_xxx          | Production                       |
+| `STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY` | price_xxx          | Production                       |
+| `STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY`  | price_xxx          | Production                       |
 | `CRON_SECRET`                  | random-string                  | Production                       |
 
 3. Click **"Save"**
@@ -909,9 +921,12 @@ INSTAGRAM_CLIENT_SECRET=             # Instagram app secret
 # ── Payments ──────────────────────────────────────────────────
 STRIPE_SECRET_KEY=                   # sk_test_... or sk_live_...
 STRIPE_WEBHOOK_SECRET=               # whsec_... for webhook verification
-STRIPE_PRICE_PREMIUM_MONTHLY=        # price_... for $29/mo plan
+STRIPE_PRICE_PREMIUM_MONTHLY=        # price_... for $39/mo plan
+STRIPE_PRICE_PREMIUM_3MONTH=         # price_... for $99 one-time 3-Month window
 STRIPE_PRICE_PREMIUM_YEARLY=         # price_... for $249/yr plan
-STRIPE_PRICE_PLUS_LIFETIME=          # price_... for $149 one-time
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH=   # price_... top-up ($60)
+STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY=   # price_... top-up ($210)
+STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY=    # price_... top-up ($150)
 
 # ── Email ─────────────────────────────────────────────────────
 EMAIL_PROVIDER=                      # "console" or "resend"

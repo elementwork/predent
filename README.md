@@ -16,7 +16,7 @@ A practice and planning platform for Canadian pre-dental students. DAT prep, sch
 - **Interview Prep** — MMI and Panel question banks with timed practice simulator and model answers
 - **Community Hub** — Share admission results, ask questions, discuss with other applicants, like, comment, and report
 - **Notifications** — In-app bell, email reminders (Resend/SendGrid), and browser push notifications
-- **Premium Subscriptions** — Stripe-powered Free / Premium / Premium Plus tiers with tier-gated content and PAT question quotas
+- **Premium Subscriptions** — Stripe-powered Free / Monthly / 3-Month / Annual plans (CAD) with tier-gated content, upgradable pay-the-difference plans, and PAT question quotas
 - **Admin Dashboard** — Platform stats, user/role management, question management, community moderation
 
 ## Stack

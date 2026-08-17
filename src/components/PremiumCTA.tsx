@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 interface PremiumCTAProps {
   buttonText?: string;
-  plan?: "premium_monthly" | "premium_yearly" | "plus_lifetime";
+  plan?: "premium_monthly" | "premium_3month" | "premium_yearly";
   size?: "default" | "lg";
 }
 

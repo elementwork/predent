@@ -4,14 +4,12 @@ import { adminActions, users } from "@db/schema";
 import { getDb } from "../queries/connection";
 import {
   getPlanFromPrice,
-  getPlanPrices,
   getStripe,
   getSubscriptionPeriodEnd,
-  getTierFromPlan,
 } from "../lib/stripe";
 import { incrementCounter } from "../lib/observability";
 
-type Tier = "free" | "premium" | "premium_plus";
+type Tier = "free" | "premium";
 
 export type EntitlementAuditRow = {
   userId: number;
@@ -23,7 +21,6 @@ export type EntitlementAuditRow = {
     premiumUntil: Date | null;
     priceId?: string | null;
     subscriptionStatus?: string | null;
-    lifetimePaymentIntentId?: string | null;
   };
   stripe: {
     status: string;
@@ -60,16 +57,6 @@ export function deriveStripeEntitlement(input: {
     priceId: input.localPriceId ?? null,
     subscriptionStatus: input.localSubscriptionStatus ?? null,
   };
-
-  if (input.localTier === "premium_plus") {
-    return {
-      status: "in_sync",
-      reason: "Lifetime entitlement is not downgraded by subscription state.",
-      local,
-      stripe: null,
-      recommended: null,
-    };
-  }
 
   if (!input.subscription) {
     const recommended = {
@@ -131,7 +118,7 @@ export function deriveStripeEntitlement(input: {
       stripe: {
         status: input.subscription.status,
         priceId,
-        tier: getTierFromPlan(plan!),
+        tier: "premium",
         premiumUntil: null,
       },
       recommended: null,
@@ -140,7 +127,7 @@ export function deriveStripeEntitlement(input: {
 
   const recommended = entitled
     ? {
-        tier: getTierFromPlan(plan!),
+        tier: "premium" as const,
         subscriptionId: input.subscription.id,
         premiumUntil: new Date(currentPeriodEnd! * 1000),
         priceId,
@@ -214,7 +201,6 @@ export async function reconcileStripeEntitlements(input: {
       stripeSubscriptionId: users.stripeSubscriptionId,
       stripeCustomerId: users.stripeCustomerId,
       premiumUntil: users.premiumUntil,
-      stripeLifetimePaymentIntentId: users.stripeLifetimePaymentIntentId,
       stripePriceId: users.stripePriceId,
       stripeSubscriptionStatus: users.stripeSubscriptionStatus,
     })
@@ -224,8 +210,7 @@ export async function reconcileStripeEntitlements(input: {
         or(
           ne(users.tier, "free"),
           isNotNull(users.stripeSubscriptionId),
-          isNotNull(users.stripeCustomerId),
-          isNotNull(users.stripeLifetimePaymentIntentId)
+          isNotNull(users.stripeCustomerId)
         ),
         input.afterId ? gt(users.id, input.afterId) : undefined
       )
@@ -234,117 +219,6 @@ export async function reconcileStripeEntitlements(input: {
     .limit(input.limit);
 
   const auditRows = await mapWithConcurrency(rows, 5, async user => {
-    if (user.tier === "premium_plus" || user.stripeLifetimePaymentIntentId) {
-      const local = {
-        tier: user.tier,
-        subscriptionId: user.stripeSubscriptionId,
-        premiumUntil: user.premiumUntil,
-        priceId: user.stripePriceId,
-        subscriptionStatus: user.stripeSubscriptionStatus,
-        lifetimePaymentIntentId: user.stripeLifetimePaymentIntentId,
-      };
-      if (!user.stripeLifetimePaymentIntentId) {
-        return {
-          userId: user.id,
-          status: "manual_review" as const,
-          reason: "Legacy lifetime entitlement has no Stripe payment intent.",
-          local,
-          stripe: null,
-          recommended: null,
-          applied: false,
-        };
-      }
-      let paymentIntent: Stripe.PaymentIntent;
-      try {
-        paymentIntent = await stripe.paymentIntents.retrieve(
-          user.stripeLifetimePaymentIntentId
-        );
-      } catch (error) {
-        if ((error as { statusCode?: number }).statusCode !== 404) throw error;
-        return {
-          userId: user.id,
-          status: "manual_review" as const,
-          reason: "Lifetime payment intent no longer exists in Stripe.",
-          local,
-          stripe: null,
-          recommended: null,
-          applied: false,
-        };
-      }
-      const chargeId =
-        typeof paymentIntent.latest_charge === "string"
-          ? paymentIntent.latest_charge
-          : paymentIntent.latest_charge?.id;
-      const charge = chargeId ? await stripe.charges.retrieve(chargeId) : null;
-      const valid =
-        paymentIntent.status === "succeeded" &&
-        charge !== null &&
-        !charge.refunded &&
-        charge.amount_refunded === 0 &&
-        !charge.disputed;
-      const entitlementMatches = valid && user.tier === "premium_plus";
-      const result: EntitlementAuditRow = {
-        userId: user.id,
-        status: entitlementMatches ? "in_sync" : "drift",
-        reason: valid
-          ? "Lifetime payment is paid and undisputed."
-          : "Lifetime payment is refunded, disputed, or no longer paid.",
-        local,
-        stripe: {
-          status: paymentIntent.status,
-          priceId: null,
-          tier: valid ? "premium_plus" : "free",
-          premiumUntil: null,
-        },
-        recommended: entitlementMatches
-          ? null
-          : valid
-            ? {
-                tier: "premium_plus",
-                subscriptionId: null,
-                premiumUntil: null,
-                priceId: getPlanPrices().plus_lifetime,
-                subscriptionStatus: null,
-              }
-            : {
-                tier: "free",
-                subscriptionId: null,
-                premiumUntil: null,
-                priceId: null,
-                subscriptionStatus: null,
-              },
-        applied: false,
-      };
-      if (input.apply && result.status === "drift" && result.recommended) {
-        await db.transaction(async tx => {
-          await tx
-            .update(users)
-            .set({
-              tier: result.recommended!.tier,
-              stripeLifetimePaymentIntentId: valid
-                ? user.stripeLifetimePaymentIntentId
-                : null,
-              stripePriceId: result.recommended!.priceId ?? null,
-              premiumUntil: null,
-              stripeEntitlementUpdatedAt: new Date(),
-            })
-            .where(eq(users.id, user.id));
-          await tx.insert(adminActions).values({
-            adminId: input.adminId,
-            action: "reconcile_stripe",
-            targetType: "user",
-            targetId: user.id,
-            metadata: {
-              previous: local,
-              stripe: result.stripe,
-              reason: result.reason,
-            },
-          });
-        });
-        result.applied = true;
-      }
-      return result;
-    }
     let subscription: Stripe.Subscription | null = null;
     if (user.stripeSubscriptionId) {
       try {

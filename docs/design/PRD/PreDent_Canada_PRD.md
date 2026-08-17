@@ -10,7 +10,7 @@ PreDent Canada is a comprehensive platform designed to serve as the single desti
 
 The Canadian dental education landscape presents a unique market opportunity. There are only **10 Canadian dental schools**, yet they receive thousands of applications annually — the University of Toronto alone processes **over 900 applications for just 96 seats**[^13^]. The Dental Aptitude Test (DAT) is administered by the Canadian Dental Association (CDA) and scored on a 1–30 scale, with competitive applicants typically scoring **21+ on the Academic Average and 20+ on the PAT**[^12^]. The current market is dominated by DATCrusher (the Canadian-specific leader) and DAT Bootcamp (the US-focused giant), but neither platform addresses the full admissions lifecycle. DATCrusher excels at Canadian-specific DAT content but lacks admissions tools, school databases, and application planning features. DAT Bootcamp offers superior video content but is optimized for the American DAT format, which differs significantly from the Canadian version in structure, content, and scoring[^1^][^9^].
 
-PreDent Canada's product strategy centers on six core pillars: **PAT Academy** (the flagship differentiator with unlimited PAT generators and 3D visualizations), **DAT Academy** (science content with flashcards, cheat sheets, and study schedules), **Dental School Hub** (comprehensive database of all 10 Canadian schools with requirement comparisons), **Application Planner** (timeline tracking and document management), **Community Intelligence** (aggregated Reddit insights, admission news, and DAT breakdowns), and **Acceptance Analytics** (probability engine and competitive benchmarking). The platform operates on a freemium model: a robust free tier drives acquisition through school database access, basic lessons, and GPA calculators, while Premium ($19–39/month) unlocks PAT generators, full mock exams, advanced analytics, and AI tutoring. A Premium Plus tier ($99–149 one-time) offers complete admissions strategy, application reviews, and interview coaching.
+PreDent Canada's product strategy centers on six core pillars: **PAT Academy** (the flagship differentiator with unlimited PAT generators and 3D visualizations), **DAT Academy** (science content with flashcards, cheat sheets, and study schedules), **Dental School Hub** (comprehensive database of all 10 Canadian schools with requirement comparisons), **Application Planner** (timeline tracking and document management), **Community Intelligence** (aggregated Reddit insights, admission news, and DAT breakdowns), and **Acceptance Analytics** (probability engine and competitive benchmarking). The platform operates on a freemium model: a robust free tier drives acquisition through school database access, basic lessons, and GPA calculators, while Premium (Monthly $39, 3-Month $99, Annual $249 CAD) unlocks PAT generators, full mock exams, advanced analytics, and practice content.
 
 The financial opportunity is substantial. DATCrusher, the current Canadian market leader, charges **$499 USD for 90-day premium access and $849 USD for 180-day premium max**[^34^], yet serves only the DAT prep use case. By expanding the addressable market to include students in their first and second years of undergraduate study — who need school research and GPA planning tools but aren't yet ready for DAT prep — PreDent Canada can capture users 2–3 years earlier in their journey and retain them through the entire application cycle. The SEO strategy targets **500+ content pages** addressing high-intent searches like "What GPA for UBC dentistry?" and "Does Western require CASPer?" — queries that existing competitors do not adequately answer. These pages compound organic traffic every admission cycle, creating a sustainable acquisition engine that reduces dependence on paid advertising.
 
@@ -90,7 +90,7 @@ James just finished his first year at the University of Alberta with a 3.65 GPA.
 
 **Tertiary Persona: "The Reapplicant" (Priya, 24)**
 
-Priya applied to five Canadian dental schools last cycle and was waitlisted at two but didn't receive an offer. She has a strong GPA (3.88) but her DAT scores were below average (AA 19, PAT 18). She knows she needs to improve her PAT score significantly and wants better application strategy guidance. Priya upgrades directly to Premium Plus because she needs the complete package: PAT mastery, application review, and interview coaching. She uses the acceptance analytics to understand which schools she was most competitive at and where to focus her efforts this cycle. Priya represents the **high-intent, high-value user** who is willing to pay premium prices for comprehensive support.
+Priya applied to five Canadian dental schools last cycle and was waitlisted at two but didn't receive an offer. She has a strong GPA (3.88) but her DAT scores were below average (AA 19, PAT 18). She knows she needs to improve her PAT score significantly before retaking. Priya upgrades to the Annual plan to cover her retake and the next application cycle, using the acceptance analytics to understand which schools she was most competitive at and where to focus her efforts. Priya represents the **high-intent, high-value user** who is willing to pay for comprehensive support and is the primary upgrade-path target.
 
 ---
 
@@ -648,57 +648,64 @@ Users can anonymously contribute their stats and outcomes, building a real-time 
 
 ### 7.1 Tier Structure
 
-PreDent Canada operates on a **freemium model** with three tiers designed to maximize user acquisition at the top and revenue per user at the bottom of the funnel.
+PreDent Canada operates on a **freemium model**. A single paid `premium` tier is
+sold in three access windows (Monthly, 3-Month, Annual), all priced in CAD and
+anchored below the US-market leaders (DATCrusher ~US$499/90-day, Erudition Prep
+US$55/month and US$120/3-month).
 
-| Feature                   | Free                  | Premium ($29/month)      | Premium Plus ($149 one-time) |
-| ------------------------- | --------------------- | ------------------------ | ---------------------------- |
-| **School Database**       | Full access           | Full access              | Full access                  |
-| **GPA Calculator**        | Basic                 | Advanced (multi-school)  | Advanced                     |
-| **Basic Lessons**         | All theory content    | All content              | All content                  |
-| **PAT Question Bank**     | 500 questions         | Unlimited                | Unlimited                    |
-| **PAT Generators**        | 10/day (keyhole only) | Unlimited (all types)    | Unlimited                    |
-| **3D Models**             | Limited               | Full access              | Full access                  |
-| **Full Mock Exams**       | 1 free                | Unlimited                | Unlimited                    |
-| **Error Analysis**        | Basic                 | Advanced + AI insights   | Advanced + AI insights       |
-| **Study Schedule**        | Template only         | Personalized generator   | Personalized + coaching      |
-| **Application Tracker**   | Basic (3 schools)     | Unlimited schools        | Unlimited                    |
-| **Interview Prep**        | 10 sample questions   | Full question bank       | Full bank + video coaching   |
-| **Acceptance Calculator** | Single school         | Multi-school comparison  | Multi-school + strategy      |
-| **AI Tutor**              | Not available         | Basic (PAT explanations) | Advanced (all subjects)      |
-| **Progress Analytics**    | 7-day history         | Unlimited history        | Unlimited + export           |
-| **Community Content**     | Read-only             | Full access              | Full access                  |
-| **Anki Export**           | Not available         | Available                | Available                    |
-| **Application Review**    | Not available         | Not available            | 1 personal statement review  |
-| **Admissions Strategy**   | Not available         | Not available            | 1-on-1 consultation          |
-| **Priority Support**      | Community             | Email (24hr)             | Live chat + phone            |
+| Feature                   | Free                    | Premium (any paid plan)       |
+| ------------------------- | ----------------------- | ----------------------------- |
+| **School Database**       | Full access             | Full access                   |
+| **GPA Calculator**        | Basic                   | Advanced (multi-school)       |
+| **PAT Question Bank**     | 20 questions            | Full bank (360)               |
+| **PAT Generators**        | Angle ranking only      | All 6, unlimited              |
+| **Full Mock Exams**       | —                       | Included                      |
+| **Study Schedule**        | Template only           | Personalized generator        |
+| **Application Tracker**   | Basic (3 schools)       | Unlimited schools             |
+| **Interview Prep**        | Sample questions        | Full question bank            |
+| **Competitiveness Calculator** | Single school      | Multi-school comparison       |
+| **Progress Analytics**    | Basic                   | Full + predicted score        |
+| **Community Content**     | Read-only               | Full access                   |
+| **Priority Support**      | Community               | Email (24hr)                  |
 
 ### 7.2 Pricing Strategy
 
-The pricing is positioned **below DATCrusher** to capture price-sensitive students while offering more value through the broader feature set:
+Pricing is positioned below the US-market competitors to capture price-sensitive
+Canadian students while offering a broader feature set:
 
-| Plan                | Price                   | Duration  | Target User                     |
-| ------------------- | ----------------------- | --------- | ------------------------------- |
-| **Free**            | $0                      | Unlimited | Early explorers, researchers    |
-| **Premium Monthly** | $29/month               | Recurring | Active DAT studiers             |
-| **Premium Annual**  | $249/year (28% savings) | 12 months | Committed applicants            |
-| **Premium Plus**    | $149 one-time           | Lifetime  | Reapplicants, high-intent users |
+| Plan                | Price (CAD) | Duration         | Billing        | Target User                   |
+| ------------------- | ----------- | ---------------- | -------------- | ----------------------------- |
+| **Free**            | $0          | Unlimited        | —              | Early explorers, researchers  |
+| **Monthly**         | $39/month   | 30 days          | Auto-renew     | Low-commitment entrants       |
+| **3-Month**         | $99         | 90 days          | One-time       | Exam-window sprints           |
+| **Annual**          | $249/year   | 365 days         | Auto-renew     | Committed applicants          |
 
-The Premium Annual plan includes a **"Higher Score Guarantee"** — if a user's DAT score does not improve from their baseline mock exam, they receive a full refund. This mirrors DATCrusher's guarantee and reduces purchase friction.
+All paid plans are **upgradable at any time by paying only the price
+difference** (Monthly → 3-Month +$60, Monthly → Annual +$210, 3-Month → Annual
++$150), and remaining access time stacks onto the new window. The Annual plan
+includes the **"Higher Score Guarantee"** — a full refund if a user's official
+DAT score does not improve from a documented baseline. There is no lifetime
+plan; retakers simply renew or upgrade.
 
 ### 7.3 Revenue Model Projections
 
-Based on market size and conversion assumptions:
+Based on market size and conversion assumptions (2026 pricing: Monthly $39,
+3-Month $99, Annual $249 CAD):
 
 | Metric                      | Year 1    | Year 2   | Year 3   |
 | --------------------------- | --------- | -------- | -------- |
 | **Total Users**             | 5,000     | 15,000   | 35,000   |
 | **Free Users**              | 4,000     | 10,500   | 22,750   |
-| **Premium Users**           | 900       | 3,900    | 10,500   |
-| **Premium Plus Users**      | 100       | 600      | 1,750    |
-| **Monthly Premium Revenue** | $26,100   | $113,100 | $304,500 |
-| **Annual Premium Revenue**  | $62,250   | $243,750 | $630,000 |
-| **Premium Plus Revenue**    | $14,900   | $89,400  | $260,750 |
-| **Total Annual Revenue**    | ~$340,000 | ~$1.35M  | ~$3.8M   |
+| **Monthly Premium Users**   | 400       | 1,700    | 4,600     |
+| **3-Month Premium Users**   | 250       | 1,100    | 3,000     |
+| **Annual Premium Users**    | 350       | 1,700    | 4,650     |
+| **Monthly Premium Revenue** | $18,700   | $79,600  | $215,300  |
+| **3-Month Revenue**         | $24,750   | $108,900 | $297,000  |
+| **Annual Premium Revenue**  | $87,150   | $423,300 | $1,157,850 |
+| **Total Annual Revenue**    | ~$130,600 | ~$611,800 | ~$1.67M |
+
+Note: projections assume ~10–15% free-to-paid conversion and renewal of one
+cycle per year per user; upgrade top-up revenue is excluded for simplicity.
 
 ---
 
@@ -877,7 +884,7 @@ The database schema is designed to support all six product pillars with normaliz
 | `id`             | UUID         | PRIMARY KEY      | Unique user identifier      |
 | `email`          | VARCHAR(255) | UNIQUE, NOT NULL | Login email                 |
 | `password_hash`  | VARCHAR(255) | NOT NULL         | Bcrypt hashed password      |
-| `tier`           | ENUM         | DEFAULT 'free'   | free, premium, premium_plus |
+| `tier`           | ENUM         | DEFAULT 'free'   | free, premium |
 | `status`         | ENUM         | DEFAULT 'active' | active, suspended, deleted  |
 | `email_verified` | BOOLEAN      | DEFAULT FALSE    | Email confirmation status   |
 | `created_at`     | TIMESTAMP    | DEFAULT NOW()    | Account creation            |

@@ -76,11 +76,7 @@ const legalContent: Record<
       },
       {
         heading: "Subscription Refunds",
-        body: "Monthly subscriptions can be canceled anytime but are generally not refunded for partial months. Refund requests are reviewed on a case-by-case basis within 14 days of purchase.",
-      },
-      {
-        heading: "Lifetime Plans",
-        body: "Premium Plus lifetime plans are non-refundable except where required by law. Please evaluate the free tier before purchasing.",
+        body: "Monthly and 3-Month plans can be canceled anytime but are generally not refunded for partial periods. Refund requests are reviewed on a case-by-case basis within 14 days of purchase.",
       },
       {
         heading: "Contact Us",
@@ -106,7 +102,7 @@ const legalContent: Record<
       },
       {
         heading: "Exclusions",
-        body: "The guarantee does not apply to monthly subscriptions, Premium Plus lifetime plans, free accounts, or accounts that violate our Terms of Service. Refunds are limited to one per customer.",
+        body: "The guarantee does not apply to monthly or 3-Month plans, free accounts, or accounts that violate our Terms of Service. Refunds are limited to one per customer.",
       },
     ],
   },

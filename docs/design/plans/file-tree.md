@@ -71,7 +71,7 @@ contracts/
 ├── constants.ts                  # Session cookie name/expiry, error messages, URL paths
 ├── errors.ts                     # AppError type + factory functions (400, 401, 403, 404, 500)
 ├── schools.ts                    # Normalized Canadian dental school data (24 schools)
-├── tiers.ts                      # Tier quota definitions (free=20, premium=360, premium_plus=1080)
+├── tiers.ts                      # Tier quota definitions (free=20, premium=360)
 └── types.ts                      # Barrel re-export of all DB schema types + errors
 ```
 

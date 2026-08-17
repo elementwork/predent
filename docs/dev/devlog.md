@@ -993,6 +993,23 @@ After switching the Trivy CI step to `scan-type: image`, the image scan still fa
 
 ---
 
+### 42. Pricing Overhaul (CAD, Erudition-anchored) + Uptime Monitor Removal
+
+Reworked the monetization model and removed the flaky production probe:
+
+- **Pricing (CAD, below US-market leaders):** replaced `Free / Premium $29-mo / Premium Plus $149-lifetime` with **Free / Monthly $39 / 3-Month $99 / Annual $249**. Anchored to Erudition Prep (US$55/mo, US$120/3-mo) and DATCrusher (US$499/90-day).
+- **Lifetime removed entirely** (no paid users yet → clean drop): deleted the `premium_plus` tier, `plus_lifetime` Stripe plan, `stripe_lifetime_payment_intent_id` column + index (migration `0013_equal_wong`), and all lifetime webhook/reconciliation/UI paths.
+- **Plans:** Monthly & Annual auto-renew (subscriptions); 3-Month is a one-time 90-day access window (no auto-renew). All paid plans map to a single `premium` tier with a `premiumUntil` window.
+- **Upgradable plans (pay-the-difference):** `payment.upgrade` charges the price gap (Monthly→3-Month +$60, Monthly→Annual +$210, 3-Month→Annual +$150) and stacks remaining time; fixed upgrade top-up prices in Stripe; cancels the old subscription on sub→sub upgrades.
+- **Bug fixed:** `getEffectiveTier` no longer mis-treats a valid paid tier as free when `premiumUntil` is null (lifetime path removed; entitlement now purely window-based).
+- **Uptime monitor removed:** deleted `.github/workflows/uptime-monitor.yml` (the every-5-min readiness probe that opened incident issues and caused deployment failures). `/api/health/ready` endpoint retained for manual ops checks; observability docs updated.
+
+**Files changed:** `db/schema.ts` + migration `0013_equal_wong.sql`; `contracts/tiers.ts`; `server/middleware.ts`; `server/lib/{stripe,env}.ts`; `server/payment-router.ts`; `server/services/stripe-{webhook,reconciliation}-service.ts`; `server/auth-router.ts`; `src/pages/{PricingPage,LandingPage,PATGeneratorsPage,PATAcademyPage,AdminDashboardPage,LegalPage}.tsx`; `src/{hooks/useTier.ts,components/PremiumCTA.tsx}`; Stripe tests; `e2e/{smoke,visual-auth}.spec.ts` + snapshots; `.github/workflows/uptime-monitor.yml` (deleted); `AGENTS.md`, `.env.example`, `README.md`, `docs/dev/{setup-guide,admin-guide,api-conventions,observability,devlog}.md`, `docs/design/PRD/PreDent_Canada_PRD.md`, `docs/design/plans/{file-tree,feature_list}.md`.
+
+**Verification:** `npm run check` ✓, `npm run lint` ✓, `npm test` ✓ (63), `npm run test:frontend` ✓ (57).
+
+---
+
 After each significant feature or milestone:
 
 1. Summarize the work in a new entry above.

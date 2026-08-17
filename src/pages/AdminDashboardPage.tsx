@@ -444,8 +444,7 @@ export default function AdminDashboardPage() {
               <CardContent className="space-y-5">
                 <p className="text-sm text-[var(--text-secondary)]">
                   Compare paid local entitlements with current Stripe
-                  subscription state. Lifetime Premium Plus access is never
-                  downgraded automatically.
+                  subscription state.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <Button

@@ -340,14 +340,13 @@ Seeded PRNG-based question generation that produces infinite unique PAT question
 - **Generators (client):** All 6 generator components accept `{ config: { seed, difficulty }, onAnswer }` props. In controlled mode (practice), they render a specific question from the seed. In free mode (generator page), they use `Math.random()`.
 - **Practice page:** `src/pages/PATPracticePage.tsx` — `QuestionRenderer` switch dispatches to the correct generator based on category. Attempts recorded via `useRecordPATAttempt` hook which sends `{ seed, category, difficulty, userAnswer, isCorrect, timeSpent }`.
 - **Server:** `server/pat-router.ts` — `recordAttempt` is seed-only (stores `questionId: String(input.seed)`) and accepts `userAnswer` `0..4` for 5-choice categories. `getQuota` returns remaining questions and stats. `apiToGenDifficulty` maps `"beginner"→"easy"`, `"intermediate"→"medium"`, `"advanced"/"elite"→"hard"`.
-- **Quota:** `contracts/tiers.ts` — `TIER_QUOTAS` defines lifetime limits: free=20, premium=360, premium_plus=1080. `users.patQuestionsGenerated` tracks usage. Quota auto-increments on each generated question attempt.
+- **Quota:** `contracts/tiers.ts` — `TIER_QUOTAS` defines access limits: free=20, premium=360. `users.patQuestionsGenerated` tracks usage. Quota auto-increments on each generated question attempt.
 - **Academy page:** `src/pages/PATAcademyPage.tsx` — shows real stats, quota progress bar, tier badge, upgrade CTA.
 - **Hooks:** `src/hooks/useRecordPATAttempt.ts` — seed-only recording.
 
 **User perspective**
 - Free users can try 20 generated questions total (lifetime).
-- Premium users get 360 total across all categories.
-- Premium Plus users get 1080 total.
+- Premium users (Monthly / 3-Month / Annual) get 360 total across all categories.
 - Quota is displayed on PAT Academy with a progress bar.
 - Generated questions are indistinguishable from DB questions — same SVG rendering, same answer flow.
 
@@ -710,13 +709,15 @@ Free, Premium, and Premium Plus subscription tiers with Stripe checkout.
 - Backend: `server/payment-router.ts`.
 - Frontend: `src/pages/PricingPage.tsx`, `src/components/PremiumCTA.tsx`, `src/components/PremiumLock.tsx`.
 - Stripe Checkout sessions for:
-  - Premium Monthly
-  - Premium Yearly
-  - Premium Plus Lifetime
+  - Premium Monthly ($39/mo, auto-renew)
+  - Premium 3-Month ($99 one-time, 90-day window)
+  - Premium Yearly ($249/yr, auto-renew)
+  - Upgrade top-ups (pay-the-difference): Monthly→3-Month ($60), Monthly→Yearly ($210), 3-Month→Yearly ($150)
 
 **User perspective**
 - Visit **Pricing**.
 - Choose a plan and complete checkout via Stripe.
+- Upgrade to a larger plan anytime; pay only the price difference and remaining access stacks.
 - Manage billing via the customer portal.
 
 **Developer perspective**
@@ -731,7 +732,7 @@ Automatic tier updates based on Stripe events.
 **How it is implemented**
 - `stripeWebhookEvents` table prevents duplicate processing.
 - Handled events:
-  - `checkout.session.completed` — upgrade to `premium` or `premium_plus`
+  - `checkout.session.completed` — grant `premium` (subscription), a 3-Month window, or an upgrade top-up
   - `invoice.paid` — extend `premiumUntil`
   - `customer.subscription.deleted` — downgrade to `free`
 

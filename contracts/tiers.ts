@@ -1,9 +1,8 @@
-export type Tier = "free" | "premium" | "premium_plus";
+export type Tier = "free" | "premium";
 
 export const TIER_QUOTAS: Record<Tier, number> = {
   free: 20,
   premium: 360,
-  premium_plus: 1080,
 };
 
 export function getTierQuota(tier: Tier): number {
@@ -13,7 +12,6 @@ export function getTierQuota(tier: Tier): number {
 const TIER_RANK: Record<Tier, number> = {
   free: 0,
   premium: 1,
-  premium_plus: 2,
 };
 
 export function getEffectiveTier(
@@ -22,12 +20,11 @@ export function getEffectiveTier(
   now = Date.now()
 ): Tier {
   if (!tier || tier === "free") return "free";
-  if (!premiumUntil) return "free";
 
   const expiresAt =
     premiumUntil instanceof Date
       ? premiumUntil.getTime()
-      : new Date(premiumUntil).getTime();
+      : new Date(premiumUntil ?? 0).getTime();
 
   return Number.isFinite(expiresAt) && expiresAt > now ? tier : "free";
 }

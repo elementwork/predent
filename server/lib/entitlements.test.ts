@@ -14,11 +14,11 @@ describe("entitlement policy", () => {
     expect(getEffectiveTier("premium", "2026-08-06T12:00:00Z", now)).toBe(
       "free"
     );
-    expect(getEffectiveTier("premium_plus", null, now)).toBe("free");
+    expect(getEffectiveTier("premium", null, now)).toBe("free");
   });
 
   it("allows higher tiers to satisfy lower-tier requirements", () => {
-    expect(hasTierAccess("premium_plus", "premium")).toBe(true);
+    expect(hasTierAccess("premium", "free")).toBe(true);
     expect(hasTierAccess("free", "premium")).toBe(false);
   });
 });

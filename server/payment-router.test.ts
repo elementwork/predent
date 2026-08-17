@@ -14,15 +14,15 @@ describe.skipIf(!hasDb)("paymentRouter", () => {
     originalEnv = {
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
       STRIPE_PRICE_PREMIUM_MONTHLY: process.env.STRIPE_PRICE_PREMIUM_MONTHLY,
+      STRIPE_PRICE_PREMIUM_3MONTH: process.env.STRIPE_PRICE_PREMIUM_3MONTH,
       STRIPE_PRICE_PREMIUM_YEARLY: process.env.STRIPE_PRICE_PREMIUM_YEARLY,
-      STRIPE_PRICE_PLUS_LIFETIME: process.env.STRIPE_PRICE_PLUS_LIFETIME,
       PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
     };
 
     process.env.STRIPE_SECRET_KEY = "sk_test_xxx";
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_monthly";
+    process.env.STRIPE_PRICE_PREMIUM_3MONTH = "price_3month";
     process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_yearly";
-    process.env.STRIPE_PRICE_PLUS_LIFETIME = "price_lifetime";
     process.env.PUBLIC_APP_URL = "https://predent.vercel.app";
 
     // Import after env vars are set so PLAN_PRICES is populated.
@@ -75,13 +75,11 @@ describe.skipIf(!hasDb)("paymentRouter", () => {
 
   describe("payment helpers", () => {
     it("maps price ids to plans", async () => {
-      const { getPlanFromPrice, getTierFromPlan } = await import("./lib/stripe");
+      const { getPlanFromPrice } = await import("./lib/stripe");
       expect(getPlanFromPrice("price_monthly")).toBe("premium_monthly");
-      expect(getPlanFromPrice("price_lifetime")).toBe("plus_lifetime");
+      expect(getPlanFromPrice("price_3month")).toBe("premium_3month");
+      expect(getPlanFromPrice("price_yearly")).toBe("premium_yearly");
       expect(getPlanFromPrice("unknown")).toBeNull();
-
-      expect(getTierFromPlan("premium_monthly")).toBe("premium");
-      expect(getTierFromPlan("plus_lifetime")).toBe("premium_plus");
     });
   });
 });

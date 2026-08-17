@@ -114,11 +114,20 @@ export const env = {
   get stripePricePremiumMonthly() {
     return process.env.STRIPE_PRICE_PREMIUM_MONTHLY ?? "";
   },
+  get stripePricePremium3Month() {
+    return process.env.STRIPE_PRICE_PREMIUM_3MONTH ?? "";
+  },
   get stripePricePremiumYearly() {
     return process.env.STRIPE_PRICE_PREMIUM_YEARLY ?? "";
   },
-  get stripePricePlusLifetime() {
-    return process.env.STRIPE_PRICE_PLUS_LIFETIME ?? "";
+  get stripePriceUpgradeMonthlyTo3Month() {
+    return process.env.STRIPE_PRICE_UPGRADE_MONTHLY_TO_3MONTH ?? "";
+  },
+  get stripePriceUpgradeMonthlyToYearly() {
+    return process.env.STRIPE_PRICE_UPGRADE_MONTHLY_TO_YEARLY ?? "";
+  },
+  get stripePriceUpgrade3MonthToYearly() {
+    return process.env.STRIPE_PRICE_UPGRADE_3MONTH_TO_YEARLY ?? "";
   },
   get publicAppUrl() {
     return process.env.PUBLIC_APP_URL ?? "";

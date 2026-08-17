@@ -5,8 +5,9 @@ import {
   Check,
   X,
   Shield,
-  Sparkles,
   Zap,
+  CalendarRange,
+  Infinity as InfinityIcon,
   Crown,
   Loader2,
 } from "lucide-react";
@@ -17,90 +18,92 @@ import { trpc } from "@/providers/trpc";
 import { toast } from "sonner";
 import { events } from "@/lib/analytics";
 
+type Plan = "premium_monthly" | "premium_3month" | "premium_yearly";
+
+const PLAN_RANK: Record<Plan, number> = {
+  premium_monthly: 1,
+  premium_3month: 2,
+  premium_yearly: 3,
+};
+
 const features = [
-  { name: "School Database Access", free: true, premium: true, plus: true },
-  { name: "Basic GPA Calculator", free: true, premium: true, plus: true },
-  { name: "PAT Practice Questions", free: true, premium: true, plus: true },
-  {
-    name: "Angle Ranking Generator",
-    free: true,
-    premium: true,
-    plus: true,
-  },
-  {
-    name: "Application Tracker (3 schools)",
-    free: true,
-    premium: true,
-    plus: true,
-  },
-  { name: "Read-Only Community Access", free: true, premium: true, plus: true },
-  {
-    name: "Unlimited PAT Question Bank",
-    free: false,
-    premium: true,
-    plus: true,
-  },
-  {
-    name: "All 6 PAT Generators (Unlimited)",
-    free: false,
-    premium: true,
-    plus: true,
-  },
-  {
-    name: "Interactive PAT Diagrams",
-    free: false,
-    premium: true,
-    plus: true,
-  },
+  { name: "School Database Access", free: true, premium: true },
+  { name: "Basic GPA Calculator", free: true, premium: true },
+  { name: "PAT Practice Questions", free: true, premium: true },
+  { name: "Angle Ranking Generator", free: true, premium: true },
+  { name: "Application Tracker (3 schools)", free: true, premium: true },
+  { name: "Read-Only Community Access", free: true, premium: true },
+  { name: "Unlimited PAT Question Bank", free: false, premium: true },
+  { name: "All 6 PAT Generators (Unlimited)", free: false, premium: true },
+  { name: "Interactive PAT Diagrams", free: false, premium: true },
   {
     name: "DAT Biology, Chemistry & Reading Practice",
     free: false,
     premium: true,
-    plus: true,
+  },
+  { name: "Study Schedule Generator", free: false, premium: true },
+  { name: "Unlimited Application Tracker", free: false, premium: true },
+  { name: "Full Interview Question Bank", free: false, premium: true },
+  { name: "Multi-School Competitiveness Calculator", free: false, premium: true },
+  { name: "Progress Analytics", free: false, premium: true },
+  { name: "Priority Email Support", free: false, premium: true },
+];
+
+const plans: {
+  key: Plan | null;
+  name: string;
+  price: string;
+  cadence: string;
+  blurb: string;
+  badge?: string;
+  icon: typeof Zap;
+  highlighted?: boolean;
+  cta: string;
+}[] = [
+  {
+    key: null,
+    name: "Free",
+    price: "$0",
+    cadence: "forever",
+    blurb: "Perfect for exploring and getting started.",
+    icon: Zap,
+    cta: "Start Free",
   },
   {
-    name: "Study Schedule Generator",
-    free: false,
-    premium: true,
-    plus: true,
+    key: "premium_monthly",
+    name: "Monthly",
+    price: "$39",
+    cadence: "per month",
+    blurb: "Full access, month to month. Cancel anytime.",
+    icon: CalendarRange,
+    cta: "Get Monthly",
   },
   {
-    name: "Unlimited Application Tracker",
-    free: false,
-    premium: true,
-    plus: true,
+    key: "premium_3month",
+    name: "3-Month",
+    price: "$99",
+    cadence: "90 days",
+    blurb: "One payment for an exam-window sprint.",
+    icon: Crown,
+    badge: "EXAM WINDOW",
+    cta: "Get 3-Month",
   },
   {
-    name: "Full Interview Question Bank",
-    free: false,
-    premium: true,
-    plus: true,
-  },
-  {
-    name: "Multi-School Competitiveness Calculator",
-    free: false,
-    premium: true,
-    plus: true,
-  },
-  { name: "Progress Analytics", free: false, premium: true, plus: true },
-  { name: "Priority Email Support", free: false, premium: true, plus: true },
-  {
-    name: "Lifetime Access (No Recurring)",
-    free: false,
-    premium: false,
-    plus: true,
-  },
-  {
-    name: "Early Access to New Features",
-    free: false,
-    premium: false,
-    plus: true,
+    key: "premium_yearly",
+    name: "Annual",
+    price: "$249",
+    cadence: "per year",
+    blurb: "Best value for a full test + application cycle.",
+    icon: InfinityIcon,
+    badge: "BEST VALUE",
+    highlighted: true,
+    cta: "Get Annual",
   },
 ];
 
 export default function PricingPage() {
-  const { isAuthenticated } = useAuth();
-  const [isAnnual, setIsAnnual] = useState(true);
+  const { isAuthenticated, user } = useAuth();
+  const currentPlan = (user?.plan ?? null) as Plan | null;
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const success = searchParams.get("success");
@@ -121,23 +124,46 @@ export default function PricingPage() {
     },
   });
 
-  const handleCheckout = (
-    plan: "premium_monthly" | "premium_yearly" | "plus_lifetime"
-  ) => {
+  const upgrade = trpc.payment.upgrade.useMutation({
+    onSuccess: data => {
+      if (data.applied) {
+        toast.success("Your account has been upgraded!");
+      } else if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error("Unable to start checkout. Please try again.");
+      }
+      setLoadingPlan(null);
+    },
+    onError: err => {
+      toast.error(err.message || "Upgrade failed. Please try again.");
+      setLoadingPlan(null);
+    },
+  });
+
+  const handleCheckout = (plan: Plan) => {
     if (!isAuthenticated) {
       toast.info("Please log in to upgrade.");
       return;
     }
     setLoadingPlan(plan);
+    if (currentPlan && PLAN_RANK[plan] > PLAN_RANK[currentPlan]) {
+      upgrade.mutate({
+        plan: plan as "premium_3month" | "premium_yearly",
+      });
+      events.upgradeClicked("premium");
+      return;
+    }
     checkout.mutate({ plan });
-    events.upgradeClicked(
-      plan === "plus_lifetime" ? "premium_plus" : "premium"
-    );
+    events.upgradeClicked("premium");
   };
+
+  const isCurrent = (key: Plan | null) =>
+    key !== null && currentPlan === key;
 
   return (
     <main className="min-h-screen bg-[var(--page-bg)]">
-      <div className="section-container max-w-7xl mx-auto pt-24 pb-20">
+      <div className="section-container max-w-6xl mx-auto pt-24 pb-20">
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] text-sm mb-6 transition-colors"
@@ -147,11 +173,15 @@ export default function PricingPage() {
 
         <div className="text-center mb-10">
           <h1 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-3">
-            DAT Prep Plans: Free, Premium & Premium Plus
+            DAT Prep Plans: Free, Monthly, 3-Month & Annual
           </h1>
-          <p className="text-[var(--text-tertiary)] max-w-lg mx-auto mb-6">
+          <p className="text-[var(--text-tertiary)] max-w-lg mx-auto mb-2">
             Start free. Upgrade to unlock unlimited PAT generators, DAT
             practice, and the school competitiveness calculator.
+          </p>
+          <p className="text-xs text-[var(--text-tertiary)]">
+            All prices in CAD. Every paid plan is upgradable — pay only the
+            difference.
           </p>
 
           {success && (
@@ -164,136 +194,92 @@ export default function PricingPage() {
               Checkout canceled. You can upgrade anytime.
             </div>
           )}
-
-          {/* Toggle */}
-          <div className="inline-flex items-center gap-3 p-1 rounded-lg bg-[var(--page-surface)] border border-[var(--border-color)]">
-            <button
-              onClick={() => setIsAnnual(false)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${!isAnnual ? "bg-[#2563EB] text-white" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setIsAnnual(true)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${isAnnual ? "bg-[#2563EB] text-white" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}
-            >
-              Annual
-              <span className="px-1.5 py-0.5 rounded bg-[#047857] text-white text-[10px] font-bold">
-                SAVE 28%
-              </span>
-            </button>
-          </div>
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-10">
-          {/* Free */}
-          <Card className="bg-[var(--page-surface)] border-[var(--border-color)]">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-5 h-5 text-[#94A3B8]" />
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Free
-                </h3>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">
-                  $0
-                </span>
-                <span className="text-sm text-[var(--text-tertiary)] ml-1">
-                  forever
-                </span>
-              </div>
-              <p className="text-xs text-[var(--text-tertiary)] mb-6">
-                Perfect for exploring and getting started.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full h-10 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--page-muted)] mb-4"
-                asChild
-              >
-                <Link to={isAuthenticated ? "/pat-academy" : "/login"}>
-                  Start Free
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Premium */}
-          <Card className="bg-[var(--page-surface)] border-[#2563EB]/50 relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#2563EB] text-white text-[10px] font-bold rounded-full">
-              MOST POPULAR
-            </div>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-[#F59E0B]" />
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Premium
-                </h3>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">
-                  {isAnnual ? "$249" : "$29"}
-                </span>
-                <span className="text-sm text-[var(--text-tertiary)] ml-1">
-                  {isAnnual ? "/year" : "/month"}
-                </span>
-              </div>
-              <p className="text-xs text-[var(--text-tertiary)] mb-6">
-                Everything you need for serious DAT prep.
-              </p>
-              <Button
-                className="w-full h-10 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold mb-4"
-                onClick={() =>
-                  handleCheckout(
-                    isAnnual ? "premium_yearly" : "premium_monthly"
-                  )
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          {plans.map(plan => {
+            const current = isCurrent(plan.key);
+            const canUpgrade =
+              plan.key !== null &&
+              currentPlan !== null &&
+              PLAN_RANK[plan.key] > PLAN_RANK[currentPlan];
+            const Icon = plan.icon;
+            return (
+              <Card
+                key={plan.name}
+                className={
+                  plan.highlighted
+                    ? "bg-[var(--page-surface)] border-[#2563EB]/50 relative"
+                    : "bg-[var(--page-surface)] border-[var(--border-color)]"
                 }
-                disabled={!!loadingPlan}
               >
-                {loadingPlan ===
-                (isAnnual ? "premium_yearly" : "premium_monthly") ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Get Premium"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Premium Plus */}
-          <Card className="bg-gradient-to-br from-[#F59E0B]/10 to-[#8B5CF6]/10 border-[#F59E0B]/30">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Crown className="w-5 h-5 text-[#F59E0B]" />
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Premium Plus
-                </h3>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">
-                  $149
-                </span>
-                <span className="text-sm text-[var(--text-tertiary)] ml-1">
-                  one-time
-                </span>
-              </div>
-              <p className="text-xs text-[var(--text-tertiary)] mb-6">
-                Lifetime access + personal coaching.
-              </p>
-              <Button
-                className="w-full h-10 bg-[#92400E] hover:bg-[#78350F] text-white font-semibold mb-4"
-                onClick={() => handleCheckout("plus_lifetime")}
-                disabled={!!loadingPlan}
-              >
-                {loadingPlan === "plus_lifetime" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Get Premium Plus"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+                <CardContent className="p-6">
+                  {plan.badge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#2563EB] text-white text-[10px] font-bold rounded-full whitespace-nowrap">
+                      {plan.badge}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mb-4">
+                    <Icon
+                      className={`w-5 h-5 ${plan.highlighted ? "text-[#F59E0B]" : "text-[#94A3B8]"}`}
+                    />
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                      {plan.name}
+                    </h3>
+                  </div>
+                  <div className="mb-4">
+                    <span className="text-3xl font-bold text-[var(--text-primary)]">
+                      {plan.price}
+                    </span>
+                    <span className="text-sm text-[var(--text-tertiary)] ml-1">
+                      {plan.cadence}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--text-tertiary)] mb-6 min-h-8">
+                    {plan.blurb}
+                  </p>
+                  {plan.key === null ? (
+                    <Button
+                      variant="outline"
+                      className="w-full h-10 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--page-muted)] mb-4"
+                      asChild
+                    >
+                      <Link to={isAuthenticated ? "/pat-academy" : "/login"}>
+                        {plan.cta}
+                      </Link>
+                    </Button>
+                  ) : current ? (
+                    <Button
+                      className="w-full h-10 mb-4 bg-[var(--page-muted)] text-[var(--text-secondary)] cursor-default"
+                      disabled
+                    >
+                      Current Plan
+                    </Button>
+                  ) : (
+                    <Button
+                      className={`w-full h-10 mb-4 font-semibold ${plan.highlighted ? "bg-[#2563EB] hover:bg-[#1D4ED8]" : "bg-[#92400E] hover:bg-[#78350F]"} text-white`}
+                      onClick={() => handleCheckout(plan.key!)}
+                      disabled={!!loadingPlan}
+                    >
+                      {loadingPlan === plan.key ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : canUpgrade ? (
+                        "Upgrade"
+                      ) : (
+                        plan.cta
+                      )}
+                    </Button>
+                  )}
+                  {plan.key === "premium_yearly" && (
+                    <p className="flex items-center justify-center gap-1 text-[10px] text-[#047857]">
+                      <Shield className="w-3 h-3" /> Higher Score Guarantee
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Feature Comparison */}
@@ -314,9 +300,6 @@ export default function PricingPage() {
                     </th>
                     <th className="text-center py-2 px-3 text-xs font-semibold text-[#2563EB] w-24">
                       Premium
-                    </th>
-                    <th className="text-center py-2 px-3 text-xs font-semibold text-[#92400E] w-24">
-                      Plus
                     </th>
                   </tr>
                 </thead>
@@ -343,13 +326,6 @@ export default function PricingPage() {
                           <X className="w-3.5 h-3.5 text-[var(--text-tertiary)] mx-auto" />
                         )}
                       </td>
-                      <td className="text-center py-2 px-3">
-                        {f.plus ? (
-                          <Check className="w-3.5 h-3.5 text-[#10B981] mx-auto" />
-                        ) : (
-                          <X className="w-3.5 h-3.5 text-[var(--text-tertiary)] mx-auto" />
-                        )}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -366,7 +342,8 @@ export default function PricingPage() {
               Higher Score Guarantee
             </p>
             <p className="text-xs text-[#475569]">
-              Score higher on the DAT or get your money back. See{" "}
+              Score higher on the DAT or get your money back on the Annual plan.
+              See{" "}
               <Link
                 to="/legal/guarantee"
                 className="underline hover:text-[#2563EB]"
