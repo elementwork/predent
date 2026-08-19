@@ -1,0 +1,3 @@
+[submodule "vendor/manipat"]
+	path = vendor/manipat
+	url = https://github.com/elementwork/manipat.git

@@ -1,136 +1,234 @@
 import { z } from "zod";
-import { and, eq, desc, lt, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery, premiumQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { patAttempts, users } from "@db/schema";
-import { TRPCError } from "@trpc/server";
-import {
-  getCorrectAnswer,
-  type PatCategory,
-  type Difficulty,
-} from "./lib/pat-generation";
 import { computePredictedScore } from "./lib/score-prediction";
 import {
   getPatAggregates,
   percentage,
 } from "./repositories/analytics-repository";
-
-const apiToGenDifficulty: Record<string, Difficulty> = {
-  beginner: "easy",
-  intermediate: "medium",
-  advanced: "hard",
-  elite: "hard",
-};
 import { getEffectiveTier, getTierQuota } from "@contracts/tiers";
+import {
+  PREDENT_PAT_CATEGORIES,
+  PREDENT_PAT_DIFFICULTIES,
+} from "./services/pat/categories";
+import { generatePatSession } from "./services/pat/session";
+import { openPatInstance } from "./services/pat/runtime";
 
-const categoryEnum = z.enum([
-  "keyholes",
-  "tfe",
-  "angle_ranking",
-  "hole_punching",
-  "cube_counting",
-  "pattern_folding",
-]);
+const categoryEnum = z.enum(PREDENT_PAT_CATEGORIES);
+const difficultyEnum = z.enum(PREDENT_PAT_DIFFICULTIES);
+const modeEnum = z.enum(["quick", "category", "timed", "mixed", "exam"]);
 
-const difficultyEnum = z.enum([
-  "beginner",
-  "intermediate",
-  "advanced",
-  "elite",
-]);
+const getQuotaState = async (userId: number) => {
+  const db = getDb();
+  const [user] = await db
+    .select({
+      tier: users.tier,
+      premiumUntil: users.premiumUntil,
+      patQuestionsGenerated: users.patQuestionsGenerated,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+
+  const tier = getEffectiveTier(user.tier, user.premiumUntil);
+  const quota = getTierQuota(tier);
+  const used = user.patQuestionsGenerated ?? 0;
+  return {
+    tier,
+    quota,
+    used,
+    remaining: Math.max(0, quota - used),
+  };
+};
 
 export const patRouter = createRouter({
-  recordAttempt: authedQuery
+  createSession: authedQuery
     .input(
       z.object({
-        category: categoryEnum,
+        mode: modeEnum,
+        category: categoryEnum.optional(),
         difficulty: difficultyEnum,
-        seed: z.number().int(),
-        userAnswer: z.number().int().min(-1).max(4),
-        timeSpent: z.number().int(),
-        sessionId: z.string(),
+        count: z.number().int().min(1).max(90).default(10),
+        timeLimit: z.boolean().default(true),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Generated question: re-derive answer from seed
-      const genDifficulty = apiToGenDifficulty[input.difficulty] ?? "medium";
-      const correctAnswer = getCorrectAnswer(input.category as PatCategory, {
-        seed: input.seed,
-        difficulty: genDifficulty,
-      });
+      if (input.mode === "category" && !input.category) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Choose a PAT category for category drill mode.",
+        });
+      }
 
-      const isCorrect = input.userAnswer === correctAnswer;
+      const requestedCount =
+        input.mode === "quick"
+          ? 10
+          : input.mode === "timed"
+            ? 15
+            : input.mode === "exam"
+              ? 90
+              : input.count;
+
+      const quotaState = await getQuotaState(ctx.user.id);
+      if (requestedCount > quotaState.remaining) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `PAT question quota exhausted. ${quotaState.remaining} question${
+            quotaState.remaining === 1 ? "" : "s"
+          } remaining.`,
+        });
+      }
+
+      let session;
+      try {
+        session = await generatePatSession({
+          userId: ctx.user.id,
+          mode: input.mode,
+          ...(input.category === undefined ? {} : { category: input.category }),
+          difficulty: input.difficulty,
+          requestedCount: input.count,
+          timeLimit: input.timeLimit,
+        });
+      } catch (error) {
+        console.error("[pat] ManipAT session generation failed", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to generate this PAT session. Please try again.",
+        });
+      }
 
       const db = getDb();
-      await db.transaction(async tx => {
-        const [user] = await tx
-          .select({
-            tier: users.tier,
-            premiumUntil: users.premiumUntil,
-          })
-          .from(users)
-          .where(eq(users.id, ctx.user.id))
-          .limit(1);
-        if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
-        const tier = getEffectiveTier(user.tier, user.premiumUntil);
-        const quota = getTierQuota(tier);
-        const [reservation] = await tx
-          .update(users)
-          .set({
-            patQuestionsGenerated: sql`${users.patQuestionsGenerated} + 1`,
-          })
-          .where(
-            and(
-              eq(users.id, ctx.user.id),
-              lt(users.patQuestionsGenerated, quota)
-            )
+      const [reservation] = await db
+        .update(users)
+        .set({
+          patQuestionsGenerated: sql`${users.patQuestionsGenerated} + ${session.questionCount}`,
+        })
+        .where(
+          and(
+            eq(users.id, ctx.user.id),
+            sql`${users.patQuestionsGenerated} + ${session.questionCount} <= ${quotaState.quota}`
           )
-          .returning({ used: users.patQuestionsGenerated });
+        )
+        .returning({ used: users.patQuestionsGenerated });
 
-        if (!reservation) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "PAT question quota exhausted.",
-          });
-        }
-
-        await tx.insert(patAttempts).values({
-          userId: ctx.user.id,
-          category: input.category,
-          difficulty: input.difficulty,
-          questionId: String(input.seed),
-          userAnswer: input.userAnswer,
-          isCorrect,
-          timeSpent: input.timeSpent,
-          sessionId: input.sessionId,
+      if (!reservation) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "PAT question quota was exhausted by another session.",
         });
-      });
+      }
 
-      return { success: true, isCorrect };
+      return {
+        ...session,
+        quota: {
+          tier: quotaState.tier,
+          quota: quotaState.quota,
+          used: reservation.used,
+          remaining: Math.max(0, quotaState.quota - reservation.used),
+        },
+      };
     }),
 
-  getQuota: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const [user] = await db
-      .select({
-        tier: users.tier,
-        premiumUntil: users.premiumUntil,
-        patQuestionsGenerated: users.patQuestionsGenerated,
+  submitSession: authedQuery
+    .input(
+      z.object({
+        sessionId: z.string().uuid(),
+        answers: z
+          .array(
+            z.object({
+              instanceId: z.string().min(20),
+              userAnswer: z.number().int().min(-1).max(4),
+              timeSpent: z.number().int().min(0).max(7200),
+            })
+          )
+          .min(1)
+          .max(90),
       })
-      .from(users)
-      .where(eq(users.id, ctx.user.id))
-      .limit(1);
+    )
+    .mutation(async ({ ctx, input }) => {
+      const decoded = input.answers.map(answer => {
+        try {
+          const claims = openPatInstance(answer.instanceId, {
+            userId: ctx.user.id,
+            sessionId: input.sessionId,
+          });
+          const isCorrect =
+            answer.userAnswer === claims.privateRecord.correctChoiceIndex;
+          return {
+            instanceId: answer.instanceId,
+            claims,
+            userAnswer: answer.userAnswer,
+            timeSpent: answer.timeSpent,
+            isCorrect,
+          };
+        } catch (error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Invalid PAT question instance",
+          });
+        }
+      });
 
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      const db = getDb();
+      const existingRows = await db
+        .select({ questionId: patAttempts.questionId })
+        .from(patAttempts)
+        .where(
+          and(
+            eq(patAttempts.userId, ctx.user.id),
+            eq(patAttempts.sessionId, input.sessionId)
+          )
+        );
+      const recorded = new Set(existingRows.map(row => row.questionId));
+      const pending: Array<typeof patAttempts.$inferInsert> = [];
+      const seen = new Set<string>();
 
-    const tier = getEffectiveTier(user.tier, user.premiumUntil);
-    const quota = getTierQuota(tier);
-    const used = user.patQuestionsGenerated ?? 0;
-    const remaining = Math.max(0, quota - used);
+      for (const item of decoded) {
+        const questionId = item.claims.privateRecord.canonicalQuestionId;
+        if (recorded.has(questionId) || seen.has(questionId)) continue;
+        seen.add(questionId);
+        pending.push({
+          userId: ctx.user.id,
+          category: item.claims.category,
+          difficulty: item.claims.difficulty,
+          questionId,
+          userAnswer: item.userAnswer < 0 ? null : item.userAnswer,
+          isCorrect: item.isCorrect,
+          timeSpent: item.timeSpent,
+          sessionId: input.sessionId,
+        });
+      }
 
-    return { tier, quota, used, remaining };
-  }),
+      if (pending.length > 0) {
+        await db.insert(patAttempts).values(pending);
+      }
+
+      return {
+        sessionId: input.sessionId,
+        results: decoded.map(item => ({
+          instanceId: item.instanceId,
+          category: item.claims.category,
+          difficulty: item.claims.difficulty,
+          difficultyBand: item.claims.privateRecord.difficultyBand,
+          canonicalQuestionId:
+            item.claims.privateRecord.canonicalQuestionId,
+          userAnswer: item.userAnswer,
+          isCorrect: item.isCorrect,
+          correctChoiceIndex: item.claims.privateRecord.correctChoiceIndex,
+          solution: item.claims.privateRecord.solution,
+        })),
+      };
+    }),
+
+  getQuota: authedQuery.query(async ({ ctx }) => getQuotaState(ctx.user.id)),
 
   getStats: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -170,7 +268,6 @@ export const patRouter = createRouter({
     if (attempts.length === 0) return { score: null, confidence: 0 };
 
     const { score, confidence } = computePredictedScore(attempts);
-
     return { score, confidence };
   }),
 
@@ -205,8 +302,6 @@ export const patRouter = createRouter({
       aggregates.overall.total
     );
     const avgTime = aggregates.overall.avgTime;
-
-    // Predicted PAT score using weighted algorithm (1-30)
     const { score: predictedScore, confidence: predictedConfidence } =
       computePredictedScore(attempts);
 
@@ -217,7 +312,6 @@ export const patRouter = createRouter({
       total: row.total,
     }));
 
-    // Heatmap: accuracy by category x difficulty
     const difficulties: Array<
       "beginner" | "intermediate" | "advanced" | "elite"
     > = ["beginner", "intermediate", "advanced", "elite"];
@@ -244,55 +338,57 @@ export const patRouter = createRouter({
         advanced: 0,
         elite: 0,
       };
-      for (const d of difficulties) {
-        const s = byDiff.get(d);
-        row[d] = s ? percentage(s.correct, s.total) : 0;
+      for (const difficulty of difficulties) {
+        const stats = byDiff.get(difficulty);
+        row[difficulty] = stats
+          ? percentage(stats.correct, stats.total)
+          : 0;
       }
       return row;
     });
 
-    // Trend: last 10 sessions (grouped by sessionId, chronological)
     const sessions: Record<string, { correct: number; total: number }> = {};
-    // Keep sessions in reverse chronological order then slice/reverse
     const sessionOrder: string[] = [];
-    attempts.forEach(a => {
-      const sid = a.sessionId ?? "unknown";
-      if (!sessions[sid]) {
-        sessions[sid] = { correct: 0, total: 0 };
-        sessionOrder.push(sid);
+    attempts.forEach(attempt => {
+      const sessionId = attempt.sessionId ?? "unknown";
+      if (!sessions[sessionId]) {
+        sessions[sessionId] = { correct: 0, total: 0 };
+        sessionOrder.push(sessionId);
       }
-      sessions[sid].total++;
-      if (a.isCorrect) sessions[sid].correct++;
+      sessions[sessionId].total += 1;
+      if (attempt.isCorrect) sessions[sessionId].correct += 1;
     });
 
     const trend = sessionOrder
       .slice(0, 10)
       .reverse()
-      .map((sid, idx) => ({
-        session: idx + 1,
+      .map((sessionId, index) => ({
+        session: index + 1,
         accuracy: Math.round(
-          (sessions[sid].correct / sessions[sid].total) * 100
+          (sessions[sessionId]!.correct / sessions[sessionId]!.total) * 100
         ),
       }));
 
-    // Recommendations
     const sortedByAccuracy = [...categoryStats].sort(
-      (a, b) => a.accuracy - b.accuracy
+      (first, second) => first.accuracy - second.accuracy
     );
-    const weaknesses = sortedByAccuracy.slice(0, 2).map(c => ({
-      category: c.category,
-      accuracy: c.accuracy,
+    const weaknesses = sortedByAccuracy.slice(0, 2).map(category => ({
+      category: category.category,
+      accuracy: category.accuracy,
       action:
-        c.category === "pattern_folding"
+        category.category === "pattern_folding"
           ? "Practice 20 min daily"
-          : c.category === "tfe"
+          : category.category === "tfe"
             ? "Use 3D model viewer"
             : "Focus on fundamentals",
     }));
     const strengths = [...categoryStats]
-      .sort((a, b) => b.accuracy - a.accuracy)
+      .sort((first, second) => second.accuracy - first.accuracy)
       .slice(0, 2)
-      .map(c => ({ category: c.category, accuracy: c.accuracy }));
+      .map(category => ({
+        category: category.category,
+        accuracy: category.accuracy,
+      }));
 
     return {
       overallAccuracy,

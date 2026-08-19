@@ -1,101 +1,69 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { AnimatePresence } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
-  Clock,
-  Flag,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Check,
-  X,
-  RotateCcw,
+  Clock,
+  Flag,
   Home,
+  Loader2,
   Pause,
-  Filter,
-  Zap,
+  RotateCcw,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { trpc } from "@/providers/trpc";
-import { useAuth } from "@/hooks/useAuth";
-import { events } from "@/lib/analytics";
 import {
-  generateQuestions,
-  type GeneratedQuestion,
-  type PatCategory,
-  type Difficulty as GenDifficulty,
-  getCorrectAnswer,
-} from "@/components/pat-generators/logic";
-import KeyholesGenerator from "@/components/pat-generators/KeyholesGenerator";
-import TopFrontEndGenerator from "@/components/pat-generators/TopFrontEndGenerator";
-import AngleRankingGenerator from "@/components/pat-generators/AngleRankingGenerator";
-import HolePunchingGenerator from "@/components/pat-generators/HolePunchingGenerator";
-import CubeCountingGenerator from "@/components/pat-generators/CubeCountingGenerator";
-import PatternFoldingGenerator from "@/components/pat-generators/PatternFoldingGenerator";
+  ManipATExplanation,
+  ManipATQuestionRenderer,
+  type PatSolutionPayload,
+  type PublicPatQuestion,
+} from "@/components/pat/ManipatQuestionRenderer";
+import { useAuth } from "@/hooks/useAuth";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { events } from "@/lib/analytics";
+import { trpc } from "@/providers/trpc";
 
-type PracticeMode = "setup" | "active" | "paused" | "review";
-type ApiDifficulty = "beginner" | "intermediate" | "advanced" | "elite";
+type PracticeMode = "quick" | "category" | "timed" | "mixed" | "exam";
+type Difficulty = "beginner" | "intermediate" | "advanced" | "elite";
+type PredentCategory =
+  | "keyholes"
+  | "tfe"
+  | "angle_ranking"
+  | "hole_punching"
+  | "cube_counting"
+  | "pattern_folding";
 
-const modes = [
-  {
-    id: "quick",
-    name: "Quick Practice",
-    desc: "10 random questions",
-    icon: Zap,
-  },
-  {
-    id: "category",
-    name: "Category Drill",
-    desc: "Focus on one category",
-    icon: Filter,
-  },
-  {
-    id: "timed",
-    name: "Timed Set",
-    desc: "15 questions, 15 minutes",
-    icon: Clock,
-  },
-  {
-    id: "mixed",
-    name: "Mixed Practice",
-    desc: "All categories mixed",
-    icon: RotateCcw,
-  },
-  {
-    id: "exam",
-    name: "Exam Mode",
-    desc: "90 questions, 60 minutes",
-    icon: Check,
-  },
-];
+interface SessionQuestion {
+  readonly instanceId: string;
+  readonly publicQuestion: PublicPatQuestion;
+}
 
-const categoryMeta: Record<string, { name: string; color: string }> = {
-  keyholes: { name: "Keyholes", color: "#14B8A6" },
-  tfe: { name: "Top-Front-End", color: "#6366F1" },
-  angle_ranking: { name: "Angle Ranking", color: "#F59E0B" },
-  hole_punching: { name: "Hole Punching", color: "#F43F5E" },
-  cube_counting: { name: "Cube Counting", color: "#10B981" },
-  pattern_folding: { name: "Pattern Folding", color: "#8B5CF6" },
-};
+interface SessionState {
+  readonly sessionId: string;
+  readonly questions: readonly SessionQuestion[];
+  readonly sessionTimeLimitSeconds: number | null;
+  readonly engineVersion: string;
+}
 
-const difficultyToGen: Record<ApiDifficulty, GenDifficulty> = {
-  beginner: "easy",
-  intermediate: "medium",
-  advanced: "hard",
-  elite: "hard",
-};
+interface SessionResult {
+  readonly instanceId: string;
+  readonly category: PredentCategory;
+  readonly difficulty: Difficulty;
+  readonly difficultyBand: number;
+  readonly canonicalQuestionId: string;
+  readonly userAnswer: number;
+  readonly isCorrect: boolean;
+  readonly correctChoiceIndex: number;
+  readonly solution: PatSolutionPayload;
+}
 
-const genToApi: Record<GenDifficulty, ApiDifficulty> = {
-  easy: "beginner",
-  medium: "intermediate",
-  hard: "advanced",
-};
-
-const allCategories: PatCategory[] = [
+const categories: readonly PredentCategory[] = [
   "keyholes",
   "tfe",
   "angle_ranking",
@@ -104,903 +72,473 @@ const allCategories: PatCategory[] = [
   "pattern_folding",
 ];
 
-function catDisplay(categoryId: string) {
-  return categoryMeta[categoryId] ?? { name: categoryId, color: "#2563EB" };
-}
+const categoryMeta: Record<PredentCategory, { name: string; color: string }> = {
+  keyholes: { name: "Keyholes", color: "#14B8A6" },
+  tfe: { name: "Top-Front-End", color: "#6366F1" },
+  angle_ranking: { name: "Angle Ranking", color: "#F59E0B" },
+  hole_punching: { name: "Hole Punching", color: "#F43F5E" },
+  cube_counting: { name: "Cube Counting", color: "#10B981" },
+  pattern_folding: { name: "Pattern Folding", color: "#8B5CF6" },
+};
 
-function QuestionRenderer({
-  question,
-  onAnswer,
-}: {
-  question: GeneratedQuestion;
-  onAnswer: (result: {
-    isCorrect: boolean;
-    timeSpent: number;
-    answerIndex: number;
-  }) => void;
-}) {
-  const config = { seed: question.seed, difficulty: question.difficulty };
-  const props = { config, onAnswer };
-  switch (question.category) {
-    case "keyholes":
-      return <KeyholesGenerator {...props} />;
-    case "tfe":
-      return <TopFrontEndGenerator {...props} />;
-    case "angle_ranking":
-      return <AngleRankingGenerator {...props} />;
-    case "hole_punching":
-      return <HolePunchingGenerator {...props} />;
-    case "cube_counting":
-      return <CubeCountingGenerator {...props} />;
-    case "pattern_folding":
-      return <PatternFoldingGenerator {...props} />;
-    default:
-      return null;
-  }
-}
+const canonicalToPredent: Record<PublicPatQuestion["category"], PredentCategory> = {
+  aperture: "keyholes",
+  "view-recognition": "tfe",
+  angle: "angle_ranking",
+  "paper-folding": "hole_punching",
+  "cube-counting": "cube_counting",
+  "form-development": "pattern_folding",
+};
 
-/* ─── Setup Screen ─── */
-function SetupScreen({
-  onStart,
-  quota,
-}: {
-  onStart: (config: {
-    mode: string;
-    category?: string;
-    difficulty: string;
-    count: number;
-    timeLimit: boolean;
-  }) => void;
-  quota?: { tier: string; quota: number; used: number; remaining: number };
-}) {
-  const [selectedMode, setSelectedMode] = useState("quick");
-  const [selectedCategory, setSelectedCategory] = useState<string>("keyholes");
-  const [selectedDifficulty, setSelectedDifficulty] =
-    useState<string>("INTERMEDIATE");
-  const [questionCount, setQuestionCount] = useState(10);
-  const [timeLimit, setTimeLimit] = useState(true);
+const formatTime = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-  const effectiveCount =
-    selectedMode === "timed"
-      ? 15
-      : selectedMode === "exam"
-        ? 90
-        : questionCount;
-  const overQuota = quota ? effectiveCount > quota.remaining : false;
-
-  return (
-    <div className="min-h-screen bg-[var(--page-bg)] pt-20">
-      <div className="section-container max-w-7xl mx-auto pb-20">
-        <Link
-          to="/pat-academy"
-          className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to PAT Academy
-        </Link>
-
-        <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-6">
-          Practice Setup
-        </h1>
-
-        {/* Quota Banner */}
-        {quota && (
-          <div className="mb-6 p-4 rounded-xl bg-[var(--page-surface)] border border-[var(--border-color)]">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-[var(--text-primary)]">
-                Questions Remaining
-              </span>
-              <span className="text-sm text-[var(--text-secondary)]">
-                {quota.remaining} / {quota.quota}
-              </span>
-            </div>
-            <Progress
-              value={(quota.used / quota.quota) * 100}
-              className="h-2 bg-[var(--page-muted)]"
-            />
-            {overQuota && (
-              <p className="text-xs text-[#EF4444] mt-2">
-                Not enough questions remaining.{" "}
-                <Link to="/pricing" className="underline">
-                  Upgrade
-                </Link>{" "}
-                for more.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Mode Selection */}
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
-            Select Mode
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {modes.map(mode => (
-              <button
-                key={mode.id}
-                onClick={() => setSelectedMode(mode.id)}
-                className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
-                  selectedMode === mode.id
-                    ? "border-[#2563EB] bg-[#2563EB]/10"
-                    : "border-[var(--border-color)] bg-[var(--page-surface)] hover:border-[var(--text-tertiary)]"
-                }`}
-              >
-                <mode.icon
-                  className={`w-5 h-5 ${selectedMode === mode.id ? "text-[#2563EB]" : "text-[var(--text-tertiary)]"}`}
-                />
-                <div>
-                  <p
-                    className={`text-sm font-medium ${selectedMode === mode.id ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
-                  >
-                    {mode.name}
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    {mode.desc}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Category Selection */}
-        {selectedMode === "category" && (
-          <div className="mb-8">
-            <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
-              Category
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {allCategories.map(catId => {
-                const cat = catDisplay(catId);
-                return (
-                  <button
-                    key={catId}
-                    onClick={() => setSelectedCategory(catId)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      selectedCategory === catId
-                        ? "text-white"
-                        : "bg-[var(--page-surface)] text-[var(--text-secondary)] hover:bg-[var(--page-muted)]"
-                    }`}
-                    style={
-                      selectedCategory === catId
-                        ? { backgroundColor: cat.color }
-                        : {}
-                    }
-                  >
-                    {cat.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Difficulty */}
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
-            Difficulty
-          </h2>
-          <div className="flex gap-2">
-            {["BEGINNER", "INTERMEDIATE", "ADVANCED", "ELITE"].map(d => (
-              <button
-                key={d}
-                onClick={() => setSelectedDifficulty(d)}
-                aria-pressed={selectedDifficulty === d}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  selectedDifficulty === d
-                    ? "bg-[#2563EB] text-[var(--text-primary)]"
-                    : "bg-[var(--page-surface)] text-[var(--text-secondary)] hover:bg-[var(--page-muted)]"
-                }`}
-              >
-                {d.charAt(0) + d.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Question Count */}
-        {selectedMode !== "timed" && selectedMode !== "exam" && (
-          <div className="mb-8">
-            <label
-              htmlFor="pat-question-count"
-              className="block text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider"
-            >
-              Questions: {questionCount}
-            </label>
-            <input
-              id="pat-question-count"
-              type="range"
-              min={5}
-              max={50}
-              step={5}
-              value={questionCount}
-              onChange={e => setQuestionCount(Number(e.target.value))}
-              className="w-full accent-[#2563EB]"
-            />
-            <div className="flex justify-between text-xs text-[var(--text-tertiary)] mt-1">
-              <span>5</span>
-              <span>50</span>
-            </div>
-          </div>
-        )}
-
-        {/* Time Limit Toggle */}
-        <div className="mb-8 flex items-center justify-between p-4 rounded-xl bg-[var(--page-surface)] border border-[var(--border-color)]">
-          <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-[var(--text-tertiary)]" />
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                Time Limit
-              </p>
-              <p className="text-xs text-[var(--text-tertiary)]">
-                Use question target time
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={timeLimit}
-            aria-label="Use question target time"
-            onClick={() => setTimeLimit(!timeLimit)}
-            className={`w-12 h-6 rounded-full transition-colors ${timeLimit ? "bg-[#2563EB]" : "bg-white/20"}`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${timeLimit ? "translate-x-6" : "translate-x-0.5"}`}
-            />
-          </button>
-        </div>
-
-        <Button
-          className="w-full h-12 bg-[#2563EB] hover:bg-[#1D4ED8] text-[var(--text-primary)] font-semibold text-base"
-          onClick={() =>
-            onStart({
-              mode: selectedMode,
-              category: selectedCategory,
-              difficulty: selectedDifficulty,
-              count: questionCount,
-              timeLimit,
-            })
-          }
-          disabled={overQuota}
-        >
-          {overQuota ? "Upgrade Required" : "Start Practice"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Active Practice Screen ─── */
-function ActiveScreen({
-  questions,
-  onFinish,
-  sessionId,
-}: {
-  questions: GeneratedQuestion[];
-  onFinish: (
-    answers: Record<number, number>,
-    flagged: number[],
-    timeSpent: Record<number, number>
-  ) => void;
-  sessionId: string;
-}) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [flagged, setFlagged] = useState<number[]>([]);
-  const [mode, setMode] = useState<"active" | "paused" | "review">("active");
-  const [timeLeft, setTimeLeft] = useState(questions[0]?.timeTarget ?? 40);
-  const timeSpentRef = useRef<Record<number, number>>({});
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordedRef = useRef<Set<number>>(new Set());
-  const recordAttempt = trpc.pat.recordAttempt.useMutation();
-
-  const question = questions[currentIndex];
-  const totalQuestions = questions.length;
-
-  const recordCurrentAttempt = useCallback(
-    (answerIndex: number) => {
-      if (!question || recordedRef.current.has(currentIndex)) return;
-      recordedRef.current.add(currentIndex);
-      const time = timeSpentRef.current[currentIndex] ?? 0;
-      const isCorrect =
-        getCorrectAnswer(question.category, {
-          seed: question.seed,
-          difficulty: question.difficulty,
-        }) === answerIndex;
-      recordAttempt.mutate({
-        category: question.category,
-        difficulty: genToApi[question.difficulty],
-        seed: question.seed,
-        userAnswer: answerIndex,
-        timeSpent: time,
-        sessionId,
-      });
-      events.patQuestionAnswered(
-        question.category,
-        question.difficulty,
-        isCorrect
-      );
-    },
-    [question, currentIndex, sessionId, recordAttempt]
-  );
-
-  const handleNextInternal = useCallback(() => {
-    const answer = answers[currentIndex];
-    if (answer !== undefined) recordCurrentAttempt(answer);
-    if (currentIndex < totalQuestions - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setTimeLeft(questions[currentIndex + 1]?.timeTarget ?? 40);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setMode("review");
-      onFinish(answers, flagged, timeSpentRef.current);
-    }
-  }, [
-    recordCurrentAttempt,
-    currentIndex,
-    totalQuestions,
-    answers,
-    questions,
-    flagged,
-    onFinish,
-  ]);
-
-  const handleNext = useCallback(
-    () => handleNextInternal(),
-    [handleNextInternal]
-  );
-
-  const handlePrevious = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      setTimeLeft(questions[currentIndex - 1]?.timeTarget ?? 40);
-    }
-  }, [currentIndex, questions]);
-
-  const handleFlag = useCallback(() => {
-    setFlagged(prev =>
-      prev.includes(currentIndex)
-        ? prev.filter(i => i !== currentIndex)
-        : [...prev, currentIndex]
-    );
-  }, [currentIndex]);
-
-  const handleSubmit = useCallback(() => {
-    const answer = answers[currentIndex];
-    if (answer !== undefined) recordCurrentAttempt(answer);
-    if (timerRef.current) clearInterval(timerRef.current);
-    setMode("review");
-    onFinish(answers, flagged, timeSpentRef.current);
-  }, [recordCurrentAttempt, currentIndex, answers, flagged, onFinish]);
-
-  const togglePause = useCallback(() => {
-    setMode(prev => (prev === "active" ? "paused" : "active"));
-  }, []);
-
-  // Timer effect
-  useEffect(() => {
-    if (mode === "active" && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          timeSpentRef.current[currentIndex] =
-            (timeSpentRef.current[currentIndex] || 0) + 1;
-          if (prev <= 1) {
-            handleNextInternal();
-            return questions[currentIndex]?.timeTarget ?? 40;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, currentIndex, handleNextInternal]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (mode === "review") return;
-      if (e.key === "ArrowRight") handleNext();
-      if (e.key === "ArrowLeft") handlePrevious();
-      if (e.key === " ") {
-        e.preventDefault();
-        handleFlag();
-      }
-      if (e.key === "Enter") handleNext();
-      if (e.key === "Escape") togglePause();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [mode, handleNext, handlePrevious, handleFlag, togglePause]);
-
-  const catD = catDisplay(question?.category ?? "keyholes");
-
-  if (mode === "paused") {
-    return (
-      <div className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center">
-        <Card className="bg-[var(--page-surface)] border-[var(--border-color)] w-full max-w-md mx-4">
-          <CardContent className="p-8 text-center">
-            <Pause className="w-12 h-12 text-[#F59E0B] mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
-              Practice Paused
-            </h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-6">
-              Question {currentIndex + 1} of {totalQuestions}
-            </p>
-            <div className="flex flex-col gap-3">
-              <Button
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-[var(--text-primary)]"
-                onClick={togglePause}
-              >
-                Resume
-              </Button>
-              <Button
-                variant="outline"
-                className="border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                onClick={() => window.location.reload()}
-              >
-                Quit & Restart
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[var(--page-bg)] flex flex-col">
-      {/* Top Bar */}
-      <div className="bg-[var(--page-surface)] border-b border-[var(--border-color)] px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={togglePause}
-              className="p-1.5 rounded-md hover:bg-[var(--page-muted)] transition-colors"
-            >
-              <Pause className="w-4 h-4 text-[var(--text-secondary)]" />
-            </button>
-            <span className="text-sm text-[var(--text-secondary)]">
-              {currentIndex + 1}{" "}
-              <span className="text-[var(--text-tertiary)]">
-                / {totalQuestions}
-              </span>
-            </span>
-            <Badge
-              style={{
-                backgroundColor: `${catD.color}20`,
-                color: catD.color,
-                borderColor: catD.color,
-              }}
-              variant="outline"
-              className="text-xs"
-            >
-              {catD.name}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="text-xs text-[var(--text-tertiary)] border-[var(--border-color)]"
-            >
-              {question?.difficulty.toUpperCase()}
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div
-              className={`flex items-center gap-1.5 ${timeLeft <= 10 ? "text-[#EF4444]" : "text-[var(--text-secondary)]"}`}
-            >
-              <Clock className="w-4 h-4" />
-              <span
-                className={`text-sm font-mono font-medium ${timeLeft <= 10 ? "animate-pulse" : ""}`}
-              >
-                {Math.floor(timeLeft / 60)}:
-                {(timeLeft % 60).toString().padStart(2, "0")}
-              </span>
-            </div>
-            <button
-              onClick={handleFlag}
-              className={`p-1.5 rounded-md transition-colors ${flagged.includes(currentIndex) ? "bg-[#F59E0B]/20 text-[#F59E0B]" : "hover:bg-[var(--page-muted)] text-[var(--text-tertiary)]"}`}
-            >
-              <Flag className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="max-w-5xl mx-auto mt-2">
-          <Progress
-            value={((currentIndex + 1) / totalQuestions) * 100}
-            className="h-1 bg-[var(--page-muted)]"
-          />
-        </div>
-      </div>
-
-      {/* Question Area */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="w-full max-w-3xl">
-          {question && (
-            <QuestionRenderer
-              key={`${question.seed}-${currentIndex}`}
-              question={question}
-              onAnswer={({ answerIndex }) => {
-                setAnswers(prev => ({ ...prev, [currentIndex]: answerIndex }));
-              }}
-            />
-          )}
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between mt-6">
-            <Button
-              variant="outline"
-              className="border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--page-surface)]"
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Previous
-            </Button>
-
-            <div className="flex items-center gap-1">
-              {questions.map((_, i) => (
-                <div
-                  key={i}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    i === currentIndex
-                      ? "bg-[#2563EB]"
-                      : answers[i] !== undefined
-                        ? "bg-[#10B981]"
-                        : flagged.includes(i)
-                          ? "bg-[#F59E0B]"
-                          : "bg-[var(--text-tertiary)]/20"
-                  }`}
-                />
-              ))}
-            </div>
-
-            {currentIndex < totalQuestions - 1 ? (
-              <Button
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-[var(--text-primary)]"
-                onClick={handleNext}
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            ) : (
-              <Button
-                className="bg-[#10B981] hover:bg-[#059669] text-[var(--text-primary)]"
-                onClick={handleSubmit}
-              >
-                Submit
-                <Check className="w-4 h-4 ml-1" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Results Screen ─── */
-function ResultsScreen({
-  questions,
-  answers,
-  timeSpent,
-  onRestart,
-}: {
-  questions: GeneratedQuestion[];
-  answers: Record<number, number>;
-  timeSpent: Record<number, number>;
-  onRestart: () => void;
-}) {
-  const [expanded, setExpanded] = useState<number | null>(null);
-
-  const correct = questions.filter((q, i) => {
-    const correctAnswer = getCorrectAnswer(q.category, {
-      seed: q.seed,
-      difficulty: q.difficulty,
-    });
-    return answers[i] === correctAnswer;
-  }).length;
-
-  const total = questions.length;
-  const accuracy = Math.round((correct / total) * 100);
-  const avgTime = Math.round(
-    Object.values(timeSpent).reduce((a, b) => a + b, 0) / total
-  );
-
-  const categoryStats: Record<string, { correct: number; total: number }> = {};
-  questions.forEach((q, i) => {
-    if (!categoryStats[q.category])
-      categoryStats[q.category] = { correct: 0, total: 0 };
-    categoryStats[q.category].total++;
-    const correctAnswer = getCorrectAnswer(q.category, {
-      seed: q.seed,
-      difficulty: q.difficulty,
-    });
-    if (answers[i] === correctAnswer) categoryStats[q.category].correct++;
-  });
-
-  return (
-    <div className="min-h-screen bg-[var(--page-bg)] pt-20">
-      <div className="section-container max-w-7xl mx-auto pb-20">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-6">
-          Session Results
-        </h1>
-
-        <Card className="bg-[var(--page-surface)] border-[var(--border-color)] mb-6">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-3 gap-6 text-center">
-              <div>
-                <p
-                  className={`text-4xl font-extrabold ${accuracy >= 80 ? "text-[#10B981]" : accuracy >= 60 ? "text-[#F59E0B]" : "text-[#EF4444]"}`}
-                >
-                  {accuracy}%
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                  Accuracy
-                </p>
-              </div>
-              <div>
-                <p className="text-4xl font-extrabold text-[var(--text-primary)]">
-                  {correct}/{total}
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                  Correct
-                </p>
-              </div>
-              <div>
-                <p className="text-4xl font-extrabold text-[var(--text-primary)]">
-                  {avgTime}s
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                  Avg Time
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[var(--page-surface)] border-[var(--border-color)] mb-6">
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-              Category Breakdown
-            </h2>
-            <div className="space-y-3">
-              {Object.entries(categoryStats).map(([cat, stats]) => {
-                const catD = catDisplay(cat);
-                const pct = Math.round((stats.correct / stats.total) * 100);
-                return (
-                  <div key={cat}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-[var(--text-secondary)]">
-                        {catD.name}
-                      </span>
-                      <span
-                        className="text-xs font-medium"
-                        style={{ color: catD.color }}
-                      >
-                        {stats.correct}/{stats.total} ({pct}%)
-                      </span>
-                    </div>
-                    <div className="h-2 bg-[var(--page-muted)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor: catD.color,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[var(--page-surface)] border-[var(--border-color)] mb-6">
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-              Question Review
-            </h2>
-            <div className="space-y-2">
-              {questions.map((q, i) => {
-                const correctAnswer = getCorrectAnswer(q.category, {
-                  seed: q.seed,
-                  difficulty: q.difficulty,
-                });
-                const isCorrect = answers[i] === correctAnswer;
-                const catD = catDisplay(q.category);
-                return (
-                  <div key={i}>
-                    <button
-                      onClick={() => setExpanded(expanded === i ? null : i)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg text-left ${isCorrect ? "bg-[#10B981]/10" : "bg-[#EF4444]/10"}`}
-                    >
-                      <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center ${isCorrect ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
-                      >
-                        {isCorrect ? (
-                          <Check className="w-3.5 h-3.5 text-[var(--text-primary)]" />
-                        ) : (
-                          <X className="w-3.5 h-3.5 text-[var(--text-primary)]" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[var(--text-primary)] truncate">
-                          {catD.name} - {q.difficulty.toUpperCase()}
-                        </p>
-                        <p className="text-xs text-[var(--text-tertiary)]">
-                          Your answer:{" "}
-                          {answers[i] !== undefined
-                            ? String.fromCharCode(65 + answers[i])
-                            : "—"}{" "}
-                          | Correct: {String.fromCharCode(65 + correctAnswer)}
-                        </p>
-                      </div>
-                      <span className="text-xs text-[var(--text-tertiary)]">
-                        {timeSpent[i] || 0}s
-                      </span>
-                    </button>
-                    {expanded === i && (
-                      <div className="mt-2 p-4 rounded-lg bg-[var(--page-surface)] border border-[var(--border-color)]">
-                        <p className="text-sm text-[#10B981]">
-                          Correct answer: Option{" "}
-                          {String.fromCharCode(65 + correctAnswer)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex gap-3">
-          <Button
-            className="flex-1 h-11 bg-[#2563EB] hover:bg-[#1D4ED8] text-[var(--text-primary)] font-semibold"
-            onClick={onRestart}
-          >
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Practice Again
-          </Button>
-          <Button
-            variant="outline"
-            className="h-11 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            asChild
-          >
-            <Link to="/pat-academy">
-              <Home className="w-4 h-4 mr-2" />
-              PAT Home
-            </Link>
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Main Component ─── */
 export default function PATPracticePage() {
   usePageTitle("PAT Practice");
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const [mode, setMode] = useState<PracticeMode>("setup");
-  const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
+  const [searchParams] = useSearchParams();
+  const utils = trpc.useUtils();
+  const initialCategory = categories.includes(
+    searchParams.get("category") as PredentCategory
+  )
+    ? (searchParams.get("category") as PredentCategory)
+    : "keyholes";
+
+  const [phase, setPhase] = useState<"setup" | "active" | "review">("setup");
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>(
+    searchParams.has("category") ? "category" : "quick"
+  );
+  const [category, setCategory] = useState<PredentCategory>(initialCategory);
+  const [difficulty, setDifficulty] = useState<Difficulty>("intermediate");
+  const [count, setCount] = useState(10);
+  const [timeLimit, setTimeLimit] = useState(true);
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [timeSpent, setTimeSpent] = useState<Record<number, number>>({});
-  const [sessionId, setSessionId] = useState("");
-  const { data: quota } = trpc.pat.getQuota.useQuery();
+  const [flagged, setFlagged] = useState<Set<number>>(new Set());
+  const [paused, setPaused] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const timeSpent = useRef<Record<number, number>>({});
+  const [results, setResults] = useState<readonly SessionResult[]>([]);
 
-  const handleStart = useCallback(
-    (config: {
-      mode: string;
-      category?: string;
-      difficulty: string;
-      count: number;
-      timeLimit: boolean;
-    }) => {
-      const difficulty =
-        difficultyToGen[config.difficulty as ApiDifficulty] ?? "medium";
-      const count =
-        config.mode === "timed"
-          ? 15
-          : config.mode === "exam"
-            ? 90
-            : config.count;
+  const quota = trpc.pat.getQuota.useQuery(undefined, { enabled: isAuthenticated });
+  const createSession = trpc.pat.createSession.useMutation();
+  const submitSession = trpc.pat.submitSession.useMutation();
 
-      const category: PatCategory | "mixed" =
-        config.mode === "category" && config.category
-          ? (config.category as PatCategory)
-          : "mixed";
+  const effectiveCount =
+    practiceMode === "quick"
+      ? 10
+      : practiceMode === "timed"
+        ? 15
+        : practiceMode === "exam"
+          ? 90
+          : count;
 
-      const generated = generateQuestions(category, difficulty, count);
-      setQuestions(generated);
-      setSessionId(crypto.randomUUID());
-      setMode("active");
-    },
-    []
-  );
+  const startSession = useCallback(async () => {
+    try {
+      const created = await createSession.mutateAsync({
+        mode: practiceMode,
+        ...(practiceMode === "category" ? { category } : {}),
+        difficulty,
+        count,
+        timeLimit,
+      });
+      setSession({
+        sessionId: created.sessionId,
+        questions: created.questions,
+        sessionTimeLimitSeconds: created.sessionTimeLimitSeconds,
+        engineVersion: created.engineInfo.engineVersion,
+      });
+      setAnswers({});
+      setFlagged(new Set());
+      timeSpent.current = {};
+      setCurrentIndex(0);
+      setTimeLeft(created.sessionTimeLimitSeconds);
+      setResults([]);
+      setPhase("active");
+      await quota.refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create PAT session");
+    }
+  }, [category, count, createSession, difficulty, practiceMode, quota, timeLimit]);
 
-  const handleFinish = useCallback(
-    (
-      ans: Record<number, number>,
-      _flg: number[],
-      ts: Record<number, number>
-    ) => {
-      setAnswers(ans);
-      setTimeSpent(ts);
-      setMode("review");
-    },
-    []
-  );
+  const finishSession = useCallback(async () => {
+    if (!session || submitSession.isPending) return;
+    try {
+      const submitted = await submitSession.mutateAsync({
+        sessionId: session.sessionId,
+        answers: session.questions.map((question, index) => ({
+          instanceId: question.instanceId,
+          userAnswer: answers[index] ?? -1,
+          timeSpent: timeSpent.current[index] ?? 0,
+        })),
+      });
+      setResults(submitted.results as readonly SessionResult[]);
+      submitted.results.forEach(result =>
+        events.patQuestionAnswered(result.category, result.difficulty, result.isCorrect)
+      );
+      setPhase("review");
+      await Promise.all([
+        utils.pat.getStats.invalidate(),
+        utils.pat.getAnalytics.invalidate(),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to score PAT session");
+    }
+  }, [answers, session, submitSession, utils.pat]);
 
-  const handleRestart = useCallback(() => {
-    setMode("setup");
-    setQuestions([]);
-    setAnswers({});
-    setTimeSpent({});
-    setSessionId("");
-  }, []);
+  useEffect(() => {
+    if (phase !== "active" || paused || submitSession.isPending || !session) return;
+    const timer = window.setInterval(() => {
+      timeSpent.current[currentIndex] = (timeSpent.current[currentIndex] ?? 0) + 1;
+      setTimeLeft(previous =>
+        previous === null ? null : Math.max(0, previous - 1)
+      );
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [currentIndex, paused, phase, session, submitSession.isPending]);
+
+  useEffect(() => {
+    if (phase === "active" && timeLeft === 0) void finishSession();
+  }, [finishSession, phase, timeLeft]);
+
+  const categoryStats = useMemo(() => {
+    const map = new Map<PredentCategory, { correct: number; total: number }>();
+    for (const result of results) {
+      const current = map.get(result.category) ?? { correct: 0, total: 0 };
+      current.total += 1;
+      if (result.isCorrect) current.correct += 1;
+      map.set(result.category, current);
+    }
+    return [...map.entries()];
+  }, [results]);
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-[var(--page-bg)] pt-20 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white/20 border-t-[#2563EB] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[var(--text-secondary)] text-sm">Loading...</p>
-        </div>
+      <div className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" />
       </div>
     );
   }
 
-  if (!isAuthenticated && mode === "setup") {
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[var(--page-bg)] pt-20">
-        <div className="section-container max-w-7xl mx-auto pb-20 text-center">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-4">
-            PAT Practice
-          </h1>
+      <main className="min-h-screen bg-[var(--page-bg)] pt-20">
+        <div className="section-container max-w-xl mx-auto text-center">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-3">PAT Practice</h1>
           <p className="text-[var(--text-secondary)] mb-6">
-            Sign in to track your progress and unlock more questions.
+            Sign in to generate validated ManipAT sessions and track your progress.
           </p>
-          <Button
-            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-[var(--text-primary)]"
-            asChild
-          >
+          <Button asChild className="bg-[#2563EB] text-white">
             <Link to="/login">Sign In</Link>
           </Button>
         </div>
-      </div>
+      </main>
     );
   }
 
+  if (phase === "setup") {
+    return (
+      <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-16">
+        <div className="section-container max-w-4xl mx-auto">
+          <Link
+            to="/pat-academy"
+            className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to PAT Academy
+          </Link>
+          <div className="flex items-end justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-[var(--text-primary)]">PAT Practice</h1>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Server-generated, independently validated questions using ManipAT.
+              </p>
+            </div>
+            {quota.data && (
+              <Badge variant="outline">
+                {quota.data.remaining}/{quota.data.quota} remaining
+              </Badge>
+            )}
+          </div>
+
+          <Card className="bg-[var(--page-surface)] border-[var(--border-color)]">
+            <CardContent className="p-6 space-y-7">
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)] mb-3">Mode</p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {(["quick", "category", "timed", "mixed", "exam"] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPracticeMode(mode)}
+                      className={`rounded-lg border px-3 py-2 text-sm capitalize ${
+                        practiceMode === mode
+                          ? "border-[#2563EB] bg-[#2563EB]/10 text-[#2563EB]"
+                          : "border-[var(--border-color)] text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {practiceMode === "category" && (
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-primary)] mb-3">Category</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {categories.map(item => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCategory(item)}
+                        className={`rounded-lg border px-3 py-2 text-sm ${
+                          category === item
+                            ? "border-[#2563EB] bg-[#2563EB]/10"
+                            : "border-[var(--border-color)]"
+                        }`}
+                      >
+                        {categoryMeta[item].name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)] mb-3">Difficulty</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {(["beginner", "intermediate", "advanced", "elite"] as const).map(level => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setDifficulty(level)}
+                      className={`rounded-lg border px-2 py-2 text-xs sm:text-sm capitalize ${
+                        difficulty === level
+                          ? "border-[#2563EB] bg-[#2563EB]/10"
+                          : "border-[var(--border-color)]"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {practiceMode !== "quick" && practiceMode !== "timed" && practiceMode !== "exam" && (
+                <label className="block text-sm text-[var(--text-secondary)]">
+                  Questions: <strong>{count}</strong>
+                  <input
+                    type="range"
+                    min={5}
+                    max={50}
+                    step={5}
+                    value={count}
+                    onChange={event => setCount(Number(event.target.value))}
+                    className="block w-full mt-2 accent-[#2563EB]"
+                  />
+                </label>
+              )}
+
+              <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={timeLimit}
+                  onChange={event => setTimeLimit(event.target.checked)}
+                />
+                Use time limit
+              </label>
+
+              <Button
+                className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+                disabled={
+                  createSession.isPending ||
+                  (!!quota.data && effectiveCount > quota.data.remaining)
+                }
+                onClick={() => void startSession()}
+              >
+                {createSession.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Start {effectiveCount}-Question Session
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (phase === "active" && session) {
+    const question = session.questions[currentIndex];
+    if (!question) return null;
+    const predentCategory = canonicalToPredent[question.publicQuestion.category];
+    const meta = categoryMeta[predentCategory];
+
+    if (paused) {
+      return (
+        <main className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center p-4">
+          <Card className="w-full max-w-md bg-[var(--page-surface)]">
+            <CardContent className="p-8 text-center">
+              <Pause className="w-10 h-10 mx-auto text-[#F59E0B] mb-3" />
+              <h2 className="text-xl font-bold mb-4">Practice paused</h2>
+              <Button className="w-full" onClick={() => setPaused(false)}>Resume</Button>
+            </CardContent>
+          </Card>
+        </main>
+      );
+    }
+
+    return (
+      <main className="min-h-screen bg-[var(--page-bg)] pb-10">
+        <header className="sticky top-0 z-20 bg-[var(--page-surface)] border-b border-[var(--border-color)] px-4 py-3">
+          <div className="max-w-5xl mx-auto flex items-center gap-3">
+            <button type="button" onClick={() => setPaused(true)} aria-label="Pause">
+              <Pause className="w-4 h-4" />
+            </button>
+            <span className="text-sm">{currentIndex + 1}/{session.questions.length}</span>
+            <Badge variant="outline" style={{ color: meta.color, borderColor: meta.color }}>
+              {meta.name}
+            </Badge>
+            <Badge variant="outline">Band {question.publicQuestion.difficultyBand}</Badge>
+            <div className="ml-auto flex items-center gap-3">
+              {timeLeft !== null && (
+                <span className={timeLeft <= 60 ? "text-[#EF4444] font-mono" : "font-mono"}>
+                  <Clock className="w-4 h-4 inline mr-1" />{formatTime(timeLeft)}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setFlagged(previous => {
+                    const next = new Set(previous);
+                    if (next.has(currentIndex)) next.delete(currentIndex);
+                    else next.add(currentIndex);
+                    return next;
+                  })
+                }
+                aria-label="Flag question"
+              >
+                <Flag className={`w-4 h-4 ${flagged.has(currentIndex) ? "text-[#F59E0B]" : ""}`} />
+              </button>
+            </div>
+          </div>
+          <Progress value={((currentIndex + 1) / session.questions.length) * 100} className="h-1 mt-2 max-w-5xl mx-auto" />
+        </header>
+
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <Card className="bg-[var(--page-surface)] border-[var(--border-color)]">
+            <CardContent className="p-4 sm:p-6">
+              <ManipATQuestionRenderer
+                question={question.publicQuestion}
+                selectedIndex={answers[currentIndex]}
+                onSelect={answer => setAnswers(previous => ({ ...previous, [currentIndex]: answer }))}
+              />
+            </CardContent>
+          </Card>
+          <div className="flex items-center justify-between mt-5 gap-3">
+            <Button
+              variant="outline"
+              disabled={currentIndex === 0 || submitSession.isPending}
+              onClick={() => setCurrentIndex(index => index - 1)}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+            </Button>
+            <span className="text-xs text-[var(--text-tertiary)]">
+              {Object.keys(answers).length} answered · {flagged.size} flagged
+            </span>
+            {currentIndex < session.questions.length - 1 ? (
+              <Button
+                disabled={submitSession.isPending}
+                onClick={() => setCurrentIndex(index => index + 1)}
+              >
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            ) : (
+              <Button
+                className="bg-[#10B981] hover:bg-[#059669] text-white"
+                disabled={submitSession.isPending}
+                onClick={() => void finishSession()}
+              >
+                {submitSession.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+                Submit
+              </Button>
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) return null;
+  const correct = results.filter(result => result.isCorrect).length;
+  const accuracy = results.length ? Math.round((correct / results.length) * 100) : 0;
+
   return (
-    <AnimatePresence mode="wait">
-      {mode === "setup" && (
-        <SetupScreen key="setup" onStart={handleStart} quota={quota} />
-      )}
-      {mode === "active" && (
-        <ActiveScreen
-          key="active"
-          questions={questions}
-          onFinish={handleFinish}
-          sessionId={sessionId}
-        />
-      )}
-      {mode === "review" && (
-        <ResultsScreen
-          key="review"
-          questions={questions}
-          answers={answers}
-          timeSpent={timeSpent}
-          onRestart={handleRestart}
-        />
-      )}
-    </AnimatePresence>
+    <main className="min-h-screen bg-[var(--page-bg)] pt-20 pb-16">
+      <div className="section-container max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Session Results</h1>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-6">
+          Scored server-side with ManipAT engine {session.engineVersion}
+        </p>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card><CardContent className="p-6 text-center"><p className="text-4xl font-bold text-[#2563EB]">{accuracy}%</p><p className="text-xs text-[var(--text-tertiary)]">Accuracy</p></CardContent></Card>
+          <Card><CardContent className="p-6 text-center"><p className="text-4xl font-bold">{correct}/{results.length}</p><p className="text-xs text-[var(--text-tertiary)]">Correct</p></CardContent></Card>
+        </div>
+
+        <Card className="mb-6 bg-[var(--page-surface)] border-[var(--border-color)]">
+          <CardContent className="p-6">
+            <h2 className="font-semibold mb-4">Category Breakdown</h2>
+            <div className="space-y-2">
+              {categoryStats.map(([item, stats]) => (
+                <div key={item} className="flex justify-between text-sm">
+                  <span>{categoryMeta[item].name}</span>
+                  <span>{stats.correct}/{stats.total} ({Math.round((stats.correct / stats.total) * 100)}%)</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-3 mb-6">
+          {results.map((result, index) => {
+            const question = session.questions[index];
+            if (!question) return null;
+            return (
+              <Card key={result.canonicalQuestionId} className="bg-[var(--page-surface)] border-[var(--border-color)]">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {result.isCorrect ? <Check className="w-4 h-4 text-[#10B981]" /> : <X className="w-4 h-4 text-[#EF4444]" />}
+                    Question {index + 1} · {categoryMeta[result.category].name} · Band {result.difficultyBand}
+                  </div>
+                  <ManipATQuestionRenderer
+                    question={question.publicQuestion}
+                    selectedIndex={result.userAnswer >= 0 ? result.userAnswer : undefined}
+                    correctIndex={result.correctChoiceIndex}
+                    disabled
+                    compact
+                  />
+                  <ManipATExplanation solution={result.solution} />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            className="flex-1 bg-[#2563EB] text-white"
+            onClick={() => {
+              setPhase("setup");
+              setSession(null);
+              setResults([]);
+            }}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" /> Practice Again
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/pat-academy"><Home className="w-4 h-4 mr-2" /> PAT Home</Link>
+          </Button>
+        </div>
+      </div>
+    </main>
   );
 }
