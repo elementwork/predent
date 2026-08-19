@@ -44,8 +44,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare pinned ManipAT runtime
-        run: node tools/prepare-manipat-runtime.mjs
+      - name: Build pinned ManipAT runtime
+        run: node tools/prepare-manipat-runtime.mjs --build-only
 
       - name: Audit production dependencies
         run: npm run audit:production
@@ -61,6 +61,9 @@ jobs:
         with:
           name: dependency-sbom
           path: sbom.cdx.json
+
+      - name: Link pinned ManipAT runtime
+        run: node tools/prepare-manipat-runtime.mjs --link-only
 
       - name: Type check
         run: npm run check

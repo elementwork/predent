@@ -12,6 +12,15 @@ import process from "node:process";
 const root = process.cwd();
 const manipatRoot = path.join(root, "vendor", "manipat");
 const corepack = process.platform === "win32" ? "corepack.cmd" : "corepack";
+const buildOnly = process.argv.includes("--build-only");
+const linkOnly = process.argv.includes("--link-only");
+
+if (buildOnly && linkOnly) {
+  throw new Error("Choose either --build-only or --link-only, not both");
+}
+
+const shouldBuild = !linkOnly;
+const shouldLink = !buildOnly;
 
 const workspacePackages = [
   "core",
@@ -34,6 +43,17 @@ async function assertSubmodule() {
   } catch {
     throw new Error(
       "ManipAT submodule is missing. Run: git submodule update --init --recursive"
+    );
+  }
+}
+
+async function assertBuiltRuntime() {
+  try {
+    await access(path.join(manipatRoot, "runtime", "dist", "index.js"));
+    await access(path.join(manipatRoot, "packages", "question-bank", "dist", "index.js"));
+  } catch {
+    throw new Error(
+      "ManipAT runtime is not built. Run tools/prepare-manipat-runtime.mjs --build-only first."
     );
   }
 }
@@ -77,22 +97,28 @@ async function ensureLink(destinationName, source) {
 }
 
 await assertSubmodule();
-run(["pnpm", "install", "--frozen-lockfile"]);
-run(["pnpm", "build"]);
 
-for (const packageName of workspacePackages) {
-  await ensureLink(
-    `@manipat/${packageName}`,
-    path.join(manipatRoot, "packages", packageName)
-  );
+if (shouldBuild) {
+  run(["pnpm", "install", "--frozen-lockfile"]);
+  run(["pnpm", "build"]);
+  console.log("ManipAT runtime built from pinned submodule.");
 }
-await ensureLink(
-  "manifold-3d",
-  path.join(manipatRoot, "packages", "geometry", "node_modules", "manifold-3d")
-);
-await ensureLink(
-  "three",
-  path.join(manipatRoot, "packages", "renderer-three", "node_modules", "three")
-);
 
-console.log("ManipAT runtime prepared from pinned submodule.");
+if (shouldLink) {
+  await assertBuiltRuntime();
+  for (const packageName of workspacePackages) {
+    await ensureLink(
+      `@manipat/${packageName}`,
+      path.join(manipatRoot, "packages", packageName)
+    );
+  }
+  await ensureLink(
+    "manifold-3d",
+    path.join(manipatRoot, "packages", "geometry", "node_modules", "manifold-3d")
+  );
+  await ensureLink(
+    "three",
+    path.join(manipatRoot, "packages", "renderer-three", "node_modules", "three")
+  );
+  console.log("ManipAT runtime links prepared from pinned submodule.");
+}
