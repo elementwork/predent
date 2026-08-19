@@ -37,8 +37,10 @@ const sessionTimeLimitSeconds = (
   count: number,
   enabled: boolean
 ): number | null => {
-  if (!enabled) return null;
+  // Exam mode is intentionally strict: 90 questions in 60 minutes. Ignore any
+  // client attempt to disable the timer so the server contract preserves exam fidelity.
   if (mode === "exam") return 60 * 60;
+  if (!enabled) return null;
   if (mode === "timed") return 15 * 60;
   return count * 40;
 };

@@ -141,7 +141,7 @@ export default function PATPracticePage() {
         ...(practiceMode === "category" ? { category } : {}),
         difficulty,
         count,
-        timeLimit,
+        timeLimit: practiceMode === "exam" ? true : timeLimit,
       });
       setSession({
         sessionId: created.sessionId,
@@ -155,6 +155,7 @@ export default function PATPracticePage() {
       setCurrentIndex(0);
       setTimeLeft(created.sessionTimeLimitSeconds);
       setResults([]);
+      setPaused(false);
       setPhase("active");
       await quota.refetch();
     } catch (error) {
@@ -340,14 +341,21 @@ export default function PATPracticePage() {
                 </label>
               )}
 
-              <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={timeLimit}
-                  onChange={event => setTimeLimit(event.target.checked)}
-                />
-                Use time limit
-              </label>
+              {practiceMode === "exam" ? (
+                <div className="flex items-center gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--page-muted)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  Exam mode is fixed at 90 questions in 60 minutes. The timer cannot be paused.
+                </div>
+              ) : (
+                <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={timeLimit}
+                    onChange={event => setTimeLimit(event.target.checked)}
+                  />
+                  Use time limit
+                </label>
+              )}
 
               <Button
                 className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
@@ -373,7 +381,7 @@ export default function PATPracticePage() {
     const predentCategory = canonicalToPredent[question.publicQuestion.category];
     const meta = categoryMeta[predentCategory];
 
-    if (paused) {
+    if (paused && practiceMode !== "exam") {
       return (
         <main className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-[var(--page-surface)]">
@@ -391,9 +399,11 @@ export default function PATPracticePage() {
       <main className="min-h-screen bg-[var(--page-bg)] pb-10">
         <header className="sticky top-0 z-20 bg-[var(--page-surface)] border-b border-[var(--border-color)] px-4 py-3">
           <div className="max-w-5xl mx-auto flex items-center gap-3">
-            <button type="button" onClick={() => setPaused(true)} aria-label="Pause">
-              <Pause className="w-4 h-4" />
-            </button>
+            {practiceMode !== "exam" && (
+              <button type="button" onClick={() => setPaused(true)} aria-label="Pause">
+                <Pause className="w-4 h-4" />
+              </button>
+            )}
             <span className="text-sm">{currentIndex + 1}/{session.questions.length}</span>
             <Badge variant="outline" style={{ color: meta.color, borderColor: meta.color }}>
               {meta.name}
