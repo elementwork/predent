@@ -5,22 +5,21 @@ import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { flashcardReviews, datQuestions } from "@db/schema";
 import {
-  generateProblem,
-  getCorrectAnswer,
-  type PatCategory,
-  type Difficulty,
-} from "./lib/pat-generation";
+  PREDENT_PAT_CATEGORIES,
+  flashcardDifficultyBand,
+  toManipATCategory,
+  type PredentPatCategory,
+} from "./services/pat/categories";
+import { getPatRuntime } from "./services/pat/runtime";
 
-const patCategories: PatCategory[] = [
-  "keyholes",
-  "tfe",
-  "angle_ranking",
-  "hole_punching",
-  "cube_counting",
-  "pattern_folding",
+type FlashcardDifficulty = "easy" | "medium" | "hard";
+
+const patCategories: readonly PredentPatCategory[] = PREDENT_PAT_CATEGORIES;
+const patDifficulties: readonly FlashcardDifficulty[] = [
+  "easy",
+  "medium",
+  "hard",
 ];
-
-const patDifficulties: Difficulty[] = ["easy", "medium", "hard"];
 
 const PAT_SLOTS_PER_CATEGORY = 60;
 const PAT_TOTAL_SLOTS = patCategories.length * PAT_SLOTS_PER_CATEGORY;
@@ -36,13 +35,9 @@ function applySM2(
   let repetitions = currentRepetitions;
 
   if (quality >= 3) {
-    if (repetitions === 0) {
-      interval = 1;
-    } else if (repetitions === 1) {
-      interval = 6;
-    } else {
-      interval = Math.round(interval * easeFactor);
-    }
+    if (repetitions === 0) interval = 1;
+    else if (repetitions === 1) interval = 6;
+    else interval = Math.round(interval * easeFactor);
     repetitions++;
   } else {
     repetitions = 0;
@@ -56,8 +51,24 @@ function applySM2(
   const now = new Date();
   const nextReview = new Date(now);
   nextReview.setDate(nextReview.getDate() + interval);
-
   return { easeFactor, interval, repetitions, nextReview, lastReview: now };
+}
+
+async function generatePatFlashcard(
+  category: PredentPatCategory,
+  seed: number,
+  difficulty: FlashcardDifficulty
+) {
+  const runtime = await getPatRuntime();
+  const generated = await runtime.generateQuestion({
+    type: toManipATCategory(category),
+    seed: `predent-flashcard:${category}:${seed}`,
+    difficulty: flashcardDifficultyBand(difficulty),
+  });
+  return {
+    publicQuestion: generated.publicQuestion,
+    solution: generated.privateRecord.solution,
+  };
 }
 
 export const flashcardRouter = createRouter({
@@ -66,7 +77,7 @@ export const flashcardRouter = createRouter({
       z
         .object({
           source: z.enum(["pat", "dat"]).optional(),
-          limit: z.number().int().min(1).max(100).default(20),
+          limit: z.number().int().min(1).max(50).default(20),
         })
         .default({ limit: 20 })
     )
@@ -74,8 +85,9 @@ export const flashcardRouter = createRouter({
       const db = getDb();
       const now = new Date();
       const userId = ctx.user.id;
-
-      const sources = input.source ? [input.source] : (["pat", "dat"] as const);
+      const sources = input.source
+        ? [input.source]
+        : (["pat", "dat"] as const);
 
       const results: Array<{
         source: "pat" | "dat";
@@ -120,34 +132,32 @@ export const flashcardRouter = createRouter({
             .orderBy(flashcardReviews.nextReview)
             .limit(input.limit);
 
-          for (const r of reviewed) {
-            if (!r.category || !r.difficulty) continue;
-            const problem = generateProblem(r.category as PatCategory, {
-              seed: r.seed,
-              difficulty: r.difficulty as Difficulty,
-            });
+          for (const row of reviewed) {
+            if (!row.category || !row.difficulty) continue;
+            const questionData = await generatePatFlashcard(
+              row.category as PredentPatCategory,
+              row.seed,
+              row.difficulty as FlashcardDifficulty
+            );
             results.push({
               source: "pat",
-              questionId: r.seed,
-              seed: r.seed,
-              category: r.category,
-              difficulty: r.difficulty,
-              questionData: problem,
+              questionId: row.seed,
+              seed: row.seed,
+              category: row.category,
+              difficulty: row.difficulty,
+              questionData,
               review: {
-                id: r.reviewId,
-                easeFactor: r.easeFactor,
-                interval: r.interval,
-                repetitions: r.repetitions,
-                nextReview: r.nextReview,
-                lastReview: r.lastReview,
+                id: row.reviewId,
+                easeFactor: row.easeFactor,
+                interval: row.interval,
+                repetitions: row.repetitions,
+                nextReview: row.nextReview,
+                lastReview: row.lastReview,
               },
               isNew: false,
             });
           }
 
-          // New cards: deterministic seeds not yet reviewed by this user.
-          // The seed space mirrors the practice generator (seed + i*1000 + catIndex*100000),
-          // so flashcard questions share the on-the-fly question space.
           const usedRows = await db
             .select({ seed: flashcardReviews.questionId })
             .from(flashcardReviews)
@@ -157,28 +167,36 @@ export const flashcardRouter = createRouter({
                 eq(flashcardReviews.source, "pat")
               )
             );
-          const used = new Set(usedRows.map(u => u.seed));
+          const used = new Set(usedRows.map(row => row.seed));
           const usedInBatch = new Set<number>();
           const baseSeed = (userId * 7919 + 17) % 1000000 || 1;
 
           let candidate = 0;
-          while (results.length < input.limit && candidate < PAT_TOTAL_SLOTS) {
-            const catIndex = candidate % patCategories.length;
+          while (
+            results.length < input.limit &&
+            candidate < PAT_TOTAL_SLOTS
+          ) {
+            const categoryIndex = candidate % patCategories.length;
             const slotIndex = Math.floor(candidate / patCategories.length);
-            const category = patCategories[catIndex]!;
+            const category = patCategories[categoryIndex]!;
             const difficulty =
               patDifficulties[slotIndex % patDifficulties.length]!;
-            const seed = baseSeed + slotIndex * 1000 + catIndex * 100000;
+            const seed =
+              baseSeed + slotIndex * 1000 + categoryIndex * 100000;
 
             if (!used.has(seed) && !usedInBatch.has(seed)) {
-              const problem = generateProblem(category, { seed, difficulty });
+              const questionData = await generatePatFlashcard(
+                category,
+                seed,
+                difficulty
+              );
               results.push({
                 source: "pat",
                 questionId: seed,
                 seed,
                 category,
                 difficulty,
-                questionData: problem,
+                questionData,
                 review: null,
                 isNew: true,
               });
@@ -218,24 +236,24 @@ export const flashcardRouter = createRouter({
             .orderBy(flashcardReviews.nextReview)
             .limit(input.limit);
 
-          for (const r of reviewed) {
+          for (const row of reviewed) {
             results.push({
               source: "dat",
-              questionId: r.questionId,
+              questionId: row.questionId,
               questionData: {
-                questionText: r.questionText,
-                options: r.options,
-                subject: r.subject,
-                topic: r.topic,
-                explanation: r.explanation,
+                questionText: row.questionText,
+                options: row.options,
+                subject: row.subject,
+                topic: row.topic,
+                explanation: row.explanation,
               },
               review: {
-                id: r.reviewId,
-                easeFactor: r.easeFactor,
-                interval: r.interval,
-                repetitions: r.repetitions,
-                nextReview: r.nextReview,
-                lastReview: r.lastReview,
+                id: row.reviewId,
+                easeFactor: row.easeFactor,
+                interval: row.interval,
+                repetitions: row.repetitions,
+                nextReview: row.nextReview,
+                lastReview: row.lastReview,
               },
               isNew: false,
             });
@@ -264,16 +282,16 @@ export const flashcardRouter = createRouter({
             )
             .limit(input.limit);
 
-          for (const q of newCards) {
+          for (const question of newCards) {
             results.push({
               source: "dat",
-              questionId: q.id,
+              questionId: question.id,
               questionData: {
-                questionText: q.questionText,
-                options: q.options,
-                subject: q.subject,
-                topic: q.topic,
-                explanation: q.explanation,
+                questionText: question.questionText,
+                options: question.options,
+                subject: question.subject,
+                topic: question.topic,
+                explanation: question.explanation,
               },
               review: null,
               isNew: true,
@@ -282,13 +300,13 @@ export const flashcardRouter = createRouter({
         }
       }
 
-      results.sort((a, b) => {
-        if (a.isNew && !b.isNew) return 1;
-        if (!a.isNew && b.isNew) return -1;
-        if (a.review && b.review) {
+      results.sort((first, second) => {
+        if (first.isNew && !second.isNew) return 1;
+        if (!first.isNew && second.isNew) return -1;
+        if (first.review && second.review) {
           return (
-            new Date(a.review.nextReview).getTime() -
-            new Date(b.review.nextReview).getTime()
+            new Date(first.review.nextReview).getTime() -
+            new Date(second.review.nextReview).getTime()
           );
         }
         return 0;
@@ -303,16 +321,7 @@ export const flashcardRouter = createRouter({
         source: z.enum(["pat", "dat"]),
         questionId: z.number().int().positive(),
         quality: z.number().int().min(0).max(5),
-        category: z
-          .enum([
-            "keyholes",
-            "tfe",
-            "angle_ranking",
-            "hole_punching",
-            "cube_counting",
-            "pattern_folding",
-          ])
-          .optional(),
+        category: z.enum(PREDENT_PAT_CATEGORIES).optional(),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
       })
     )
@@ -327,11 +336,11 @@ export const flashcardRouter = createRouter({
             message: "category and difficulty are required for PAT flashcards",
           });
         }
-        // Validate that the seed actually generates a solvable question
-        getCorrectAnswer(input.category as PatCategory, {
-          seed: input.questionId,
-          difficulty: input.difficulty as Difficulty,
-        });
+        await generatePatFlashcard(
+          input.category,
+          input.questionId,
+          input.difficulty
+        );
       } else {
         const [question] = await db
           .select({ id: datQuestions.id })
@@ -343,7 +352,6 @@ export const flashcardRouter = createRouter({
             )
           )
           .limit(1);
-
         if (!question) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -414,7 +422,6 @@ export const flashcardRouter = createRouter({
       .select({ total: count() })
       .from(flashcardReviews)
       .where(eq(flashcardReviews.userId, userId));
-
     const totalReviewed = totalResult?.total ?? 0;
 
     const [dueResult] = await db
@@ -426,7 +433,6 @@ export const flashcardRouter = createRouter({
           lte(flashcardReviews.nextReview, now)
         )
       );
-
     const cardsDueToday = dueResult?.total ?? 0;
 
     const allReviews = await db
@@ -443,16 +449,11 @@ export const flashcardRouter = createRouter({
     let reviewCount = 0;
     let masteredCount = 0;
 
-    for (const r of allReviews) {
-      if (r.repetitions === 0) {
-        newCount++;
-      } else if (r.interval < 21) {
-        learningCount++;
-      } else if (r.interval < 60) {
-        reviewCount++;
-      } else {
-        masteredCount++;
-      }
+    for (const review of allReviews) {
+      if (review.repetitions === 0) newCount++;
+      else if (review.interval < 21) learningCount++;
+      else if (review.interval < 60) reviewCount++;
+      else masteredCount++;
     }
 
     return {
@@ -475,14 +476,11 @@ export const flashcardRouter = createRouter({
     )
     .query(async ({ ctx, input }) => {
       const db = getDb();
-
-      const history = await db
+      return db
         .select()
         .from(flashcardReviews)
         .where(eq(flashcardReviews.userId, ctx.user.id))
         .orderBy(desc(flashcardReviews.lastReview))
         .limit(input.limit);
-
-      return history;
     }),
 });

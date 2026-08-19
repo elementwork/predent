@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -41,6 +43,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare pinned ManipAT runtime
+        run: node tools/prepare-manipat-runtime.mjs
 
       - name: Audit production dependencies
         run: npm run audit:production
@@ -87,8 +92,6 @@ jobs:
         run: npm run db:capacity
         env:
           TEST_DATABASE_URL: postgresql://predent:predent_test_password@localhost:5432/predent_test
-          # CI disposable Postgres has 100 max_connections (97 usable); a pool of
-          # 8 stays under the 10% guardrail the capacity check enforces.
           DATABASE_POOL_MAX: 8
 
       - name: Run frontend tests with coverage thresholds
@@ -115,6 +118,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -132,9 +137,6 @@ jobs:
       - name: Scan image for high-severity vulnerabilities
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          # The action defaults to `scan-type: fs`, which scans the repo
-          # filesystem and flags the local `.env` file's secrets. Scan the
-          # built image instead (`.dockerignore` keeps `.env` out of it).
           scan-type: image
           image-ref: predent:latest
           trivyignores: .trivyignore
