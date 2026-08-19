@@ -228,29 +228,6 @@ export const patRouter = createRouter({
       };
     }),
 
-  /**
-   * Kept temporarily so old, unreferenced generator components still type-check
-   * during the cutover. Production PAT flows must use createSession/submitSession.
-   */
-  recordAttempt: authedQuery
-    .input(
-      z.object({
-        category: categoryEnum,
-        difficulty: difficultyEnum,
-        seed: z.number().int(),
-        userAnswer: z.number().int().min(-1).max(4),
-        timeSpent: z.number().int(),
-        sessionId: z.string(),
-      })
-    )
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message:
-          "Legacy PAT scoring is retired. Start a new ManipAT-backed PAT session.",
-      });
-    }),
-
   getQuota: authedQuery.query(async ({ ctx }) => getQuotaState(ctx.user.id)),
 
   getStats: authedQuery.query(async ({ ctx }) => {

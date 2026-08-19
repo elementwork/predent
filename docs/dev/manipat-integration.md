@@ -9,10 +9,11 @@ service and must not become an HTTP dependency of the production site.
   commit.
 - Predent server code imports only `vendor/manipat/runtime/dist/index.js`.
 - `tools/prepare-manipat-runtime.mjs` installs/builds the pinned submodule and
-  exposes the two third-party runtime packages (`manifold-3d` and `three`) to
-  Predent's server bundle.
+  exposes the required ManipAT workspace packages plus `manifold-3d` and
+  `three` to Predent's server bundle.
 - Vercel runs the prepare script during install. GitHub Actions checks out
-  submodules and runs it once before the normal verification gates.
+  submodules, builds ManipAT before dependency integrity checks, then links the
+  built runtime before typecheck/tests/build.
 - To upgrade ManipAT, move the submodule pointer intentionally in a dedicated
   change and re-run the full Predent release gates.
 
@@ -67,11 +68,13 @@ concept rather than a fifth product difficulty setting.
   submitted.
 - Submitting the same session again is idempotent at the attempt-record level.
 
-## Legacy code
+## Single source of PAT truth
 
-The old `src/components/pat-generators/logic` and
-`server/lib/pat-generation` implementations remain temporarily as dead
-rollback/reference code during the first production cutover. Production
-practice, generator, scoring, and PAT flashcard paths must not import them.
-Delete the dead implementations after the ManipAT-backed preview and CI gates
-are accepted.
+ManipAT is the only PAT generation/scoring implementation used by Predent.
+Predent's former browser generators, duplicate server generators, seed-scoring
+endpoint, and standalone PAT generation/rendering CLI have been retired.
+
+Predent owns product concerns above the engine boundary: authentication,
+quotas, session orchestration, timing, persistence, analytics, flashcard SRS,
+responsive UI, and post-submission review. Generator/solver/validator/rendering
+truth stays in ManipAT.

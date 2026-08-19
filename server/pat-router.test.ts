@@ -118,21 +118,6 @@ describe.skipIf(!hasDb)("patRouter ManipAT sessions", () => {
       })
     ).rejects.toThrow("quota exhausted");
   });
-
-  it("retires the legacy seed-scoring endpoint", async () => {
-    const user = await createTestUser();
-    const caller = createCaller(user);
-    await expect(
-      caller.recordAttempt({
-        category: "keyholes",
-        difficulty: "beginner",
-        seed: 1,
-        userAnswer: 0,
-        timeSpent: 10,
-        sessionId: "legacy",
-      })
-    ).rejects.toThrow("Legacy PAT scoring is retired");
-  });
 });
 
 describe.skipIf(!hasDb)("patRouter analytics", () => {
