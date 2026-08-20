@@ -92,7 +92,7 @@ test("compiled production server renders and scores a six-category ManipAT corpu
     {
       name: Session.productionCookieName,
       value: token,
-      url: "http://localhost:3000",
+      url: "https://localhost:3000",
       httpOnly: true,
       secure: true,
       sameSite: "Lax",
