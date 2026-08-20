@@ -48,18 +48,28 @@ async function assertMobileGeometry(page: Page) {
 
   const promptSvgs = page.locator(".manipat-svg svg");
   expect(await promptSvgs.count()).toBeGreaterThan(0);
-  const promptBox = await promptSvgs.first().boundingBox();
-  expect(promptBox?.width ?? 0).toBeGreaterThan(20);
-  expect(promptBox?.height ?? 0).toBeGreaterThan(20);
+  const promptSvg = promptSvgs.first();
+  await expect(promptSvg).toBeVisible();
+  await expect
+    .poll(async () => (await promptSvg.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(20);
+  await expect
+    .poll(async () => (await promptSvg.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(20);
 
   const choices = page.locator('button[aria-pressed]');
   const choiceCount = await choices.count();
   expect(choiceCount).toBeGreaterThanOrEqual(4);
   expect(choiceCount).toBeLessThanOrEqual(5);
   for (let index = 0; index < choiceCount; index += 1) {
-    const box = await choices.nth(index).boundingBox();
-    expect(box?.width ?? 0).toBeGreaterThan(40);
-    expect(box?.height ?? 0).toBeGreaterThan(40);
+    const choice = choices.nth(index);
+    await expect(choice).toBeVisible();
+    await expect
+      .poll(async () => (await choice.boundingBox())?.width ?? 0)
+      .toBeGreaterThan(40);
+    await expect
+      .poll(async () => (await choice.boundingBox())?.height ?? 0)
+      .toBeGreaterThan(40);
   }
 }
 
