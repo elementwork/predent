@@ -16,10 +16,9 @@ async function dismissOnboarding(page: Page) {
   const onboarding = page.getByRole("dialog", {
     name: "Welcome to PreDent Canada",
   });
-  if (await onboarding.isVisible()) {
-    await onboarding.getByRole("button", { name: "Skip" }).click();
-    await expect(onboarding).toBeHidden();
-  }
+  await expect(onboarding).toBeVisible({ timeout: 10_000 });
+  await onboarding.getByRole("button", { name: "Skip" }).click();
+  await expect(onboarding).toBeHidden();
 }
 
 async function setQuestionCount(page: Page, count: number) {
@@ -108,13 +107,25 @@ test("compiled production server renders and scores a six-category ManipAT corpu
       sameSite: "Lax",
     },
   ]);
+  await context.route("**/api/trpc/**", async route => {
+    await route.continue({
+      headers: {
+        ...route.request().headers(),
+        origin: "https://localhost:3000",
+      },
+    });
+  });
   await page.addInitScript(() => {
     localStorage.setItem("predent_telemetry_consent", "denied");
   });
 
+  let onboardingDismissed = false;
   for (const [category, displayName, choicesUseSvg] of categories) {
     await page.goto(`/pat-academy/practice?category=${category}`);
-    await dismissOnboarding(page);
+    if (!onboardingDismissed) {
+      await dismissOnboarding(page);
+      onboardingDismissed = true;
+    }
     await expect(page.getByRole("heading", { name: "PAT Practice" })).toBeVisible();
     await setQuestionCount(page, 5);
     const start = page.getByRole("button", {
