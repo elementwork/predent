@@ -3,6 +3,7 @@ import { Session } from "@contracts/constants";
 import { signSessionToken } from "../server/auth/session";
 import { createTestUser } from "../server/test-helpers";
 
+const productionPatBaseUrl = "https://localhost:3443";
 const categories = [
   ["keyholes", "Keyholes", true],
   ["tfe", "Top-Front-End", true],
@@ -101,20 +102,12 @@ test("compiled production server renders and scores a six-category ManipAT corpu
     {
       name: Session.productionCookieName,
       value: token,
-      url: "https://localhost:3000",
+      url: productionPatBaseUrl,
       httpOnly: true,
       secure: true,
       sameSite: "Lax",
     },
   ]);
-  await context.route("**/api/trpc/**", async route => {
-    await route.continue({
-      headers: {
-        ...route.request().headers(),
-        origin: "https://localhost:3000",
-      },
-    });
-  });
   await page.addInitScript(() => {
     localStorage.setItem("predent_telemetry_consent", "denied");
   });

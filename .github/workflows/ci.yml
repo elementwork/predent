@@ -117,7 +117,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://predent:predent_test_password@localhost:5432/predent_test
           APP_SECRET: ci-only-session-secret-at-least-32-characters
-          PUBLIC_APP_URL: https://localhost:3000
+          PUBLIC_APP_URL: https://localhost:3443
           PAT_E2E_PRODUCTION: "1"
 
       - name: Upload PAT visual corpus
