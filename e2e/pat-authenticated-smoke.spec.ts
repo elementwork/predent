@@ -12,6 +12,16 @@ const categories = [
   ["pattern_folding", "Pattern Folding", true],
 ] as const;
 
+async function dismissOnboarding(page: Page) {
+  const onboarding = page.getByRole("dialog", {
+    name: "Welcome to PreDent Canada",
+  });
+  if (await onboarding.isVisible()) {
+    await onboarding.getByRole("button", { name: "Skip" }).click();
+    await expect(onboarding).toBeHidden();
+  }
+}
+
 async function setQuestionCount(page: Page, count: number) {
   const range = page.locator('input[type="range"]');
   await expect(range).toBeVisible();
@@ -104,6 +114,7 @@ test("compiled production server renders and scores a six-category ManipAT corpu
 
   for (const [category, displayName, choicesUseSvg] of categories) {
     await page.goto(`/pat-academy/practice?category=${category}`);
+    await dismissOnboarding(page);
     await expect(page.getByRole("heading", { name: "PAT Practice" })).toBeVisible();
     await setQuestionCount(page, 5);
     const start = page.getByRole("button", {
