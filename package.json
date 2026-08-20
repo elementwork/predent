@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node tools/prerender.mjs && node tools/check-bundle-budget.mjs && esbuild server/boot.ts --platform=node --bundle --format=esm --outdir=dist --banner:js=\"import { createRequire as __predentCreateRequire } from 'module';const require = __predentCreateRequire(import.meta.url);\" && mkdir -p dist/api && esbuild server/app.ts --platform=node --bundle --format=esm --outfile=dist/api/index.js --packages=external",
+    "build": "vite build && node tools/prerender.mjs && node tools/check-bundle-budget.mjs && esbuild server/boot.ts --platform=node --bundle --format=esm --outdir=dist --external:manifold-3d --banner:js=\"import { createRequire as __predentCreateRequire } from 'module';const require = __predentCreateRequire(import.meta.url);\" && mkdir -p dist/api && esbuild server/app.ts --platform=node --bundle --format=esm --outfile=dist/api/index.js --packages=external",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
