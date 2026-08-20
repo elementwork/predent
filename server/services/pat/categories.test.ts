@@ -27,6 +27,10 @@ describe("PAT category mapping", () => {
     const plan = categoryPlan("exam", 90);
     expect(plan).toHaveLength(90);
     expect(plan.slice(0, 15).every(value => value === "keyholes")).toBe(true);
+    expect(plan.slice(15, 30).every(value => value === "tfe")).toBe(true);
+    expect(plan.slice(30, 45).every(value => value === "angle_ranking")).toBe(true);
+    expect(plan.slice(45, 60).every(value => value === "hole_punching")).toBe(true);
+    expect(plan.slice(60, 75).every(value => value === "cube_counting")).toBe(true);
     expect(plan.slice(75).every(value => value === "pattern_folding")).toBe(true);
   });
 

@@ -42,13 +42,24 @@ type PredentCategory =
 interface SessionQuestion {
   readonly instanceId: string;
   readonly publicQuestion: PublicPatQuestion;
+  readonly userAnswer: number | null;
+  readonly timeSpent: number;
+  readonly flagged: boolean;
 }
 
 interface SessionState {
   readonly sessionId: string;
+  readonly mode: PracticeMode;
+  readonly category: PredentCategory | null;
+  readonly difficulty: Difficulty;
   readonly questions: readonly SessionQuestion[];
   readonly sessionTimeLimitSeconds: number | null;
   readonly engineVersion: string;
+}
+
+interface SessionPayload extends SessionState {
+  readonly remainingSeconds: number | null;
+  readonly expired: boolean;
 }
 
 interface SessionResult {
@@ -118,11 +129,22 @@ export default function PATPracticePage() {
   const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [paused, setPaused] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const timeSpent = useRef<Record<number, number>>({});
   const [results, setResults] = useState<readonly SessionResult[]>([]);
+  const [finishing, setFinishing] = useState(false);
+  const timeSpent = useRef<Record<number, number>>({});
+  const answersRef = useRef<Record<number, number>>({});
+  const flaggedRef = useRef<Set<number>>(new Set());
+  const progressQueue = useRef<Promise<void>>(Promise.resolve());
+  const hydratedSessionId = useRef<string | null>(null);
 
   const quota = trpc.pat.getQuota.useQuery(undefined, { enabled: isAuthenticated });
+  const activeSession = trpc.pat.getActiveSession.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchOnWindowFocus: true,
+  });
   const createSession = trpc.pat.createSession.useMutation();
+  const saveProgress = trpc.pat.saveProgress.useMutation();
+  const abandonSession = trpc.pat.abandonSession.useMutation();
   const submitSession = trpc.pat.submitSession.useMutation();
 
   const effectiveCount =
@@ -134,6 +156,88 @@ export default function PATPracticePage() {
           ? 90
           : count;
 
+  const hydrateSession = useCallback((payload: SessionPayload) => {
+    const restoredAnswers: Record<number, number> = {};
+    const restoredFlags = new Set<number>();
+    const restoredTimes: Record<number, number> = {};
+    payload.questions.forEach((question, index) => {
+      if (question.userAnswer !== null) restoredAnswers[index] = question.userAnswer;
+      if (question.flagged) restoredFlags.add(index);
+      restoredTimes[index] = question.timeSpent;
+    });
+    const firstUnanswered = payload.questions.findIndex(
+      question => question.userAnswer === null
+    );
+
+    answersRef.current = restoredAnswers;
+    flaggedRef.current = restoredFlags;
+    timeSpent.current = restoredTimes;
+    progressQueue.current = Promise.resolve();
+    setSession({
+      sessionId: payload.sessionId,
+      mode: payload.mode,
+      category: payload.category,
+      difficulty: payload.difficulty,
+      questions: payload.questions,
+      sessionTimeLimitSeconds: payload.sessionTimeLimitSeconds,
+      engineVersion: payload.engineVersion,
+    });
+    setPracticeMode(payload.mode);
+    if (payload.category) setCategory(payload.category);
+    setDifficulty(payload.difficulty);
+    setAnswers(restoredAnswers);
+    setFlagged(restoredFlags);
+    setTimeLeft(payload.remainingSeconds);
+    setCurrentIndex(firstUnanswered >= 0 ? firstUnanswered : 0);
+    setResults([]);
+    setPaused(false);
+    setFinishing(false);
+    hydratedSessionId.current = payload.sessionId;
+    setPhase("active");
+  }, []);
+
+  useEffect(() => {
+    const restored = activeSession.data as SessionPayload | null | undefined;
+    if (
+      restored &&
+      phase === "setup" &&
+      !session &&
+      hydratedSessionId.current !== restored.sessionId
+    ) {
+      hydrateSession(restored);
+    }
+  }, [activeSession.data, hydrateSession, phase, session]);
+
+  const persistQuestion = useCallback(
+    (
+      index: number,
+      patch: {
+        userAnswer?: number;
+        timeSpent?: number;
+        flagged?: boolean;
+      } = {}
+    ): Promise<void> => {
+      if (!session) return Promise.resolve();
+      const question = session.questions[index];
+      if (!question) return Promise.resolve();
+      const payload = {
+        sessionId: session.sessionId,
+        instanceId: question.instanceId,
+        userAnswer: patch.userAnswer ?? answersRef.current[index] ?? -1,
+        timeSpent: patch.timeSpent ?? timeSpent.current[index] ?? 0,
+        flagged: patch.flagged ?? flaggedRef.current.has(index),
+      };
+      const task = progressQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          await saveProgress.mutateAsync(payload);
+        });
+      progressQueue.current = task.catch(() => undefined);
+      return task;
+    },
+    [saveProgress, session]
+  );
+
   const startSession = useCallback(async () => {
     try {
       const created = await createSession.mutateAsync({
@@ -143,65 +247,112 @@ export default function PATPracticePage() {
         count,
         timeLimit: practiceMode === "exam" ? true : timeLimit,
       });
-      setSession({
-        sessionId: created.sessionId,
-        questions: created.questions,
-        sessionTimeLimitSeconds: created.sessionTimeLimitSeconds,
-        engineVersion: created.engineInfo.engineVersion,
-      });
-      setAnswers({});
-      setFlagged(new Set());
-      timeSpent.current = {};
-      setCurrentIndex(0);
-      setTimeLeft(created.sessionTimeLimitSeconds);
-      setResults([]);
-      setPaused(false);
-      setPhase("active");
-      await quota.refetch();
+      hydratedSessionId.current = null;
+      hydrateSession(created as SessionPayload);
+      await Promise.all([quota.refetch(), activeSession.refetch()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to create PAT session");
     }
-  }, [category, count, createSession, difficulty, practiceMode, quota, timeLimit]);
+  }, [
+    activeSession,
+    category,
+    count,
+    createSession,
+    difficulty,
+    hydrateSession,
+    practiceMode,
+    quota,
+    timeLimit,
+  ]);
 
   const finishSession = useCallback(async () => {
-    if (!session || submitSession.isPending) return;
+    if (!session || finishing || submitSession.isPending) return;
+    setFinishing(true);
     try {
+      try {
+        await persistQuestion(currentIndex, {
+          userAnswer: answersRef.current[currentIndex] ?? -1,
+          timeSpent: timeSpent.current[currentIndex] ?? 0,
+          flagged: flaggedRef.current.has(currentIndex),
+        });
+      } catch (error) {
+        if (session.mode !== "exam") throw error;
+        // At the immutable exam deadline the server rejects late progress.
+        // Submission scores the last state persisted before expiry.
+      }
+
       const submitted = await submitSession.mutateAsync({
         sessionId: session.sessionId,
-        answers: session.questions.map((question, index) => ({
-          instanceId: question.instanceId,
-          userAnswer: answers[index] ?? -1,
-          timeSpent: timeSpent.current[index] ?? 0,
-        })),
       });
       setResults(submitted.results as readonly SessionResult[]);
       submitted.results.forEach(result =>
         events.patQuestionAnswered(result.category, result.difficulty, result.isCorrect)
       );
       setPhase("review");
+      hydratedSessionId.current = null;
       await Promise.all([
         utils.pat.getStats.invalidate(),
         utils.pat.getAnalytics.invalidate(),
+        utils.pat.getActiveSession.invalidate(),
       ]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to score PAT session");
+    } finally {
+      setFinishing(false);
     }
-  }, [answers, session, submitSession, utils.pat]);
+  }, [
+    currentIndex,
+    finishing,
+    persistQuestion,
+    session,
+    submitSession,
+    utils.pat,
+  ]);
 
   useEffect(() => {
-    if (phase !== "active" || paused || submitSession.isPending || !session) return;
+    if (phase !== "active" || paused || finishing || !session) return;
     const timer = window.setInterval(() => {
-      timeSpent.current[currentIndex] = (timeSpent.current[currentIndex] ?? 0) + 1;
+      const nextTime = (timeSpent.current[currentIndex] ?? 0) + 1;
+      timeSpent.current[currentIndex] = nextTime;
+      if (nextTime % 5 === 0) {
+        void persistQuestion(currentIndex, { timeSpent: nextTime }).catch(() => {
+          // Deadline expiry is handled by the countdown submission path.
+        });
+      }
       setTimeLeft(previous =>
         previous === null ? null : Math.max(0, previous - 1)
       );
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [currentIndex, paused, phase, session, submitSession.isPending]);
+  }, [currentIndex, finishing, paused, persistQuestion, phase, session]);
 
   useEffect(() => {
     if (phase === "active" && timeLeft === 0) void finishSession();
   }, [finishSession, phase, timeLeft]);
+
+  const discardSession = useCallback(async () => {
+    if (!session) return;
+    if (!window.confirm("Discard this PAT session? Generated-question quota will not be refunded.")) {
+      return;
+    }
+    try {
+      await progressQueue.current.catch(() => undefined);
+      await abandonSession.mutateAsync({ sessionId: session.sessionId });
+      setSession(null);
+      setResults([]);
+      setAnswers({});
+      setFlagged(new Set());
+      answersRef.current = {};
+      flaggedRef.current = new Set();
+      timeSpent.current = {};
+      progressQueue.current = Promise.resolve();
+      hydratedSessionId.current = null;
+      setPhase("setup");
+      await utils.pat.getActiveSession.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to discard PAT session");
+    }
+  }, [abandonSession, session, utils.pat]);
 
   const categoryStats = useMemo(() => {
     const map = new Map<PredentCategory, { correct: number; total: number }>();
@@ -214,7 +365,7 @@ export default function PATPracticePage() {
     return [...map.entries()];
   }, [results]);
 
-  if (isAuthLoading) {
+  if (isAuthLoading || (isAuthenticated && activeSession.isLoading && !session)) {
     return (
       <div className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" />
@@ -344,7 +495,7 @@ export default function PATPracticePage() {
               {practiceMode === "exam" ? (
                 <div className="flex items-center gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--page-muted)] px-3 py-2 text-sm text-[var(--text-secondary)]">
                   <Clock className="w-4 h-4 shrink-0" />
-                  Exam mode is fixed at 90 questions in 60 minutes. The timer cannot be paused.
+                  Exam mode is fixed at 90 questions in 60 minutes. The server deadline cannot be paused or extended by refreshing or switching devices.
                 </div>
               ) : (
                 <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
@@ -381,14 +532,20 @@ export default function PATPracticePage() {
     const predentCategory = canonicalToPredent[question.publicQuestion.category];
     const meta = categoryMeta[predentCategory];
 
-    if (paused && practiceMode !== "exam") {
+    if (paused && session.mode !== "exam") {
       return (
         <main className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-[var(--page-surface)]">
-            <CardContent className="p-8 text-center">
-              <Pause className="w-10 h-10 mx-auto text-[#F59E0B] mb-3" />
-              <h2 className="text-xl font-bold mb-4">Practice paused</h2>
+            <CardContent className="p-8 text-center space-y-3">
+              <Pause className="w-10 h-10 mx-auto text-[#F59E0B]" />
+              <h2 className="text-xl font-bold">Practice paused</h2>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Your answers, flags, and timing are saved to your account and can be resumed on another device.
+              </p>
               <Button className="w-full" onClick={() => setPaused(false)}>Resume</Button>
+              <Button variant="outline" className="w-full" onClick={() => void discardSession()}>
+                Discard Session
+              </Button>
             </CardContent>
           </Card>
         </main>
@@ -397,34 +554,47 @@ export default function PATPracticePage() {
 
     return (
       <main className="min-h-screen bg-[var(--page-bg)] pb-10">
-        <header className="sticky top-0 z-20 bg-[var(--page-surface)] border-b border-[var(--border-color)] px-4 py-3">
-          <div className="max-w-5xl mx-auto flex items-center gap-3">
-            {practiceMode !== "exam" && (
-              <button type="button" onClick={() => setPaused(true)} aria-label="Pause">
+        <header className="sticky top-0 z-20 bg-[var(--page-surface)] border-b border-[var(--border-color)] px-3 sm:px-4 py-3">
+          <div className="max-w-5xl mx-auto flex flex-wrap items-center gap-2 sm:gap-3">
+            {session.mode !== "exam" && (
+              <button
+                type="button"
+                onClick={() => {
+                  void persistQuestion(currentIndex, {
+                    timeSpent: timeSpent.current[currentIndex] ?? 0,
+                  });
+                  setPaused(true);
+                }}
+                aria-label="Pause"
+              >
                 <Pause className="w-4 h-4" />
               </button>
             )}
-            <span className="text-sm">{currentIndex + 1}/{session.questions.length}</span>
-            <Badge variant="outline" style={{ color: meta.color, borderColor: meta.color }}>
+            <button type="button" onClick={() => void discardSession()} aria-label="Discard session">
+              <X className="w-4 h-4" />
+            </button>
+            <span className="text-xs sm:text-sm">{currentIndex + 1}/{session.questions.length}</span>
+            <Badge variant="outline" className="text-xs" style={{ color: meta.color, borderColor: meta.color }}>
               {meta.name}
             </Badge>
-            <Badge variant="outline">Band {question.publicQuestion.difficultyBand}</Badge>
-            <div className="ml-auto flex items-center gap-3">
+            <Badge variant="outline" className="text-xs">Band {question.publicQuestion.difficultyBand}</Badge>
+            <div className="ml-auto flex items-center gap-2 sm:gap-3">
               {timeLeft !== null && (
-                <span className={timeLeft <= 60 ? "text-[#EF4444] font-mono" : "font-mono"}>
+                <span className={`text-xs sm:text-sm ${timeLeft <= 60 ? "text-[#EF4444] font-mono" : "font-mono"}`}>
                   <Clock className="w-4 h-4 inline mr-1" />{formatTime(timeLeft)}
                 </span>
               )}
               <button
                 type="button"
-                onClick={() =>
-                  setFlagged(previous => {
-                    const next = new Set(previous);
-                    if (next.has(currentIndex)) next.delete(currentIndex);
-                    else next.add(currentIndex);
-                    return next;
-                  })
-                }
+                onClick={() => {
+                  const nextFlagged = !flaggedRef.current.has(currentIndex);
+                  const next = new Set(flaggedRef.current);
+                  if (nextFlagged) next.add(currentIndex);
+                  else next.delete(currentIndex);
+                  flaggedRef.current = next;
+                  setFlagged(next);
+                  void persistQuestion(currentIndex, { flagged: nextFlagged });
+                }}
                 aria-label="Flag question"
               >
                 <Flag className={`w-4 h-4 ${flagged.has(currentIndex) ? "text-[#F59E0B]" : ""}`} />
@@ -440,35 +610,51 @@ export default function PATPracticePage() {
               <ManipATQuestionRenderer
                 question={question.publicQuestion}
                 selectedIndex={answers[currentIndex]}
-                onSelect={answer => setAnswers(previous => ({ ...previous, [currentIndex]: answer }))}
+                disabled={finishing}
+                onSelect={answer => {
+                  const next = { ...answersRef.current, [currentIndex]: answer };
+                  answersRef.current = next;
+                  setAnswers(next);
+                  void persistQuestion(currentIndex, { userAnswer: answer });
+                }}
               />
             </CardContent>
           </Card>
           <div className="flex items-center justify-between mt-5 gap-3">
             <Button
               variant="outline"
-              disabled={currentIndex === 0 || submitSession.isPending}
-              onClick={() => setCurrentIndex(index => index - 1)}
+              disabled={currentIndex === 0 || finishing}
+              onClick={() => {
+                void persistQuestion(currentIndex, {
+                  timeSpent: timeSpent.current[currentIndex] ?? 0,
+                });
+                setCurrentIndex(index => index - 1);
+              }}
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Previous
             </Button>
-            <span className="text-xs text-[var(--text-tertiary)]">
+            <span className="text-xs text-[var(--text-tertiary)] text-center">
               {Object.keys(answers).length} answered · {flagged.size} flagged
             </span>
             {currentIndex < session.questions.length - 1 ? (
               <Button
-                disabled={submitSession.isPending}
-                onClick={() => setCurrentIndex(index => index + 1)}
+                disabled={finishing}
+                onClick={() => {
+                  void persistQuestion(currentIndex, {
+                    timeSpent: timeSpent.current[currentIndex] ?? 0,
+                  });
+                  setCurrentIndex(index => index + 1);
+                }}
               >
                 Next <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             ) : (
               <Button
                 className="bg-[#10B981] hover:bg-[#059669] text-white"
-                disabled={submitSession.isPending}
+                disabled={finishing}
                 onClick={() => void finishSession()}
               >
-                {submitSession.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+                {finishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
                 Submit
               </Button>
             )}
@@ -540,6 +726,11 @@ export default function PATPracticePage() {
               setPhase("setup");
               setSession(null);
               setResults([]);
+              answersRef.current = {};
+              flaggedRef.current = new Set();
+              timeSpent.current = {};
+              progressQueue.current = Promise.resolve();
+              hydratedSessionId.current = null;
             }}
           >
             <RotateCcw className="w-4 h-4 mr-2" /> Practice Again

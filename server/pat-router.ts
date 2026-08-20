@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery, premiumQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { patAttempts, users } from "@db/schema";
+import { patQuestionInstances, patSessions } from "@db/pat-schema";
 import { computePredictedScore } from "./lib/score-prediction";
 import {
   getPatAggregates,
@@ -15,11 +16,23 @@ import {
   PREDENT_PAT_DIFFICULTIES,
 } from "./services/pat/categories";
 import { generatePatSession } from "./services/pat/session";
-import { openPatInstance } from "./services/pat/runtime";
+import type {
+  PrivatePatQuestionRecord,
+  PublicPatQuestion,
+} from "./services/pat/runtime";
 
 const categoryEnum = z.enum(PREDENT_PAT_CATEGORIES);
 const difficultyEnum = z.enum(PREDENT_PAT_DIFFICULTIES);
 const modeEnum = z.enum(["quick", "category", "timed", "mixed", "exam"]);
+
+type PatSessionRow = typeof patSessions.$inferSelect;
+type PatQuestionRow = typeof patQuestionInstances.$inferSelect;
+
+const asPublicQuestion = (value: Record<string, unknown>): PublicPatQuestion =>
+  value as unknown as PublicPatQuestion;
+const asPrivateRecord = (
+  value: Record<string, unknown>
+): PrivatePatQuestionRecord => value as unknown as PrivatePatQuestionRecord;
 
 const getQuotaState = async (userId: number) => {
   const db = getDb();
@@ -46,6 +59,75 @@ const getQuotaState = async (userId: number) => {
   };
 };
 
+const loadQuestionRows = async (sessionId: string): Promise<PatQuestionRow[]> => {
+  const db = getDb();
+  return db
+    .select()
+    .from(patQuestionInstances)
+    .where(eq(patQuestionInstances.sessionId, sessionId))
+    .orderBy(patQuestionInstances.position);
+};
+
+const remainingSecondsFor = (
+  session: PatSessionRow,
+  questions: readonly PatQuestionRow[],
+  now = new Date()
+): number | null => {
+  if (session.timeLimitSeconds === null) return null;
+  if (session.deadlineAt) {
+    return Math.max(
+      0,
+      Math.ceil((session.deadlineAt.getTime() - now.getTime()) / 1000)
+    );
+  }
+  const elapsed = questions.reduce((total, question) => total + question.timeSpent, 0);
+  return Math.max(0, session.timeLimitSeconds - elapsed);
+};
+
+const publicSessionPayload = (
+  session: PatSessionRow,
+  questions: readonly PatQuestionRow[],
+  now = new Date()
+) => ({
+  sessionId: session.id,
+  mode: session.mode,
+  category: session.category,
+  difficulty: session.difficulty,
+  questionCount: session.questionCount,
+  sessionTimeLimitSeconds: session.timeLimitSeconds,
+  startedAt: session.startedAt,
+  deadlineAt: session.deadlineAt,
+  remainingSeconds: remainingSecondsFor(session, questions, now),
+  engineVersion: session.engineVersion,
+  expired: session.deadlineAt !== null && session.deadlineAt.getTime() <= now.getTime(),
+  questions: questions.map(question => ({
+    instanceId: question.id,
+    publicQuestion: asPublicQuestion(question.publicQuestion),
+    userAnswer: question.userAnswer,
+    timeSpent: question.timeSpent,
+    flagged: question.flagged,
+  })),
+});
+
+const resultForQuestion = (question: PatQuestionRow) => {
+  const record = asPrivateRecord(question.privateRecord);
+  const userAnswer = question.userAnswer ?? -1;
+  const isCorrect =
+    question.userAnswer !== null &&
+    question.userAnswer === record.correctChoiceIndex;
+  return {
+    instanceId: question.id,
+    category: question.category,
+    difficulty: question.difficulty,
+    difficultyBand: question.difficultyBand,
+    canonicalQuestionId: question.canonicalQuestionId,
+    userAnswer,
+    isCorrect,
+    correctChoiceIndex: record.correctChoiceIndex,
+    solution: record.solution,
+  };
+};
+
 export const patRouter = createRouter({
   createSession: authedQuery
     .input(
@@ -62,6 +144,25 @@ export const patRouter = createRouter({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Choose a PAT category for category drill mode.",
+        });
+      }
+
+      const db = getDb();
+      const [activeSession] = await db
+        .select({ id: patSessions.id })
+        .from(patSessions)
+        .where(
+          and(
+            eq(patSessions.userId, ctx.user.id),
+            isNull(patSessions.submittedAt),
+            isNull(patSessions.abandonedAt)
+          )
+        )
+        .limit(1);
+      if (activeSession) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Finish or discard your active PAT session before starting another one.",
         });
       }
 
@@ -84,9 +185,9 @@ export const patRouter = createRouter({
         });
       }
 
-      let session;
+      let generated;
       try {
-        session = await generatePatSession({
+        generated = await generatePatSession({
           userId: ctx.user.id,
           mode: input.mode,
           ...(input.category === undefined ? {} : { category: input.category }),
@@ -102,29 +203,83 @@ export const patRouter = createRouter({
         });
       }
 
-      const db = getDb();
-      const [reservation] = await db
-        .update(users)
-        .set({
-          patQuestionsGenerated: sql`${users.patQuestionsGenerated} + ${session.questionCount}`,
-        })
-        .where(
-          and(
-            eq(users.id, ctx.user.id),
-            sql`${users.patQuestionsGenerated} + ${session.questionCount} <= ${quotaState.quota}`
-          )
-        )
-        .returning({ used: users.patQuestionsGenerated });
+      const startedAt = new Date();
+      const deadlineAt =
+        input.mode === "exam" && generated.sessionTimeLimitSeconds !== null
+          ? new Date(startedAt.getTime() + generated.sessionTimeLimitSeconds * 1000)
+          : null;
 
-      if (!reservation) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "PAT question quota was exhausted by another session.",
+      const reservation = await db.transaction(async tx => {
+        const [reserved] = await tx
+          .update(users)
+          .set({
+            patQuestionsGenerated: sql`${users.patQuestionsGenerated} + ${generated.questionCount}`,
+          })
+          .where(
+            and(
+              eq(users.id, ctx.user.id),
+              sql`${users.patQuestionsGenerated} + ${generated.questionCount} <= ${quotaState.quota}`
+            )
+          )
+          .returning({ used: users.patQuestionsGenerated });
+
+        if (!reserved) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "PAT question quota was exhausted by another session.",
+          });
+        }
+
+        await tx.insert(patSessions).values({
+          id: generated.sessionId,
+          userId: ctx.user.id,
+          mode: input.mode,
+          category: input.mode === "category" ? input.category ?? null : null,
+          difficulty: input.difficulty,
+          questionCount: generated.questionCount,
+          timeLimitSeconds: generated.sessionTimeLimitSeconds,
+          engineVersion: generated.engineInfo.engineVersion,
+          startedAt,
+          deadlineAt,
         });
-      }
+
+        await tx.insert(patQuestionInstances).values(
+          generated.questions.map((question, position) => ({
+            id: question.instanceId,
+            sessionId: generated.sessionId,
+            position,
+            category: question.category,
+            difficulty: question.difficulty,
+            difficultyBand: question.privateRecord.difficultyBand,
+            canonicalQuestionId: question.privateRecord.canonicalQuestionId,
+            publicQuestion: question.publicQuestion as unknown as Record<string, unknown>,
+            privateRecord: question.privateRecord as unknown as Record<string, unknown>,
+          }))
+        );
+
+        return reserved;
+      });
 
       return {
-        ...session,
+        sessionId: generated.sessionId,
+        mode: input.mode,
+        category: input.mode === "category" ? input.category ?? null : null,
+        difficulty: input.difficulty,
+        questionCount: generated.questionCount,
+        sessionTimeLimitSeconds: generated.sessionTimeLimitSeconds,
+        startedAt,
+        deadlineAt,
+        remainingSeconds: generated.sessionTimeLimitSeconds,
+        engineVersion: generated.engineInfo.engineVersion,
+        expired: false,
+        questions: generated.questions.map(question => ({
+          instanceId: question.instanceId,
+          publicQuestion: question.publicQuestion,
+          userAnswer: null,
+          timeSpent: 0,
+          flagged: false,
+        })),
+        engineInfo: generated.engineInfo,
         quota: {
           tier: quotaState.tier,
           quota: quotaState.quota,
@@ -134,97 +289,186 @@ export const patRouter = createRouter({
       };
     }),
 
-  submitSession: authedQuery
+  getActiveSession: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const [session] = await db
+      .select()
+      .from(patSessions)
+      .where(
+        and(
+          eq(patSessions.userId, ctx.user.id),
+          isNull(patSessions.submittedAt),
+          isNull(patSessions.abandonedAt)
+        )
+      )
+      .orderBy(desc(patSessions.createdAt))
+      .limit(1);
+    if (!session) return null;
+    const questions = await loadQuestionRows(session.id);
+    return publicSessionPayload(session, questions);
+  }),
+
+  saveProgress: authedQuery
     .input(
       z.object({
         sessionId: z.string().uuid(),
-        answers: z
-          .array(
-            z.object({
-              instanceId: z.string().min(20),
-              userAnswer: z.number().int().min(-1).max(4),
-              timeSpent: z.number().int().min(0).max(7200),
-            })
-          )
-          .min(1)
-          .max(90),
+        instanceId: z.string().uuid(),
+        userAnswer: z.number().int().min(-1).max(4),
+        timeSpent: z.number().int().min(0).max(7200),
+        flagged: z.boolean(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const decoded = input.answers.map(answer => {
-        try {
-          const claims = openPatInstance(answer.instanceId, {
-            userId: ctx.user.id,
-            sessionId: input.sessionId,
-          });
-          const isCorrect =
-            answer.userAnswer === claims.privateRecord.correctChoiceIndex;
-          return {
-            instanceId: answer.instanceId,
-            claims,
-            userAnswer: answer.userAnswer,
-            timeSpent: answer.timeSpent,
-            isCorrect,
-          };
-        } catch (error) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Invalid PAT question instance",
-          });
-        }
-      });
-
       const db = getDb();
-      const existingRows = await db
-        .select({ questionId: patAttempts.questionId })
-        .from(patAttempts)
+      const [session] = await db
+        .select()
+        .from(patSessions)
         .where(
           and(
-            eq(patAttempts.userId, ctx.user.id),
-            eq(patAttempts.sessionId, input.sessionId)
+            eq(patSessions.id, input.sessionId),
+            eq(patSessions.userId, ctx.user.id)
           )
-        );
-      const recorded = new Set(existingRows.map(row => row.questionId));
-      const pending: Array<typeof patAttempts.$inferInsert> = [];
-      const seen = new Set<string>();
-
-      for (const item of decoded) {
-        const questionId = item.claims.privateRecord.canonicalQuestionId;
-        if (recorded.has(questionId) || seen.has(questionId)) continue;
-        seen.add(questionId);
-        pending.push({
-          userId: ctx.user.id,
-          category: item.claims.category,
-          difficulty: item.claims.difficulty,
-          questionId,
-          userAnswer: item.userAnswer < 0 ? null : item.userAnswer,
-          isCorrect: item.isCorrect,
-          timeSpent: item.timeSpent,
-          sessionId: input.sessionId,
+        )
+        .limit(1);
+      if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+      if (session.submittedAt || session.abandonedAt) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This PAT session is already closed.",
+        });
+      }
+      if (session.deadlineAt && session.deadlineAt.getTime() <= Date.now()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "PAT session time limit has expired.",
         });
       }
 
-      if (pending.length > 0) {
-        await db.insert(patAttempts).values(pending);
+      const [saved] = await db
+        .update(patQuestionInstances)
+        .set({
+          userAnswer: input.userAnswer < 0 ? null : input.userAnswer,
+          timeSpent: input.timeSpent,
+          flagged: input.flagged,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(patQuestionInstances.id, input.instanceId),
+            eq(patQuestionInstances.sessionId, input.sessionId)
+          )
+        )
+        .returning({ id: patQuestionInstances.id });
+      if (!saved) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "PAT question instance does not belong to this session.",
+        });
       }
+      return { saved: true };
+    }),
+
+  abandonSession: authedQuery
+    .input(z.object({ sessionId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const [abandoned] = await db
+        .update(patSessions)
+        .set({ abandonedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(patSessions.id, input.sessionId),
+            eq(patSessions.userId, ctx.user.id),
+            isNull(patSessions.submittedAt),
+            isNull(patSessions.abandonedAt)
+          )
+        )
+        .returning({ id: patSessions.id });
+      if (!abandoned) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "PAT session is already closed or does not exist.",
+        });
+      }
+      return { abandoned: true };
+    }),
+
+  submitSession: authedQuery
+    .input(z.object({ sessionId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const now = new Date();
+      const finalized = await db.transaction(async tx => {
+        const [session] = await tx
+          .select()
+          .from(patSessions)
+          .where(
+            and(
+              eq(patSessions.id, input.sessionId),
+              eq(patSessions.userId, ctx.user.id)
+            )
+          )
+          .limit(1);
+        if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+        if (session.abandonedAt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This PAT session was discarded.",
+          });
+        }
+
+        const questions = await tx
+          .select()
+          .from(patQuestionInstances)
+          .where(eq(patQuestionInstances.sessionId, input.sessionId))
+          .orderBy(patQuestionInstances.position);
+        if (questions.length !== session.questionCount) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "PAT session question state is incomplete.",
+          });
+        }
+
+        if (!session.submittedAt) {
+          await tx
+            .update(patSessions)
+            .set({ submittedAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(patSessions.id, input.sessionId),
+                eq(patSessions.userId, ctx.user.id),
+                isNull(patSessions.submittedAt),
+                isNull(patSessions.abandonedAt)
+              )
+            );
+
+          const attempts = questions.map(question => {
+            const record = asPrivateRecord(question.privateRecord);
+            return {
+              userId: ctx.user.id,
+              category: question.category,
+              difficulty: question.difficulty,
+              questionId: question.canonicalQuestionId,
+              userAnswer: question.userAnswer,
+              isCorrect:
+                question.userAnswer !== null &&
+                question.userAnswer === record.correctChoiceIndex,
+              timeSpent: question.timeSpent,
+              sessionId: input.sessionId,
+            };
+          });
+          if (attempts.length > 0) {
+            await tx.insert(patAttempts).values(attempts).onConflictDoNothing();
+          }
+        }
+
+        return { session, questions };
+      });
 
       return {
         sessionId: input.sessionId,
-        results: decoded.map(item => ({
-          instanceId: item.instanceId,
-          category: item.claims.category,
-          difficulty: item.claims.difficulty,
-          difficultyBand: item.claims.privateRecord.difficultyBand,
-          canonicalQuestionId:
-            item.claims.privateRecord.canonicalQuestionId,
-          userAnswer: item.userAnswer,
-          isCorrect: item.isCorrect,
-          correctChoiceIndex: item.claims.privateRecord.correctChoiceIndex,
-          solution: item.claims.privateRecord.solution,
-        })),
+        submittedAt: finalized.session.submittedAt ?? now,
+        results: finalized.questions.map(resultForQuestion),
       };
     }),
 
