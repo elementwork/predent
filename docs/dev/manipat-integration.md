@@ -1,80 +1,88 @@
-# ManipAT integration
+# ManipAT ↔ Predent integration
 
-Predent consumes ManipAT as a pinned local library. ManipAT is not a network
-service and must not become an HTTP dependency of the production site.
+## Boundary
 
-## Dependency boundary
+ManipAT is the canonical deterministic PAT engine. Predent consumes the pinned local ManipAT runtime from `vendor/manipat` and owns product concerns: authentication, quota, session lifecycle, timing, navigation, analytics, flashcards, and presentation.
 
-- `vendor/manipat` is a public HTTPS Git submodule pinned to one exact ManipAT
-  commit.
-- Predent server code imports only `vendor/manipat/runtime/dist/index.js`.
-- `tools/prepare-manipat-runtime.mjs` installs/builds the pinned submodule and
-  exposes the required ManipAT workspace packages plus `manifold-3d` and
-  `three` to Predent's server bundle.
-- Vercel runs the prepare script during install. GitHub Actions checks out
-  submodules, builds ManipAT before dependency integrity checks, then links the
-  built runtime before typecheck/tests/build.
-- To upgrade ManipAT, move the submodule pointer intentionally in a dedicated
-  change and re-run the full Predent release gates.
+Predent never reimplements PAT generation, scoring, solver truth, distractors, validation, or canonical SVG construction.
 
-## Security boundary
+## Distribution
 
-Active PAT clients receive only:
+`vendor/manipat` is a public HTTPS Git submodule pinned to an exact ManipAT commit. Predent CI, Docker, and Vercel build the pinned ManipAT workspace first and link the runtime locally. There is no network call to a ManipAT service at request time.
 
-- opaque encrypted `instanceId`
-- category and difficulty band
-- prompt text
-- canonical ManipAT prompt SVGs
-- answer labels/SVGs
+## Active-session trust model
 
-They do not receive the seed, canonical question id, correct choice, solution,
-validator output, or generator provenance until the session is submitted.
+PAT sessions are server-authoritative and durable:
 
-The opaque instance token is AES-256-GCM encrypted with a key derived from
-`APP_SECRET`, bound to the authenticated user and session, and expires after
-six hours. Session scoring happens exclusively in `server/pat-router.ts`.
+1. Predent asks the ManipAT runtime to generate and validate each question.
+2. Predent persists a `pat_sessions` row and one `pat_question_instances` row per issued question.
+3. The browser receives only an opaque question-instance UUID plus the safe public ManipAT DTO and the user's own answer/time/flag state.
+4. Seed, canonical question ID, correct choice, solution, and generator provenance remain in the trusted `private_record` JSONB column.
+5. Answer/time/flag progress is persisted as the user works so refresh and cross-device resume recover the open session.
+6. `submitSession` scores only persisted server state and writes attempts with database-enforced idempotency.
 
-## Product mapping
+The old encrypted client-carried private PAT record is intentionally retired for practice sessions; trusted question state no longer leaves the server before submission.
+
+## Exam timing
+
+Full Exam mode is fixed at 90 questions / 60 minutes. Predent persists an immutable `deadline_at` when the exam is issued. Progress writes after that deadline are rejected server-side, so browser refreshes, clock changes, device switches, or a modified client cannot extend the exam.
+
+Normal practice/timed sessions remain pausable. Their remaining time is reconstructed from the configured limit minus persisted per-question elapsed time.
+
+## Category mapping
 
 | Predent | ManipAT |
 | --- | --- |
-| Keyholes | `aperture` |
-| Top-Front-End | `view-recognition` |
-| Angle Ranking | `angle` |
-| Hole Punching | `paper-folding` |
-| Cube Counting | `cube-counting` |
-| Pattern Folding | `form-development` |
+| `keyholes` | `aperture` |
+| `tfe` | `view-recognition` |
+| `angle_ranking` | `angle` |
+| `hole_punching` | `paper-folding` |
+| `cube_counting` | `cube-counting` |
+| `pattern_folding` | `form-development` |
 
-Predent keeps four user-facing difficulty labels. Each label alternates between
-two adjacent ManipAT bands:
+Predent's four product difficulty labels map deterministically across ManipAT's five bands:
 
-- beginner: bands 1–2
-- intermediate: bands 2–3
-- advanced: bands 3–4
-- elite: bands 4–5
+- beginner → 1 / 2
+- intermediate → 2 / 3
+- advanced → 3 / 4
+- elite → 4 / 5
 
-The exact band is recorded/displayed for provenance but remains an engine
-concept rather than a fifth product difficulty setting.
+## Exam order
 
-## Session behavior
+The full PAT exam is fixed at 90 questions / 60 minutes with 15 questions in each category, in this order:
 
-- Quick: 10 questions.
-- Timed: 15 questions / 15 minutes.
-- Full exam: 90 questions / 60 minutes, fixed category order, 15 per category.
-- Category drill and mixed practice use the selected count.
-- Consecutive cube-counting questions are generated as ManipAT candidate groups
-  (up to three) so shared-figure behavior is retained.
-- Quota is reserved when validated questions are issued, not when an answer is
-  submitted.
-- Submitting the same session again is idempotent at the attempt-record level.
+1. Keyholes
+2. Top-Front-End
+3. Angle Ranking
+4. Hole Punching
+5. Cube Counting
+6. Pattern Folding
 
-## Single source of PAT truth
+Cube Counting preserves contiguous ManipAT candidate groups up to three questions so shared figures remain coherent.
 
-ManipAT is the only PAT generation/scoring implementation used by Predent.
-Predent's former browser generators, duplicate server generators, seed-scoring
-endpoint, and standalone PAT generation/rendering CLI have been retired.
+## Rendering and explanation safety
 
-Predent owns product concerns above the engine boundary: authentication,
-quotas, session orchestration, timing, persistence, analytics, flashcard SRS,
-responsive UI, and post-submission review. Generator/solver/validator/rendering
-truth stays in ManipAT.
+Predent renders the canonical SVG emitted by ManipAT. ManipAT rejects executable SVG content before exposure. Predent additionally validates ManipAT explanation HTML at the server trust boundary against a strict no-attributes allowlist containing only `p`, `strong`, `h4`, `ul`, and `li`, matching the current deterministic ManipAT explanation renderer.
+
+## Quota and idempotency
+
+Question quota is reserved atomically when a validated durable session is issued. Discarding a session does not refund quota.
+
+`pat_attempts` is protected by a database unique index on `(user_id, session_id, question_id)` when `session_id` is non-null. Repeated or concurrent submissions use conflict-safe insertion and cannot create duplicate attempts.
+
+## Flashcards
+
+PAT flashcards generate through the same pinned ManipAT runtime boundary. The public question is shown first; the server-sanitized ManipAT solution is revealed only after the card is flipped. DAT flashcards are unaffected.
+
+## Release gates
+
+In addition to unit/integration coverage, CI runs an authenticated PAT corpus smoke against the **compiled production server** and disposable Postgres database. It exercises all six categories, including Manifold-backed Aperture and View Recognition generation, verifies mobile SVG/choice geometry and overflow, submits through the real HTTP API, verifies review solutions, and retains screenshots as the `pat-visual-corpus` workflow artifact.
+
+## Upgrade flow
+
+1. Update ManipAT on its own branch and run ManipAT validation/tests.
+2. Merge the ManipAT change.
+3. Repin `vendor/manipat` in Predent to the exact merged ManipAT commit.
+4. Rebuild/link the runtime and run Predent's full CI/Vercel preview gates.
+5. If a Predent schema migration is included, apply it to production before promoting code that requires it.
+6. Merge Predent only after the pinned runtime, migration, CI, production-build PAT corpus, and preview deployment are all green.

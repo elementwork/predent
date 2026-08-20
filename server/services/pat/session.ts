@@ -10,9 +10,9 @@ import {
 } from "./categories";
 import {
   getPatRuntime,
-  sealPatInstance,
-  type IssuedPatQuestion,
   type PatRuntimeInfo,
+  type PrivatePatQuestionRecord,
+  type PublicPatQuestion,
 } from "./runtime";
 
 export interface CreatePatSessionRequest {
@@ -24,21 +24,29 @@ export interface CreatePatSessionRequest {
   readonly timeLimit: boolean;
 }
 
+export interface GeneratedPatSessionQuestion {
+  readonly instanceId: string;
+  readonly category: PredentPatCategory;
+  readonly difficulty: PredentPatDifficulty;
+  readonly publicQuestion: PublicPatQuestion;
+  readonly privateRecord: PrivatePatQuestionRecord;
+}
+
 export interface GeneratedPatSession {
   readonly sessionId: string;
   readonly questionCount: number;
   readonly sessionTimeLimitSeconds: number | null;
   readonly engineInfo: PatRuntimeInfo;
-  readonly questions: readonly IssuedPatQuestion[];
+  readonly questions: readonly GeneratedPatSessionQuestion[];
 }
 
-const sessionTimeLimitSeconds = (
+export const sessionTimeLimitSeconds = (
   mode: PatPracticeMode,
   count: number,
   enabled: boolean
 ): number | null => {
-  if (!enabled) return null;
   if (mode === "exam") return 60 * 60;
+  if (!enabled) return null;
   if (mode === "timed") return 15 * 60;
   return count * 40;
 };
@@ -50,7 +58,7 @@ export const generatePatSession = async (
   const plan = categoryPlan(request.mode, count, request.category);
   const runtime = await getPatRuntime();
   const sessionId = randomUUID();
-  const questions: IssuedPatQuestion[] = [];
+  const questions: GeneratedPatSessionQuestion[] = [];
 
   let position = 0;
   while (position < plan.length) {
@@ -79,14 +87,11 @@ export const generatePatSession = async (
 
       for (const item of generated.slice(0, runLength)) {
         questions.push({
-          instanceId: sealPatInstance({
-            userId: request.userId,
-            sessionId,
-            category,
-            difficulty: request.difficulty,
-            privateRecord: item.privateRecord,
-          }),
+          instanceId: randomUUID(),
+          category,
+          difficulty: request.difficulty,
           publicQuestion: item.publicQuestion,
+          privateRecord: item.privateRecord,
         });
       }
       position += Math.min(generated.length, runLength);
@@ -99,14 +104,11 @@ export const generatePatSession = async (
       difficulty: difficultyBand,
     });
     questions.push({
-      instanceId: sealPatInstance({
-        userId: request.userId,
-        sessionId,
-        category,
-        difficulty: request.difficulty,
-        privateRecord: generated.privateRecord,
-      }),
+      instanceId: randomUUID(),
+      category,
+      difficulty: request.difficulty,
       publicQuestion: generated.publicQuestion,
+      privateRecord: generated.privateRecord,
     });
     position += 1;
   }

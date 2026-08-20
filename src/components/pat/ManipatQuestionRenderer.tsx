@@ -59,8 +59,8 @@ function SvgArtwork({
     <div
       className={
         compact
-          ? "manipat-svg flex items-center justify-center [&_svg]:max-h-36 [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:w-auto"
-          : "manipat-svg flex items-center justify-center [&_svg]:max-h-72 [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:w-auto"
+          ? "manipat-svg w-full flex items-center justify-center [&_svg]:block [&_svg]:w-full [&_svg]:h-auto [&_svg]:max-h-36 [&_svg]:max-w-full"
+          : "manipat-svg w-full flex items-center justify-center [&_svg]:block [&_svg]:w-full [&_svg]:h-auto [&_svg]:max-h-72 [&_svg]:max-w-full"
       }
       dangerouslySetInnerHTML={{ __html: svg }}
     />
